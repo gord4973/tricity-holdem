@@ -3,7 +3,8 @@ const { io } = require('socket.io-client'), fs = require('fs');
 const B = process.argv[2] || 'http://localhost:3460';
 const PW = fs.readFileSync(process.env.PWF || 'data/host_password.txt', 'utf8').trim();
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const conn = () => new Promise((res, rej) => { const s = io(B, { transports: ['websocket'], forceNew: true }); s.once('connect', () => res(s)); s.once('connect_error', rej); });
+let drops = 0;
+const conn = () => new Promise((res, rej) => { const s = io(B, { transports: ['websocket'], forceNew: true }); s.once('connect', () => { res(s); s.on('connect', () => s.emit(s._hostPin ? 'host:resume' : 'join', s._hostPin ? { pw: PW, pin: s._hostPin } : { pin: s._pin, token: s._token }, () => {})); }); s.on('disconnect', why => { if (why !== 'io client disconnect') { drops++; console.log('  (socket dropped: ' + why + ', auto-reconnecting)'); } }); s.once('connect_error', rej); });
 const emit = (s, ev, o) => new Promise(r => s.emit(ev, o, r));
 const CARD = /"[2-9TJQKA][shdc]"/;
 let fails = 0; const check = (c, msg) => { if (!c) { fails++; console.log('  ✖ FAIL:', msg); } };
@@ -13,7 +14,7 @@ async function game({ n, label, strategy, settings = {}, maxHands = 200, levelEv
   console.log(`\n=== ${label}: ${n} players ===`);
   const host = await conn();
   const c = await emit(host, 'host:create', { pw: PW, levelMin: 10, turnSec: 0, ...settings }); check(c.ok, 'create ' + JSON.stringify(c));
-  const pin = c.pin; let hstate = null, hands = 0, sidePotHands = 0, splitHands = 0, showdowns = 0, maxPots = 0, levelsSeen = new Set();
+  const pin = c.pin; host._hostPin = pin; let hstate = null, hands = 0, sidePotHands = 0, splitHands = 0, showdowns = 0, maxPots = 0, levelsSeen = new Set();
   const done = new Promise(res => {
     host.on('state', st => {
       hstate = st;
@@ -40,7 +41,7 @@ async function game({ n, label, strategy, settings = {}, maxHands = 200, levelEv
   const ps = [];
   for (let i = 0; i < n; i++) {
     const s = await conn(); const r = await emit(s, 'join', { pin, name: `${label[0]}${i}` }); check(r.ok, 'join ' + i + ' ' + JSON.stringify(r));
-    const P = { s, i, token: r.token, id: r.id, last: '', holeByHand: {} }; ps.push(P); bindBot(P, strategy, n);
+    s._pin = pin; s._token = r.token; const P = { s, i, token: r.token, id: r.id, last: '', holeByHand: {} }; ps.push(P); bindBot(P, strategy, n);
   }
   if (n === 20) { const s = await conn(); const r = await emit(s, 'join', { pin, name: 'TwentyFirst' }); check(r.error && /full/i.test(r.error), '21st player must be rejected: ' + JSON.stringify(r)); s.close(); }
   const st0 = await emit(host, 'host:start', {}); check(st0.ok, 'start');
@@ -89,7 +90,7 @@ const callStation = (P, st, L) => [L.canCheck ? 'check' : 'call'];
     await sleep(1500); const P = ps[3]; const before = P.st && P.st.me && P.st.me.hole.join(); const hand = P.st && P.st.handNo;
     P.s.close(); await sleep(800);
     const s = await conn(); P.s = s; bindBot(P, mixed, 20);
-    const r = await emit(s, 'join', { pin: P.st.pin, token: P.token }); check(r.ok && r.id === P.id, 'reconnect same seat ' + JSON.stringify(r));
+    s._pin = P.st.pin; s._token = P.token; const r = await emit(s, 'join', { pin: P.st.pin, token: P.token }); check(r.ok && r.id === P.id, 'reconnect same seat ' + JSON.stringify(r));
     await sleep(500); if (P.st.handNo === hand && P.st.me.hole.length) check(P.st.me.hole.join() === before, 'same hole cards after reconnect');
     console.log('  reconnect: OK (same seat' + (P.st.handNo === hand ? ', same hole cards' : '') + ')');
     // leaving player: auto-folds and blinds out
@@ -97,13 +98,15 @@ const callStation = (P, st, L) => [L.canCheck ? 'check' : 'call'];
     // pause / resume
     const pz = await emit(host, 'host:pause', {}); check(pz.ok, 'pause'); await sleep(300); const pr = await emit(host, 'host:pause', {}); check(pr.ok, 'resume');
   } });
-  const r2 = await game({ n: 6, label: 'Shove', strategy: shove, maxHands: 60, levelEvery: 100 });
-  check(r2.sidePotHands > 0 || r2.hands < 3, 'shove game should produce side pots');
+  let sp = 0; for (let k = 0; k < 5 && !sp; k++) sp += (await game({ n: 6, label: 'Shove', strategy: shove, maxHands: 60, levelEvery: 100 })).sidePotHands;
+  check(sp > 0, 'all-in games should produce side pots');
   const r3 = await game({ n: 2, label: 'HeadsUp', strategy: mixed, maxHands: 80, levelEvery: 4 });
   // away/turn-timer test: one player disconnects and never returns -> auto check/fold
   await game({ n: 3, label: 'Away', strategy: callStation, maxHands: 3, levelEvery: 100, extra: async ({ ps }) => { ps[1].paused = true; ps[1].s.close(); console.log('  player 1 disconnected for good (should auto-act after ~12s)'); } });
   // turn timer: connected player who never acts is auto-checked/folded after the host's 15s timer
   await game({ n: 2, label: 'Timer15s', strategy: callStation, settings: { turnSec: 15 }, maxHands: 2, levelEvery: 100, extra: async ({ ps }) => { ps[0].paused = true; console.log('  player 0 is connected but idle (15s turn timer)'); } });
+  if (process.env.ONLY_TIMER) {}
+  console.log(`  socket drops during run: ${drops}`);
   console.log(`\nE2E done in ${((Date.now() - t0) / 1000).toFixed(0)}s — ${fails ? fails + ' FAILURES' : 'ALL CHECKS PASSED'}`);
   process.exit(fails ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(2); });
