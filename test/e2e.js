@@ -10,16 +10,24 @@ const CARD = /"[2-9TJQKA][shdc]"/;
 let fails = 0; const check = (c, msg) => { if (!c) { fails++; console.log('  ✖ FAIL:', msg); } };
 const inHand = st => ['preflop', 'flop', 'turn', 'river'].includes(st.stage);
 
+let orderChecks = 0, prevSt = null;
+function checkOrder(st) { // action must start at order[0] each street and move clockwise to the next player in seat order
+  const p = prevSt; prevSt = st; if (!st.toAct) return;
+  if (!p || p.handNo !== st.handNo || p.stage !== st.stage) { check(st.toAct === st.order[0], `first to act on ${st.stage} should be ${st.order[0]} got ${st.toAct}`); orderChecks++; return; }
+  if (p.toAct === st.toAct) return;
+  const ids = st.players.map(q => q.id), n = ids.length, from = ids.indexOf(p.toAct); if (from < 0) return;
+  for (let k = 1; k <= n; k++) { const id = ids[(from + k) % n]; if (st.order.includes(id)) { check(id === st.toAct, `after ${p.toAct} expected ${id} got ${st.toAct} on ${st.stage} :: ${JSON.stringify({ prevLog: p.log.slice(-4), log: st.log.slice(-4), order: st.order, prevOrder: p.order })}`); orderChecks++; return; } }
+}
 async function game({ n, label, strategy, settings = {}, maxHands = 200, levelEvery = 6, extra }) {
   console.log(`\n=== ${label}: ${n} players ===`);
   const host = await conn();
   const c = await emit(host, 'host:create', { pw: PW, levelMin: 10, turnSec: 0, ...settings }); check(c.ok, 'create ' + JSON.stringify(c));
-  const pin = c.pin; host._hostPin = pin; let hstate = null, hands = 0, sidePotHands = 0, splitHands = 0, showdowns = 0, maxPots = 0, levelsSeen = new Set();
+  prevSt = null; const pin = c.pin; host._hostPin = pin; let hstate = null, hands = 0, sidePotHands = 0, splitHands = 0, showdowns = 0, maxPots = 0, levelsSeen = new Set();
   const done = new Promise(res => {
     host.on('state', st => {
       hstate = st;
       // host never sees hole cards during a hand
-      if (inHand(st)) { check(!CARD.test(JSON.stringify(st.players)), 'host saw hole cards in hand'); check(st.result === null, 'result during hand'); }
+      if (inHand(st)) { check(!CARD.test(JSON.stringify(st.players)), 'host saw hole cards in hand'); check(st.result === null, 'result during hand'); checkOrder(st); }
       levelsSeen.add(st.blinds.join('/'));
       const total = st.players.reduce((a, p) => a + p.chips, 0) + (inHand(st) ? st.pot : 0);
       if (st.stage !== 'lobby') check(total === n * 120, `chip total ${total} != ${n * 120} (stage ${st.stage})`);
@@ -80,6 +88,7 @@ const mixed = (P, st, L) => {
   if (r < 0.43) return ['allin'];
   return [L.canCheck ? 'check' : 'call'];
 };
+const shoveSide = (P, st, L) => st.handNo <= 4 ? (P.i % 3 === st.handNo % 3 && !L.canCheck ? ['fold'] : [L.canCheck ? 'check' : 'call']) : ['allin'];
 const shove = (P, st, L) => { const r = Math.random(); return r < 0.35 ? ['allin'] : r < 0.8 ? [L.canCheck ? 'check' : 'call'] : [L.canCheck ? 'check' : 'fold']; };
 const callStation = (P, st, L) => [L.canCheck ? 'check' : 'call'];
 
@@ -98,7 +107,7 @@ const callStation = (P, st, L) => [L.canCheck ? 'check' : 'call'];
     // pause / resume
     const pz = await emit(host, 'host:pause', {}); check(pz.ok, 'pause'); await sleep(300); const pr = await emit(host, 'host:pause', {}); check(pr.ok, 'resume');
   } });
-  let sp = 0; for (let k = 0; k < 5 && !sp; k++) sp += (await game({ n: 6, label: 'Shove', strategy: shove, maxHands: 60, levelEvery: 100 })).sidePotHands;
+  let sp = 0; for (let k = 0; k < 5 && !sp; k++) sp += (await game({ n: 6, label: 'Shove', strategy: k ? shove : shoveSide, maxHands: 60, levelEvery: 100 })).sidePotHands;
   check(sp > 0, 'all-in games should produce side pots');
   const r3 = await game({ n: 2, label: 'HeadsUp', strategy: mixed, maxHands: 80, levelEvery: 4 });
   // away/turn-timer test: one player disconnects and never returns -> auto check/fold
@@ -106,7 +115,7 @@ const callStation = (P, st, L) => [L.canCheck ? 'check' : 'call'];
   // turn timer: connected player who never acts is auto-checked/folded after the host's 15s timer
   await game({ n: 2, label: 'Timer15s', strategy: callStation, settings: { turnSec: 15 }, maxHands: 2, levelEvery: 100, extra: async ({ ps }) => { ps[0].paused = true; console.log('  player 0 is connected but idle (15s turn timer)'); } });
   if (process.env.ONLY_TIMER) {}
-  console.log(`  socket drops during run: ${drops}`);
+  console.log(`  socket drops during run: ${drops}; order-of-play checks: ${orderChecks}`);
   console.log(`\nE2E done in ${((Date.now() - t0) / 1000).toFixed(0)}s — ${fails ? fails + ' FAILURES' : 'ALL CHECKS PASSED'}`);
   process.exit(fails ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(2); });

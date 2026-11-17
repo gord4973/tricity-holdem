@@ -18,3 +18,5 @@ input,select{font:inherit;padding:12px;border-radius:10px;border:2px solid #ccc;
 .chipicon{display:inline-block;width:.9em;height:.9em;border-radius:50%;background:radial-gradient(circle,#fff 0 28%,#e60012 30% 60%,#fff 62% 70%,#e60012 72%);vertical-align:-.1em;margin-right:.2em}
 .badge{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;width:1.6em;height:1.6em;font-size:.8em;font-weight:900;color:#111;background:#fff;box-shadow:0 2px 0 #0006}
 .badge.sb{background:#4fc3f7}.badge.bb{background:#ffd600}
+.bgrp{display:inline-flex;white-space:nowrap}.bgrp+.bgrp{margin-left:.32em}
+.role{display:inline-block;font-weight:900;border-radius:8px;padding:3px 9px;margin:2px;font-size:.85em;color:#111;background:#fff}.role.sb{background:#4fc3f7}.role.bb{background:#ffd600}.role.d{background:#fff}

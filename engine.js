@@ -123,7 +123,7 @@ class Table {
     this.deck = this.makeDeck ? this.makeDeck() : shuffle(newDeck(), this.rand); this.board = []; this.lastResult = null;
     for (const p of this.players) Object.assign(p, { hole: [], bet: 0, total: 0, folded: p.out, allIn: false, acted: false, lastActCount: -1, lastAction: '' });
     this.dealerSeat = this.nextSeat(this.dealerSeat, p => !p.out);
-    const headsUp = live.length === 2;
+    const headsUp = live.length === 2; this.headsUp = headsUp;
     this.sbSeat = headsUp ? this.dealerSeat : this.nextSeat(this.dealerSeat, p => !p.out);
     this.bbSeat = this.nextSeat(this.sbSeat, p => !p.out);
     // deal two cards each, starting left of the button
@@ -193,6 +193,14 @@ class Table {
     this.advanceTurn();
   }
   putIn(p, a) { a = Math.min(a, p.chips); p.chips -= a; p.bet += a; p.total += a; if (!p.chips) p.allIn = true; }
+  // seat ids in the order they act this street (clockwise), players who can still act only
+  actionOrder() {
+    if (!['preflop', 'flop', 'turn', 'river'].includes(this.stage)) return [];
+    const n = this.players.length;
+    const anchor = this.stage === 'preflop' ? (this.headsUp ? this.dealerSeat : (this.bbSeat + 1) % n) : (this.dealerSeat + 1) % n;
+    const out = []; for (let k = 0; k < n; k++) { const p = this.players[(anchor + k) % n]; if (this.canAct(p)) out.push(p.id); }
+    return out;
+  }
   potTotal() { return this.players.reduce((s, p) => s + p.total, 0); }
 
   nextStreet() {

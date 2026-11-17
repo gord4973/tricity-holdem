@@ -213,3 +213,33 @@ test('20-player random games conserve chips and finish', () => {
     assert.equal(t.players.filter(q => q.chips > 0).length, 1);
   }
 });
+
+// ---------- order of play ----------
+function playTrace(t, decide) { // returns {street: [ids in the order they acted]}
+  const tr = {}; while (['preflop', 'flop', 'turn', 'river'].includes(t.stage)) { const p = cur(t), L = t.legal(p.id); (tr[t.stage] = tr[t.stage] || []).push(p.id); const [a, amt] = decide(p, L, t); t.act(p.id, a, amt); } return tr;
+}
+test('6 players: same clockwise order every street; preflop starts left of BB, postflop left of button', () => {
+  const t = table(6); start(t); // D=0 SB=1 BB=2
+  assert.deepEqual(t.actionOrder(), ['p3', 'p4', 'p5', 'p0', 'p1', 'p2']);
+  let n = 0;
+  const tr = playTrace(t, (p, L, t) => (t.stage === 'flop' && n++ === 2) ? ['bet', 4] : [L.canCheck ? 'check' : 'call']);
+  assert.deepEqual(tr.preflop, ['p3', 'p4', 'p5', 'p0', 'p1', 'p2']);
+  // p3 bets on the flop: action continues clockwise from p3 and wraps around to p1, p2
+  assert.deepEqual(tr.flop, ['p1', 'p2', 'p3', 'p4', 'p5', 'p0', 'p1', 'p2']);
+  assert.deepEqual(tr.turn, ['p1', 'p2', 'p3', 'p4', 'p5', 'p0']);
+  assert.deepEqual(tr.river, ['p1', 'p2', 'p3', 'p4', 'p5', 'p0']);
+});
+test('order skips folded and all-in players and stays clockwise; button advances one seat per hand', () => {
+  const t = table(6, [120, 120, 120, 30, 120, 120]); start(t);
+  const tr = playTrace(t, (p, L, t) => t.stage === 'preflop' ? (p.id === 'p4' ? ['fold'] : p.id === 'p3' ? ['allin'] : [L.canCheck ? 'check' : 'call']) : [L.canCheck ? 'check' : 'call']);
+  assert.deepEqual(tr.preflop, ['p3', 'p4', 'p5', 'p0', 'p1', 'p2']);
+  for (const st of ['flop', 'turn', 'river']) assert.deepEqual(tr[st], ['p1', 'p2', 'p5', 'p0']);
+  for (let h = 0; h < 4; h++) { const d = t.dealerSeat; if (t.stage === 'gameover') break; t.startHand(); assert.equal(t.dealerSeat, t.nextSeat(d, q => !q.out)); playTrace(t, (p, L) => [L.canCheck ? 'check' : 'call']); }
+});
+test('re-raise continues clockwise from the raiser', () => {
+  const t = table(5); start(t); // D0 SB1 BB2 -> UTG p3
+  const seq = [];
+  const plan = { p3: ['raise', 6], p0: ['raise', 20] };
+  while (t.stage === 'preflop') { const p = cur(t), L = t.legal(p.id); seq.push(p.id); const a = plan[p.id]; delete plan[p.id]; t.act(p.id, ...(a || [L.canCheck ? 'check' : 'call'])); }
+  assert.deepEqual(seq, ['p3', 'p4', 'p0', 'p1', 'p2', 'p3', 'p4']);
+});

@@ -1,7 +1,10 @@
 const SUITSYM={s:'♠',h:'♥',d:'♦',c:'♣'};
 function cardHTML(c,cls=''){if(!c)return `<span class="pc empty ${cls}"></span>`;if(c==='back')return `<span class="pc back ${cls}"></span>`;
  const r=c[0]==='T'?'10':c[0],red=c[1]==='h'||c[1]==='d';return `<span class="pc ${red?'red':''} ${cls}"><span class=r>${r}</span><span class=s>${SUITSYM[c[1]]}</span></span>`}
-function boardHTML(b,win=[]){let h='';for(let i=0;i<5;i++)h+=cardHTML(b[i],b[i]&&win.length?(win.includes(b[i])?'win':'dim'):'');return h}
+function boardHTML(b,win=[]){const c=i=>cardHTML(b[i],b[i]&&win.length?(win.includes(b[i])?'win':'dim'):'');
+ return `<span class=bgrp title=Flop>${c(0)}${c(1)}${c(2)}</span><span class=bgrp title=Turn>${c(3)}</span><span class=bgrp title=River>${c(4)}</span>`}
+const STREET={preflop:'Pre-flop',flop:'Flop',turn:'Turn',river:'River'};
+function orderNote(x){if(!STREET[x.stage])return'';return x.stage==='preflop'?(x.headsUp?'Heads-up: dealer (small blind) acts first pre-flop, last after the flop':'Pre-flop: action starts left of the Big Blind'):'After the flop: action starts left of the Dealer'}
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const mmss=ms=>{ms=Math.max(0,ms);const s=Math.ceil(ms/1000);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
 function resultLines(st){const r=st.result;if(!r)return[];return r.pots.filter(p=>!p.uncalled).map(p=>`${r.pots.filter(x=>!x.uncalled).length>1?`<b>${esc(p.label)}</b> (${p.amount}): `:''}${p.winners.map(w=>esc(w.name)).join(' & ')} ${p.winners.length>1?'split':'wins'} ${p.winners.length>1?p.amount:p.winners[0].amount}${p.hand?` with <b>${esc(p.hand)}</b>`:''}`)}
