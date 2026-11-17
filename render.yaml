@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: tricity-holdem
+    runtime: node
+    plan: free
+    buildCommand: npm install --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: HOST_PIN
+        sync: false

@@ -1,0 +1,87 @@
+<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><meta name=theme-color content="#120406"><title>Tricity Hold'em</title><link rel=stylesheet href=/style.css>
+<style>
+section{min-height:100vh;min-height:100dvh;padding:12px 12px 18px;display:flex;flex-direction:column;max-width:560px;margin:0 auto}
+.hdr{display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:.95em}.hdr .pill{background:#ffffff1a;border-radius:20px;padding:5px 11px}
+.felt{background:radial-gradient(ellipse at center,#1f7a3f,#0d4a24 75%);border:5px solid #5a2b12;border-radius:60px/40px;padding:14px 8px;text-align:center;margin-top:10px;box-shadow:inset 0 0 25px #000a}
+#board{font-size:10.4vw;white-space:nowrap}@media(min-width:560px){#board{font-size:56px}}#pot{font-weight:900;font-size:1.2em;margin-top:6px}
+#res{background:#000b;border-radius:12px;padding:8px 10px;margin-top:8px;font-size:.92em;line-height:1.45;text-align:center}#res:empty{display:none}.sd{display:flex;align-items:center;gap:8px;text-align:left;padding:3px 4px;border-radius:8px;font-size:.92em;line-height:1.25}.sd .c{font-size:1.5em;white-space:nowrap}.sd.w{background:#38e07b33}
+.mine{display:flex;align-items:center;justify-content:space-between;margin-top:12px;gap:10px}#hole{font-size:17vw;white-space:nowrap}@media(min-width:560px){#hole{font-size:92px}}
+.me{text-align:right;flex:1;min-width:0}.me #mname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.me .stack{font-size:1.9em;font-weight:900}.me .hn{color:#9ef7b5;font-weight:700;font-size:.95em}
+#status{margin-top:10px;text-align:center;font-weight:900;font-size:1.15em;padding:10px;border-radius:12px;background:#ffffff14}#status.turn{background:#ffd600;color:#111;animation:pulse 1.2s infinite}@keyframes pulse{50%{box-shadow:0 0 0 6px #ffd60055}}
+.acts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px}.acts button{font-size:1.05em;padding:16px 6px}
+#rz{margin-top:10px;background:#000a;border-radius:14px;padding:12px}#rz input[type=range]{width:100%;padding:0;accent-color:#e60012;height:34px}
+.quick{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0}.quick button{padding:10px 4px;font-size:.9em}
+.rzv{display:flex;justify-content:space-between;align-items:center;font-weight:900;font-size:1.3em}.rzv input{width:110px;text-align:center;font-weight:900;font-size:1em;padding:8px}
+.plist{margin-top:12px;font-size:.88em;background:#0007;border-radius:12px;padding:6px 10px}.plist div{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #ffffff12}.plist div:last-child{border:0}
+.plist .on{color:#ffd600;font-weight:900}.plist .fo{opacity:.45}.plist .ot{opacity:.3;text-decoration:line-through}
+#log{margin-top:10px;font-size:.8em;color:#ffffffbb;line-height:1.5;background:#0006;border-radius:12px;padding:8px 10px}
+.foot{display:flex;gap:8px;margin-top:12px}.foot button{flex:1;font-size:.85em;padding:10px}
+.big{font-size:2.4em;font-weight:900}
+</style></head><body>
+<section id=j class=center><div class=logo style="font-size:3em"><span class=dia>◆</span>Tricity <b>Hold'em</b><small>Tricity Mitsubishi · play money only</small></div>
+<div class="card pop" style="width:100%;max-width:380px;margin-top:20px"><input id=pin placeholder="Game PIN" inputmode=numeric style="text-align:center;font-size:1.4em;font-weight:700"><input id=nm placeholder="Nickname" maxlength=16 style="text-align:center;font-size:1.4em;font-weight:700;margin-top:10px"><button class=red style="width:100%;margin-top:10px;font-size:1.3em" onclick=join()>Take a seat ♠</button><div id=err style="color:#e60012;margin-top:8px"></div></div>
+<p style="color:#ffffff99;font-size:.85em;max-width:340px">Free play-money game. Everyone starts with 120 chips. No real money, no buy-in.</p></section>
+<section id=w class="center hidden"><div class="big pop">You're in! ♠♥♦♣</div><p id=me style="font-size:1.4em;font-weight:700"></p><p>Find your name on the big screen.<br>The host will deal soon…</p><p id=wcount style="color:#ffffffaa"></p><button class=ghost onclick=leave()>Leave</button></section>
+<section id=g class=hidden>
+<div class=hdr><span class=pill>Blinds <b id=bl></b></span><span class=pill id=hn></span><span class=pill id=nxt></span></div>
+<div class=felt><div id=board></div><div id=pot></div><div id=res></div></div>
+<div class=mine><div id=hole></div><div class=me><div id=mname style="font-weight:700"></div><div class=stack><span class=chipicon></span><span id=stack></span></div><div id=mbet style="font-size:.9em;color:#ffd600"></div><div class=hn id=myhand></div></div></div>
+<div id=status></div>
+<div id=actbox class=hidden><div class=acts><button class=red id=bFold onclick="act('fold')">Fold</button><button class=green id=bCall onclick=callCheck()>Check</button><button class=blue id=bRaise onclick=toggleRz()>Raise</button></div>
+<div id=rz class=hidden><div class=rzv><span id=rzl>Raise to</span><input id=rzn type=number inputmode=numeric></div><input type=range id=rzr oninput="$('rzn').value=this.value">
+<div class=quick><button class=dark onclick=q('min')>Min</button><button class=dark onclick=q('half')>½ Pot</button><button class=dark onclick=q('pot')>Pot</button><button class=red onclick=q('all')>All-in</button></div>
+<button class=gold id=bConfirm style="width:100%;font-size:1.15em" onclick=doRaise()>Raise</button></div></div>
+<div class=plist id=plist></div><div id=log></div>
+<div class=foot><button class=ghost id=bSit onclick=sit()>Sit out</button><button class=ghost onclick=leave()>Leave table</button></div></section>
+<section id=out class="center hidden"><div class="big pop">Thanks for playing!</div><p id=outmsg></p><button class=red onclick="location.href='/'">Join another game</button></section>
+<script src=/socket.io/socket.io.js></script><script src=/cards.js></script><script>
+const s=io(),$=id=>document.getElementById(id);let st=null,offset=0,lastTurnKey='',rzOpen=false;
+const m=location.pathname.match(/\/j\/(\d+)/);if(m){$('pin').value=m[1]}
+let sess=JSON.parse(localStorage.getItem('holdemSeat')||'null');
+function show(id){['j','w','g','out'].forEach(x=>$(x).classList.toggle('hidden',x!==id))}
+function join(){const pin=$('pin').value.trim(),name=$('nm').value;$('err').textContent='';
+ s.emit('join',{pin,name},r=>{if(r.error)return $('err').textContent=r.error;sess={pin,token:r.token,name:r.name};localStorage.setItem('holdemSeat',JSON.stringify(sess));$('me').textContent=r.name})}
+function rejoin(){if(!sess||(m&&m[1]!==sess.pin))return;s.emit('join',{pin:sess.pin,token:sess.token},r=>{if(r.error){localStorage.removeItem('holdemSeat');sess=null;show('j')}else $('me').textContent=r.name})}
+s.on('connect',rejoin);s.on('kicked',msg=>{localStorage.removeItem('holdemSeat');sess=null;show('out');$('outmsg').textContent=msg||'You were removed from the table.'});
+function leave(){if(!confirm('Leave the table? Your hands will be folded.'))return;s.emit('leave',{},()=>{});localStorage.removeItem('holdemSeat');sess=null;show('out');$('outmsg').textContent='You left the table.'}
+function sit(){s.emit('sitout',{on:!(st&&st.me&&st.me.sittingOut)},()=>{})}
+function act(a,amount){s.emit('act',{action:a,amount},r=>{if(r.error)toast(r.error)});rzOpen=false}
+function callCheck(){const L=st.me.legal;act(L.toCall?'call':'check')}
+function toggleRz(){rzOpen=!rzOpen;if(rzOpen)q('min');render()}
+function q(k){const x=st,L=x.me.legal,pot=x.pot,v=k==='min'?L.minTo:k==='all'?L.maxTo:k==='half'?x.currentBet+Math.floor((pot+L.toCall)/2):x.currentBet+pot+L.toCall;
+ const val=Math.max(L.minTo,Math.min(L.maxTo,v));$('rzr').value=val;$('rzn').value=val}
+function doRaise(){const L=st.me.legal,v=+$('rzn').value;if(v>=L.maxTo)return act('allin');act(L.isBet?'bet':'raise',v)}
+s.on('state',x=>{st=x;offset=Date.now()-x.serverNow;render()});
+function render(){const x=st;if(!x||!x.me)return;const me=x.players.find(p=>p.id===x.me.id);if(!me)return;
+ if(x.stage==='lobby'){show('w');$('me').textContent=me.name;$('wcount').textContent=x.players.length+' player'+(x.players.length>1?'s':'')+' at the table';return}
+ show('g');$('bl').textContent=x.blinds.join('/');$('hn').textContent=x.stage==='gameover'?'Game over':'Hand #'+x.handNo;
+ const winIds=new Set();if(x.result)x.result.pots.forEach(p=>!p.uncalled&&p.winners.forEach(w=>winIds.add(w.id)));
+ let win5=[];if(x.result&&!x.result.byFold){const w=x.result.shown.find(s=>winIds.has(s.id));if(w)win5=w.best}
+ const done=['handover','gameover'].includes(x.stage);
+ $('board').innerHTML=boardHTML(x.board,done?win5:[]);$('pot').innerHTML=x.pot?`<span class=chipicon></span>Pot ${x.pot}${x.currentBet?` · bet ${x.currentBet}`:''}`:'';
+ let rl=resultLines(x);if(x.stage==='gameover')rl.unshift(`🏆 <b>${esc(x.winner)}</b> wins the game!`);
+ if(x.result&&!x.result.byFold&&done)rl.push(x.result.shown.map(s=>`<div class="sd ${winIds.has(s.id)?'w':''}"><span class=c>${s.hole.map(c=>cardHTML(c)).join('')}</span><span><b>${esc(s.name)}</b><br>${esc(s.hand)}</span></div>`).join(''));
+ $('res').innerHTML=rl.join('<br>');
+ $('hole').innerHTML=x.me.hole.length?x.me.hole.map(c=>cardHTML(c,'deal'+(done&&win5.length?(win5.includes(c)?' win':''):'')+(me.folded?' dim':''))).join(''):'';
+ $('mname').textContent=me.name;$('stack').textContent=me.chips;$('mbet').textContent=me.bet?`In this round: ${me.bet}`:'';
+ const myShown=me.shown&&me.shown.hand;$('myhand').textContent=myShown||'';
+ const L=x.me.legal,cur=x.players.find(p=>p.id===x.toAct);
+ let msg;if(me.out)msg='You are out of chips - enjoy watching!';else if(x.stage==='gameover')msg=x.winner===me.name?'🏆 You won the game!':'Game over';
+ else if(L)msg=L.toCall?`Your turn - ${L.toCall} to call`:'Your turn';else if(done)msg=winIds.has(me.id)?'🎉 You win!':(x.paused?'Paused by host':'Next hand coming up…');
+ else if(me.folded)msg=`You folded · ${cur?esc(cur.name)+' to act':''}`;else if(me.allIn)msg=`You're all-in! ${cur?'· '+esc(cur.name)+' to act':''}`;else msg=cur?`Waiting for ${esc(cur.name)}…`:'…';
+ if(x.me.sittingOut&&!me.out)msg+=' (sitting out)';
+ $('status').innerHTML=msg+'<span id=tl></span>';$('status').className=L?'turn':'';
+ $('actbox').classList.toggle('hidden',!L);
+ if(L){const k=x.handNo+':'+x.stage+':'+x.seq;if(k!==lastTurnKey){lastTurnKey=k;navigator.vibrate&&navigator.vibrate([120,60,120])}
+  $('bFold').disabled=false;$('bCall').textContent=L.toCall?(L.toCall>=L.chips?`All-in ${L.toCall}`:`Call ${L.toCall}`):'Check';
+  $('bRaise').disabled=!L.canRaise;$('bRaise').textContent=L.isBet?'Bet':'Raise';
+  $('rz').classList.toggle('hidden',!rzOpen||!L.canRaise);$('rzr').min=L.minTo;$('rzr').max=L.maxTo;$('rzl').textContent=L.isBet?'Bet':'Raise to';$('bConfirm').textContent=L.isBet?'Bet':'Raise to';
+  if(!$('rzn').value||+$('rzn').value<L.minTo||+$('rzn').value>L.maxTo)q('min')}else{rzOpen=false;$('rzn').value=''}
+ $('plist').innerHTML=x.players.map(p=>`<div class="${p.id===x.toAct?'on':''} ${p.folded?'fo':''} ${p.out?'ot':''}"><span>${x.dealer===p.id?'Ⓓ ':''}${esc(p.name)}${p.id===me.id?' (you)':''}${(!p.connected||p.sittingOut)&&!p.out?' 💤':''}</span><span>${p.shown?esc(p.shown.hand)+' · ':''}${p.out?'out':p.folded?'folded':p.allIn?'ALL-IN':esc(p.lastAction||'')} · ${p.chips}</span></div>`).join('');
+ $('log').innerHTML=x.log.slice(-6).map(esc).join('<br>');$('bSit').textContent=x.me.sittingOut?"I'm back":'Sit out';tick()}
+$('rzn').addEventListener('input',()=>{$('rzr').value=$('rzn').value});
+function tick(){if(!st||st.stage==='lobby')return;const now=Date.now()-offset,x=st;
+ const rem=x.paused?x.levelRemaining:x.levelRemaining-(now-x.serverNow);$('nxt').textContent=x.paused?'⏸ Paused':x.levelUp?`Next: ${x.nextBlinds.join('/')}`:`${x.upcoming.join('/')} in ${mmss(rem)}`;
+ const tl=$('tl');if(tl)tl.textContent=x.turnDeadline&&x.toAct?` · ⏱ ${Math.max(0,Math.ceil((x.turnDeadline-now)/1000))}s`:''}
+setInterval(tick,500);
+</script></body></html>

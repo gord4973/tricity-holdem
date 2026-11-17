@@ -1,0 +1,20 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700;900&display=swap');
+*{box-sizing:border-box}html,body{margin:0}
+body{font-family:Montserrat,system-ui,sans-serif;color:#fff;min-height:100vh;background:radial-gradient(ellipse at top,#3a0a10,#120406 60%,#000)}
+button,.btn{font:inherit;font-weight:700;border:0;border-radius:10px;padding:12px 18px;cursor:pointer;background:#333;color:#fff;box-shadow:0 4px 0 #0006;transition:transform .08s}
+button:active{transform:translateY(3px);box-shadow:0 1px 0 #0006}button:disabled{opacity:.35;cursor:default}
+.green{background:#1e8a3c}.red{background:#e60012}.blue{background:#1368ce}.gold{background:#d89e00;color:#111}.ghost{background:#ffffff22}.dark{background:#222}
+input,select{font:inherit;padding:12px;border-radius:10px;border:2px solid #ccc;width:100%;color:#111;background:#fff}
+.card{background:#fff;color:#222;border-radius:16px;padding:20px;box-shadow:0 10px 30px #0006}
+.hidden{display:none!important}.center{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.logo{font-weight:900;font-size:2em;letter-spacing:-1px;line-height:1}.logo b{color:#e60012}.logo small{display:block;font-size:.32em;letter-spacing:2px;font-weight:700;color:#ffffffaa;margin-top:4px;text-transform:uppercase}
+.logo .dia{display:inline-block;color:#e60012;margin-right:6px}
+.pop{animation:pop .4s cubic-bezier(.2,1.6,.4,1)}@keyframes pop{from{transform:scale(.6);opacity:.3}to{transform:none;opacity:1}}
+/* playing cards */
+.pc{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;color:#111;border-radius:.16em;width:1.6em;height:2.25em;font-weight:900;line-height:1;box-shadow:0 .05em .12em #0008;vertical-align:middle;margin:0 .06em;position:relative}
+.pc .r{font-size:.9em}.pc .s{font-size:.85em}.pc.red{color:#d40015}.pc.back{background:repeating-linear-gradient(45deg,#e60012 0 .12em,#a3000d .12em .24em);border:.08em solid #fff}
+.pc.empty{background:#ffffff14;box-shadow:inset 0 0 0 .05em #ffffff44}.pc.win{outline:.09em solid #ffd600;outline-offset:.02em}.pc.dim{opacity:.45}
+.deal{animation:deal .35s ease-out}@keyframes deal{from{transform:translateY(-.6em) rotate(-8deg);opacity:0}to{transform:none;opacity:1}}
+.chipicon{display:inline-block;width:.9em;height:.9em;border-radius:50%;background:radial-gradient(circle,#fff 0 28%,#e60012 30% 60%,#fff 62% 70%,#e60012 72%);vertical-align:-.1em;margin-right:.2em}
+.badge{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;width:1.6em;height:1.6em;font-size:.8em;font-weight:900;color:#111;background:#fff;box-shadow:0 2px 0 #0006}
+.badge.sb{background:#4fc3f7}.badge.bb{background:#ffd600}

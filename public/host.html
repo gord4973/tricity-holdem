@@ -1,0 +1,87 @@
+<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Tricity Hold'em - Host</title><link rel=stylesheet href=/style.css>
+<style>
+body{overflow:hidden}section{position:fixed;inset:0;padding:2.5vh 2.5vw;display:flex;flex-direction:column}
+.top{display:flex;justify-content:space-between;align-items:center;gap:2vw}
+#login .card{width:min(480px,92vw)}#login label{display:block;text-align:left;font-weight:700;margin:14px 0 6px}
+.join{display:flex;gap:4vw;align-items:center;justify-content:center;margin-top:2vh}.url{font-size:3.6vw;font-weight:900;background:#fff;color:#a3000d;padding:1vh 2vw;border-radius:16px}.pin{font-size:9vw;font-weight:900;letter-spacing:.5vw;line-height:1}
+#qr{background:#fff;padding:10px;border-radius:12px;width:24vh;height:24vh}
+#plist{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:2vh;overflow:auto;flex:1;align-content:flex-start}#plist span{background:#ffffff22;padding:8px 16px;border-radius:30px;font-weight:700;font-size:2.4vh;cursor:pointer}#plist span.off{opacity:.45}
+/* table */
+#tbl{padding:1.5vh 1.5vw}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:1.2vw;font-size:2.2vh}
+.clock{background:#000a;border:2px solid #ffffff33;border-radius:14px;padding:.8vh 1.6vw;text-align:center}.clock b{font-size:3.4vh;display:block}.clock small{color:#ffffffaa}
+.ctrls button{font-size:1.9vh;padding:1vh 1.2vw}
+.felt{position:relative;flex:1;margin-top:1vh}
+.oval{position:absolute;left:9vw;right:9vw;top:9vh;bottom:9vh;border-radius:50%;background:radial-gradient(ellipse at center,#1f7a3f,#0d4a24 70%,#08331a);border:1.4vh solid #5a2b12;box-shadow:inset 0 0 6vh #000a,0 1.5vh 4vh #000c}
+.mid{position:absolute;left:50%;top:50%;transform:translate(-50%,-54%);text-align:center;width:46vw}
+#board{font-size:8vh}#pot{font-size:3.4vh;font-weight:900;margin-top:1vh}#res{margin-top:1vh;font-size:2.3vh;background:#000b;border-radius:12px;padding:1vh 1.4vw;line-height:1.5}#res:empty{display:none}
+#hlog{position:absolute;right:0;bottom:0;width:21vw;font-size:1.5vh;color:#ffffffcc;background:#0008;border-radius:10px;padding:.8vh .8vw;line-height:1.45;max-height:26vh;overflow:hidden}
+.seat{position:absolute;transform:translate(-50%,-50%);width:10.4vw;min-height:9vh;background:#111d;border:.3vh solid #ffffff33;border-radius:1.4vh;padding:.6vh .5vw;text-align:center;font-size:1.75vh;transition:all .2s}
+.seat .nm{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:1.9vh}.seat .st{font-weight:700}.seat .cards{font-size:2.5vh;height:6vh;margin:.3vh 0;display:flex;justify-content:center;align-items:center}.seat .cards .pc{font-size:2.5vh}.seat.showcards .cards .pc{font-size:2.6vh}
+.seat .act{font-size:1.5vh;color:#ffd600;min-height:1.8vh;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.seat .hand{font-size:1.45vh;color:#9ef7b5;font-weight:700}
+.seat.acting{border-color:#ffd600;box-shadow:0 0 0 .4vh #ffd60088,0 0 3vh #ffd600aa;transform:translate(-50%,-50%) scale(1.07)}
+.seat.folded{opacity:.42}.seat.out{opacity:.25;filter:grayscale(1)}.seat.winner{border-color:#38e07b;box-shadow:0 0 3vh #38e07bcc}
+.seat .badges{position:absolute;top:-1.4vh;left:-1vh;display:flex;gap:.3vh;font-size:2vh}.seat .tag{position:absolute;top:-1.3vh;right:-.6vh;font-size:1.3vh;font-weight:900;border-radius:6px;padding:.2vh .5vh;background:#e60012}.seat .tag.away{background:#666}
+.betchip{position:absolute;transform:translate(-50%,-50%);font-weight:900;font-size:1.9vh;background:#000c;border-radius:20px;padding:.3vh .8vh;white-space:nowrap}
+.tbar{height:.6vh;background:#ffffff22;border-radius:9px;overflow:hidden;margin-top:.3vh}.tbar i{display:block;height:100%;background:#ffd600}
+#over{background:#000c;z-index:5}#over .big{font-size:9vh;font-weight:900}
+</style></head><body>
+<section id=login class=center><div class=logo style="font-size:4em"><span class=dia>◆</span>Tricity <b>Hold'em</b><small>Tricity Mitsubishi · play money only</small></div>
+<div class="card pop" style="margin-top:3vh"><label>Host PIN</label><input id=pw type=password inputmode=numeric autocomplete=current-password>
+<label>Blind level length (minutes)</label><input id=lvl type=number min=1 max=120 value=10>
+<label>Player turn timer</label><select id=tt><option value=0>Off</option><option value=15>15 seconds</option><option value=20>20 seconds</option><option value=30>30 seconds</option><option value=45>45 seconds</option><option value=60>60 seconds</option><option value=90>90 seconds</option></select>
+<p style="color:#555;font-size:.85em;text-align:left">Up to 20 players · everyone starts with 120 chips · blinds 1/2, 2/4, 5/10, 10/20, 20/40, 50/100…</p>
+<button class=red style="width:100%;font-size:1.2em" onclick=create()>Create table ▶</button><div id=lerr style="color:#e60012;margin-top:8px"></div>
+<div id=resumeBox class=hidden style="margin-top:10px"><button class=dark style="width:100%" onclick=resume()>Return to table <span id=rpin></span></button></div></div></section>
+
+<section id=lobby class=hidden><div class=top><div class=logo><span class=dia>◆</span>Tricity <b>Hold'em</b><small>Tricity Mitsubishi · play money only</small></div><div id=lset style="font-size:2.4vh;font-weight:700;text-align:right"></div></div>
+<div class="join pop"><div class=center><div style="font-size:2.6vh">Join on your phone at</div><div class=url id=url></div><div style="font-size:2.6vh;margin-top:2vh">Game PIN</div><div class=pin id=pin>····</div></div><img id=qr alt="QR code"></div>
+<div class=top style="margin-top:2vh"><div style="font-size:3vh;font-weight:900">👥 <span id=pcount>0</span> / 20 players <span style="font-size:.6em;font-weight:500;color:#ffffffaa">(tap a name to remove)</span></div><button id=startBtn class=green style="font-size:3vh" onclick="cmd('host:start')">Shuffle up &amp; deal ▶</button></div><div id=plist></div></section>
+
+<section id=tbl class=hidden><div class=bar><div class=logo style="font-size:4vh"><span class=dia>◆</span>Tricity <b>Hold'em</b></div>
+<div class=clock><small>BLINDS · LEVEL <span id=lvn></span></small><b id=bl></b><small id=nx></small></div>
+<div class=clock><small>JOIN PIN</small><b id=pin2></b><small id=hand></small></div>
+<div class=ctrls><button id=pauseBtn class=gold onclick="cmd('host:pause')">⏸ Pause</button> <button class=blue onclick="if(confirm('Raise the blinds to the next level now? (applies from the next hand)'))cmd('host:nextLevel')">⏫ Next blind level</button> <button id=dealBtn class=green onclick="cmd('host:deal')">🂠 Deal next hand</button></div></div>
+<div class=felt id=felt><div class=oval></div><div class=mid><div id=board></div><div id=pot></div><div id=res></div></div><div id=hlog></div></div></section>
+
+<section id=over class="center hidden"><div class="big pop">🏆 <span id=wname></span> wins!</div><p style="font-size:3vh">Thanks for playing Tricity Hold'em</p>
+<div style="display:flex;gap:2vw"><button class=green style="font-size:3vh" onclick="cmd('host:playAgain')">Play again (everyone back to 120)</button><button class=dark style="font-size:3vh" onclick="localStorage.removeItem('holdemHostPin');location.reload()">New table</button></div></section>
+<script src=/socket.io/socket.io.js></script><script src=/cards.js></script><script>
+const s=io(),$=id=>document.getElementById(id);let st=null,PIN=localStorage.getItem('holdemHostPin'),offset=0;
+const pwv=()=>sessionStorage.getItem('holdemPw')||$('pw').value;
+function show(id){['login','lobby','tbl','over'].forEach(x=>$(x).classList.toggle('hidden',x!==id&&!(id==='over'&&x==='tbl')))}
+if(PIN){$('resumeBox').classList.remove('hidden');$('rpin').textContent='#'+PIN}
+function create(){s.emit('host:create',{pw:$('pw').value,levelMin:$('lvl').value,turnSec:$('tt').value},r=>{if(r.error)return $('lerr').textContent=r.error;sessionStorage.setItem('holdemPw',$('pw').value);PIN=r.pin;localStorage.setItem('holdemHostPin',PIN)})}
+function resume(){s.emit('host:resume',{pw:pwv(),pin:PIN},r=>{if(r.error){$('lerr').textContent=r.error==='Game not found'?'That table has ended (server restarted). Create a new one.':r.error;$('resumeBox').classList.add('hidden');localStorage.removeItem('holdemHostPin')}else sessionStorage.setItem('holdemPw',pwv())})}
+s.on('connect',()=>{if(PIN&&sessionStorage.getItem('holdemPw'))resume()});
+function cmd(ev,o={}){s.emit(ev,o,r=>{if(r&&r.error)toast(r.error)})}
+setInterval(()=>fetch('/healthz').catch(()=>{}),240000); // keep the free server awake while hosting
+s.on('state',x=>{st=x;offset=Date.now()-x.serverNow;render()});
+function render(){const x=st;if(!x)return;
+ if(x.stage==='lobby'){show('lobby');const u=location.host;$('url').textContent=u;$('pin').textContent=x.pin;$('qr').src='/api/qr?u='+encodeURIComponent(location.origin+'/j/'+x.pin);
+  $('pcount').textContent=x.players.length;$('plist').innerHTML=x.players.map(p=>`<span class="pop ${p.connected?'':'off'}" onclick="if(confirm('Remove ${esc(p.name).replace(/'/g,'')}?'))cmd('host:kick',{id:'${p.id}'})">${esc(p.name)}</span>`).join('');
+  $('lset').innerHTML=`Blind levels: ${x.settings.levelMin} min<br>Turn timer: ${x.settings.turnSec?x.settings.turnSec+'s':'off'}<br>Starting stack: 120 chips`;$('startBtn').disabled=x.players.length<2;return}
+ show(x.stage==='gameover'?'over':'tbl');if(x.stage==='gameover')$('wname').textContent=x.winner||'';
+ $('lvn').textContent=x.handLevel;$('bl').textContent=x.blinds.join(' / ');$('pin2').textContent=x.pin;$('hand').textContent='Hand #'+x.handNo;
+ $('pauseBtn').textContent=x.paused?'▶ Resume':'⏸ Pause';$('pauseBtn').className=x.paused?'green':'gold';$('dealBtn').disabled=x.stage!=='handover';
+ const winIds=new Set(),win5=[];if(x.result)x.result.pots.forEach(p=>!p.uncalled&&p.winners.forEach(w=>winIds.add(w.id)));
+ if(x.result&&!x.result.byFold){const w=x.result.shown.find(s=>winIds.has(s.id));if(w)win5.push(...w.best)}
+ $('board').innerHTML=boardHTML(x.board,x.stage==='handover'||x.stage==='gameover'?win5:[]);
+ $('pot').innerHTML=x.pot?`<span class=chipicon></span>Pot ${x.pot}`:'';
+ const rl=resultLines(x);$('res').innerHTML=rl.length?rl.join('<br>'):'';
+ $('hlog').innerHTML=x.log.slice(-9).map(esc).join('<br>');
+ seats(x,winIds,win5);tick()}
+function seats(x,winIds,win5){const f=$('felt');f.querySelectorAll('.seat,.betchip').forEach(e=>e.remove());const n=x.players.length,W=f.clientWidth,Hh=f.clientHeight;
+ x.players.forEach((p,i)=>{const a=Math.PI/2+2*Math.PI*i/n,cx=W/2+Math.cos(a)*W*0.45,cy=Hh/2+Math.sin(a)*Hh*0.43;
+  const d=document.createElement('div');d.className='seat'+(x.toAct===p.id?' acting':'')+(p.folded?' folded':'')+(p.out?' out':'')+(winIds.has(p.id)&&x.result?' winner':'');d.style.left=cx+'px';d.style.top=cy+'px';
+  const b=[];if(x.dealer===p.id)b.push('<span class=badge>D</span>');if(x.sb===p.id)b.push('<span class="badge sb">SB</span>');if(x.bb===p.id)b.push('<span class="badge bb">BB</span>');
+  const cards=p.shown?p.shown.hole.map(c=>cardHTML(c,win5.includes(c)?'win':'')).join(''):p.hasCards?cardHTML('back')+cardHTML('back'):'';
+  const tag=p.out?'<span class=tag style="background:#444">OUT</span>':p.allIn?'<span class=tag>ALL-IN</span>':(!p.connected||p.sittingOut)?'<span class="tag away">AWAY</span>':'';
+  d.innerHTML=`<div class=badges>${b.join('')}</div>${tag}<div class=nm>${esc(p.name)}</div><div class=cards>${cards}</div><div class=st><span class=chipicon></span>${p.chips}</div><div class=act>${p.shown?`<span class=hand>${esc(p.shown.hand)}</span>`:esc(p.folded?'Folded':p.lastAction||'')}</div>${x.toAct===p.id&&x.turnDeadline?'<div class=tbar><i id=tb></i></div>':''}`;f.appendChild(d);
+  if(p.bet>0){const c=document.createElement('div');c.className='betchip';c.innerHTML=`<span class=chipicon></span>${p.bet}`;c.style.left=(W/2+Math.cos(a)*W*0.31)+'px';c.style.top=(Hh/2+Math.sin(a)*Hh*0.27)+'px';f.appendChild(c)}})}
+function tick(){if(!st)return;const now=Date.now()-offset,x=st;
+ if(x.stage!=='lobby'){const rem=x.paused?x.levelRemaining:x.levelRemaining-(now-x.serverNow);
+  $('nx').textContent=x.paused?'⏸ PAUSED':x.levelUp?`${x.nextBlinds.join('/')} from next hand`:`${x.upcoming.join('/')} in ${mmss(rem)}`;
+  const tb=$('tb');if(tb&&x.turnDeadline){const tot=x.turnMs||1;tb.style.width=Math.max(0,Math.min(100,(x.turnDeadline-now)/tot*100))+'%'}}}
+setInterval(tick,250);addEventListener('resize',render);
+</script></body></html>
