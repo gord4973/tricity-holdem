@@ -1,4 +1,4 @@
-const P=require('/workspace/quiz-app/node_modules/puppeteer-core'),fs=require('fs'),{io}=require('socket.io-client');
+const P=require('puppeteer-core'),fs=require('fs'),{io}=require('socket.io-client');
 const B=process.argv[2]||'http://localhost:3460',PW=fs.readFileSync(process.env.PWF||'data/host_password.txt','utf8').trim(),N=+(process.env.N||11);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{const b=await P.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});const h=await b.newPage();await h.setViewport({width:1920,height:1080});

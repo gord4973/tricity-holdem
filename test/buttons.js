@@ -1,5 +1,5 @@
 // Browser check of the +5/+10/+20/~10 bet buttons: node test/buttons.js <base>  (PWF = host PIN file)
-const P=require('/workspace/quiz-app/node_modules/puppeteer-core'),fs=require('fs'),{io}=require('socket.io-client');
+const P=require('puppeteer-core'),fs=require('fs'),{io}=require('socket.io-client');
 const B=process.argv[2]||'http://localhost:3460',PW=fs.readFileSync(process.env.PWF||'data/host_password.txt','utf8').trim();
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));let fails=0;const ok=(c,m)=>{console.log((c?'  ✓ ':'  ✖ FAIL ')+m);if(!c)fails++};
 (async()=>{const b=await P.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});

@@ -10,7 +10,7 @@ const PW = (process.env.HOST_PIN || fs.readFileSync(PWF, 'utf8')).trim();
 const pwOk = pw => typeof pw === 'string' && pw.length === PW.length && crypto.timingSafeEqual(Buffer.from(pw), Buffer.from(PW));
 
 const VER = (process.env.RENDER_GIT_COMMIT || String(Date.now())).slice(0, 10);
-const html = f => { const src = fs.readFileSync(path.join(__dirname, 'public', f), 'utf8').replace(/(href|src)=\/(style\.css|cards\.js)/g, `$1=/$2?v=${VER}`); return (q, r) => { r.set('Cache-Control', 'no-store, max-age=0'); r.type('html').send(src); }; };
+const html = f => { const src = fs.readFileSync(path.join(__dirname, 'public', f), 'utf8').replace(/(href|src)=\/(style\.css|cards\.js|voice\.js)/g, `$1=/$2?v=${VER}`); return (q, r) => { r.set('Cache-Control', 'no-store, max-age=0'); r.type('html').send(src); }; };
 app.use(express.json());
 app.get(['/', '/play', '/j/:pin'], html('play.html'));
 app.get('/host', html('host.html'));
@@ -44,7 +44,7 @@ function publicView(R) {
     board: t.board, pot: t.potTotal ? (inHand || t.stage === 'showdown' ? t.potTotal() : 0) : 0, currentBet: inHand ? t.currentBet : 0,
     dealer: t.players[t.dealerSeat] ? t.players[t.dealerSeat].id : null, sb: t.handNo && t.players[t.sbSeat] ? t.players[t.sbSeat].id : null, bb: t.handNo && t.players[t.bbSeat] ? t.players[t.bbSeat].id : null, order: t.actionOrder(), headsUp: !!t.headsUp,
     toAct: cur ? cur.id : null, turnDeadline: R.turnDeadline || null,
-    players: t.players.map(p => { const s = R.seats[p.id] || {}; return { id: p.id, name: p.name, chips: p.chips, bet: p.bet, folded: p.folded && !p.out, allIn: p.allIn, out: p.out, sittingOut: !!s.sittingOut, connected: !!s.sid, lastAction: p.lastAction, hasCards: inHand && p.hole.length === 2 && !p.folded, shown: shown[p.id] ? { hole: shown[p.id].hole, hand: shown[p.id].hand, best: shown[p.id].best } : null }; }),
+    players: t.players.map(p => { const s = R.seats[p.id] || {}; return { id: p.id, name: p.name, chips: p.chips, bet: p.bet, folded: p.folded && !p.out, allIn: p.allIn, out: p.out, sittingOut: !!s.sittingOut, connected: !!s.sid, mic: !!(s.sid && s.mic), speaking: !!(s.sid && s.mic && s.speaking), lastAction: p.lastAction, hasCards: inHand && p.hole.length === 2 && !p.folded, shown: shown[p.id] ? { hole: shown[p.id].hole, hand: shown[p.id].hand, best: shown[p.id].best } : null }; }),
     log: t.log.slice(-14), seq: t.seq || 0, result: inHand ? null : t.lastResult, winner: t.stage === 'gameover' ? t.winner : null, endedByHost: t.stage === 'gameover' && !!t.endedByHost, standings: t.stage === 'gameover' ? t.standings() : null, nextHandAt: R.nextHandAt || null,
   };
 }
@@ -57,6 +57,9 @@ function broadcast(R) {
     io.to(s.sid).emit('state', { ...pub, me: { id, hole: p.hole, legal: R.table.legal(id), sittingOut: !!s.sittingOut } });
   }
 }
+function voicePeers(R, id) { return Object.keys(R.seats).filter(k => k !== id && R.seats[k].sid); }
+function voiceUpdate(R, id) { const st = R.seats[id]; if (!st) return; const v = { id, mic: !!(st.sid && st.mic), speaking: !!(st.sid && st.mic && st.speaking) };
+  if (R.hostSid) io.to(R.hostSid).emit('voice', v); for (const k in R.seats) if (R.seats[k].sid) io.to(R.seats[k].sid).emit('voice', v); }
 function clear(R, k) { clearTimeout(R.timers[k]); delete R.timers[k]; }
 
 function armTurn(R) {
@@ -138,7 +141,7 @@ io.on('connection', s => {
     const R = rooms[String(o.pin || '').trim()]; if (!R) return err(cb, 'Game not found - check the PIN');
     if (o.token) { // reconnect to the same seat
       const id = Object.keys(R.seats).find(k => R.seats[k].token === o.token);
-      if (id) { const st = R.seats[id]; if (st.sid && st.sid !== s.id) io.to(st.sid).emit('kicked', 'Opened on another device'); st.sid = s.id; s.data.pin = R.pin; s.data.pid = id; R.table.addLog(`${R.table.get(id).name} reconnected`); ok(cb, { token: o.token, id, name: R.table.get(id).name }); return after(R); }
+      if (id) { const st = R.seats[id]; if (st.sid && st.sid !== s.id) io.to(st.sid).emit('kicked', 'Opened on another device'); st.sid = s.id; st.mic = false; st.speaking = false; s.data.pin = R.pin; s.data.pid = id; R.table.addLog(`${R.table.get(id).name} reconnected`); voiceUpdate(R, id); ok(cb, { token: o.token, id, name: R.table.get(id).name }); return after(R); }
       if (!o.name) return err(cb, 'Session expired - please join again');
     }
     const name = String(o.name || '').replace(/\s+/g, ' ').trim().slice(0, 16);
@@ -156,11 +159,21 @@ io.on('connection', s => {
   P('leave', (R, id) => {
     const t = R.table, p = t.get(id);
     if (t.stage === 'lobby') { t.removePlayer(id); delete R.seats[id]; }
-    else { R.seats[id].sittingOut = true; R.seats[id].sid = null; t.addLog(`${p.name} left the table`); const L = t.legal(id); if (L) t.act(id, L.canCheck ? 'check' : 'fold'); }
+    else { R.seats[id].sittingOut = true; R.seats[id].sid = null; R.seats[id].mic = false; t.addLog(`${p.name} left the table`); const L = t.legal(id); if (L) t.act(id, L.canCheck ? 'check' : 'fold'); }
   });
+  // ---- voice chat (WebRTC audio, server only relays signaling between seated players) ----
+  const seatOf = () => { const R = rooms[s.data.pin], id = s.data.pid; return R && R.seats[id] && R.seats[id].sid === s.id ? [R, id] : [null, null]; };
+  s.on('mic', (o = {}, cb) => { const [R, id] = seatOf(); if (!R) return err(cb, 'Not in a game'); const st = R.seats[id]; st.mic = !!o.on; if (!st.mic) st.speaking = false; voiceUpdate(R, id); ok(cb, { peers: voicePeers(R, id) }); });
+  s.on('speaking', (o = {}) => { const [R, id] = seatOf(); if (!R) return; const st = R.seats[id], v = !!o.on && !!st.mic; if (v !== !!st.speaking) { st.speaking = v; voiceUpdate(R, id); } });
+  s.on('rtc', (m = {}) => {
+    const [R, id] = seatOf(); if (!R || typeof m !== 'object' || id === m.to) return;
+    const t = R.seats[m.to]; if (!t || !t.sid || JSON.stringify(m).length > 20000) return;
+    io.to(t.sid).emit('rtc', { kind: String(m.kind), sdp: m.sdp, cand: m.cand, from: id });
+  });
+  s.on('rtc:hello', () => { const [R, id] = seatOf(); if (!R) return; for (const k in R.seats) if (k !== id && R.seats[k].sid && R.seats[k].mic) io.to(R.seats[k].sid).emit('rtc:reset', { id }); });
   s.on('disconnect', () => {
     const R = rooms[s.data.pin];
-    if (R) { const st = R.seats[s.data.pid]; if (st && st.sid === s.id) { st.sid = null; after(R); } }
+    if (R) { const st = R.seats[s.data.pid]; if (st && st.sid === s.id) { st.sid = null; st.mic = false; st.speaking = false; voiceUpdate(R, s.data.pid); after(R); } }
     const H2 = rooms[s.data.hostPin]; if (H2 && H2.hostSid === s.id) H2.hostSid = null;
   });
 });

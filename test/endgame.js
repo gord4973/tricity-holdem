@@ -1,5 +1,5 @@
 // Browser check: End game (host + 2 phones) and bet buttons on a fresh phone load. node test/endgame.js <base>  (PWF = host PIN file)
-const P=require('/workspace/quiz-app/node_modules/puppeteer-core'),fs=require('fs');
+const P=require('puppeteer-core'),fs=require('fs');
 const B=process.argv[2]||'http://localhost:3460',PW=fs.readFileSync(process.env.PWF||'data/host_password.txt','utf8').trim();
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));let fails=0;const ok=(c,m)=>{console.log((c?'  ✓ ':'  ✖ FAIL ')+m);if(!c)fails++};
 (async()=>{const r=await fetch(B+'/j/1234');ok(/no-store/.test(r.headers.get('cache-control')||''),'player page Cache-Control: '+r.headers.get('cache-control'));const body=await r.text();
