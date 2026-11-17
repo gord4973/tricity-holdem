@@ -10,7 +10,7 @@ section{min-height:100vh;min-height:100dvh;padding:12px 12px 18px;display:flex;f
 #status{margin-top:10px;text-align:center;font-weight:900;font-size:1.15em;padding:10px;border-radius:12px;background:#ffffff14}#status.turn{background:#ffd600;color:#111;animation:pulse 1.2s infinite}@keyframes pulse{50%{box-shadow:0 0 0 6px #ffd60055}}
 .acts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px}.acts button{font-size:1.05em;padding:16px 6px}
 #rz{margin-top:10px;background:#000a;border-radius:14px;padding:12px}#rz input[type=range]{width:100%;padding:0;accent-color:#e60012;height:34px}
-.quick{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0}.quick button{padding:10px 4px;font-size:.9em}
+.quick{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0}.quick button{padding:14px 4px;font-size:1em}.quick.add button{font-size:1.15em;padding:16px 4px}
 .rzv{display:flex;justify-content:space-between;align-items:center;font-weight:900;font-size:1.3em}.rzv input{width:110px;text-align:center;font-weight:900;font-size:1em;padding:8px}
 .plist{margin-top:12px;font-size:.88em;background:#0007;border-radius:12px;padding:6px 10px}.plist div{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #ffffff12}.plist div:last-child{border:0}
 .plist .on{color:#ffd600;font-weight:900}.plist .fo{opacity:.45}.plist .ot{opacity:.3;text-decoration:line-through}
@@ -28,8 +28,9 @@ section{min-height:100vh;min-height:100dvh;padding:12px 12px 18px;display:flex;f
 <div class=mine><div id=hole></div><div class=me><div id=mname style="font-weight:700"></div><div class=stack><span class=chipicon></span><span id=stack></span></div><div id=mbet style="font-size:.9em;color:#ffd600"></div><div class=hn id=myhand></div></div></div>
 <div id=roles></div><div id=status></div><div id=order></div>
 <div id=actbox class=hidden><div class=acts><button class=red id=bFold onclick="act('fold')">Fold</button><button class=green id=bCall onclick=callCheck()>Check</button><button class=blue id=bRaise onclick=toggleRz()>Raise</button></div>
-<div id=rz class=hidden><div class=rzv><span id=rzl>Raise to</span><input id=rzn type=number inputmode=numeric></div><input type=range id=rzr oninput="$('rzn').value=this.value">
+<div id=rz class=hidden><div class=rzv><span id=rzl>Raise to</span><input id=rzn type=number inputmode=numeric></div><input type=range id=rzr oninput="setVal(+this.value)">
 <div class=quick><button class=dark onclick=q('min')>Min</button><button class=dark onclick=q('half')>½ Pot</button><button class=dark onclick=q('pot')>Pot</button><button class=red onclick=q('all')>All-in</button></div>
+<div class="quick add"><button class=blue onclick=addV(5)>+5</button><button class=blue onclick=addV(10)>+10</button><button class=blue onclick=addV(20)>+20</button><button class=green onclick=roundV()>~10</button></div>
 <button class=gold id=bConfirm style="width:100%;font-size:1.15em" onclick=doRaise()>Raise</button></div></div>
 <div class=plist id=plist></div><div id=log></div>
 <div class=foot><button class=ghost id=bSit onclick=sit()>Sit out</button><button class=ghost onclick=leave()>Leave table</button></div></section>
@@ -48,9 +49,14 @@ function sit(){s.emit('sitout',{on:!(st&&st.me&&st.me.sittingOut)},()=>{})}
 function act(a,amount){s.emit('act',{action:a,amount},r=>{if(r.error)toast(r.error)});rzOpen=false}
 function callCheck(){const L=st.me.legal;act(L.toCall?'call':'check')}
 function toggleRz(){rzOpen=!rzOpen;if(rzOpen)q('min');render()}
-function q(k){const x=st,L=x.me.legal,pot=x.pot,v=k==='min'?L.minTo:k==='all'?L.maxTo:k==='half'?x.currentBet+Math.floor((pot+L.toCall)/2):x.currentBet+pot+L.toCall;
- const val=Math.max(L.minTo,Math.min(L.maxTo,v));$('rzr').value=val;$('rzn').value=val}
-function doRaise(){const L=st.me.legal,v=+$('rzn').value;if(v>=L.maxTo)return act('allin');act(L.isBet?'bet':'raise',v)}
+function q(k){const x=st,L=x.me.legal,pot=x.pot,v=k==='min'?L.minTo:k==='all'?L.maxTo:k==='half'?x.currentBet+Math.floor((pot+L.toCall)/2):x.currentBet+pot+L.toCall;setVal(v)}
+// keep bet box + slider in sync, clamped to [min bet/raise, all-in]
+function setVal(v){const L=st&&st.me&&st.me.legal;if(!L)return;v=Math.floor(+v||0);const val=Math.max(L.minTo,Math.min(L.maxTo,v));$('rzr').value=val;$('rzn').value=val;
+ $('bConfirm').textContent=val>=L.maxTo?`All-in ${val}`:(L.isBet?`Bet ${val}`:`Raise to ${val}`);$('bConfirm').className=val>=L.maxTo?'red':'gold'}
+const curV=()=>+$('rzn').value||st.me.legal.minTo;
+function addV(n){setVal(curV()+n)}
+function roundV(){const v=curV();setVal(Math.floor(v/10)*10+10)} // 22->30, 30->40 (always moves up)
+function doRaise(){setVal($('rzn').value);const L=st.me.legal,v=+$('rzn').value;if(v>=L.maxTo)return act('allin');act(L.isBet?'bet':'raise',v)}
 s.on('state',x=>{st=x;offset=Date.now()-x.serverNow;render()});
 function render(){const x=st;if(!x||!x.me)return;const me=x.players.find(p=>p.id===x.me.id);if(!me)return;
  if(x.stage==='lobby'){show('w');$('me').textContent=me.name;$('wcount').textContent=x.players.length+' player'+(x.players.length>1?'s':'')+' at the table';return}
@@ -79,11 +85,11 @@ function render(){const x=st;if(!x||!x.me)return;const me=x.players.find(p=>p.id
  if(L){const k=x.handNo+':'+x.stage+':'+x.seq;if(k!==lastTurnKey){lastTurnKey=k;navigator.vibrate&&navigator.vibrate([120,60,120])}
   $('bFold').disabled=false;$('bCall').textContent=L.toCall?(L.toCall>=L.chips?`All-in ${L.toCall}`:`Call ${L.toCall}`):'Check';
   $('bRaise').disabled=!L.canRaise;$('bRaise').textContent=L.isBet?'Bet':'Raise';
-  $('rz').classList.toggle('hidden',!rzOpen||!L.canRaise);$('rzr').min=L.minTo;$('rzr').max=L.maxTo;$('rzl').textContent=L.isBet?'Bet':'Raise to';$('bConfirm').textContent=L.isBet?'Bet':'Raise to';
-  if(!$('rzn').value||+$('rzn').value<L.minTo||+$('rzn').value>L.maxTo)q('min')}else{rzOpen=false;$('rzn').value=''}
+  $('rz').classList.toggle('hidden',!rzOpen||!L.canRaise);$('rzr').min=L.minTo;$('rzr').max=L.maxTo;$('rzl').textContent=L.isBet?'Bet':'Raise to';
+  if(!$('rzn').value||+$('rzn').value<L.minTo||+$('rzn').value>L.maxTo)q('min');else setVal(+$('rzn').value)}else{rzOpen=false;$('rzn').value=''}
  $('plist').innerHTML=x.players.map(p=>`<div class="${p.id===x.toAct?'on':''} ${p.folded?'fo':''} ${p.out?'ot':''}"><span>${x.dealer===p.id?'Ⓓ ':''}${x.sb===p.id&&!done?'<small>SB</small> ':''}${x.bb===p.id&&!done?'<small>BB</small> ':''}${esc(p.name)}${p.id===me.id?' (you)':''}${(!p.connected||p.sittingOut)&&!p.out?' 💤':''}</span><span>${p.shown?esc(p.shown.hand)+' · ':''}${p.out?'out':p.folded?'folded':p.allIn?'ALL-IN':esc(p.lastAction||'')} · ${p.chips}</span></div>`).join('');
  $('log').innerHTML=x.log.slice(-6).map(esc).join('<br>');$('bSit').textContent=x.me.sittingOut?"I'm back":'Sit out';tick()}
-$('rzn').addEventListener('input',()=>{$('rzr').value=$('rzn').value});
+$('rzn').addEventListener('input',()=>{$('rzr').value=$('rzn').value});$('rzn').addEventListener('change',()=>setVal($('rzn').value));
 function tick(){if(!st||st.stage==='lobby')return;const now=Date.now()-offset,x=st;
  const rem=x.paused?x.levelRemaining:x.levelRemaining-(now-x.serverNow);$('nxt').textContent=x.paused?'⏸ Paused':x.levelUp?`Next: ${x.nextBlinds.join('/')}`:`${x.upcoming.join('/')} in ${mmss(rem)}`;
  const tl=$('tl');if(tl)tl.textContent=x.turnDeadline&&x.toAct?` · ⏱ ${Math.max(0,Math.ceil((x.turnDeadline-now)/1000))}s`:''}
