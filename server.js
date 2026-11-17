@@ -9,9 +9,12 @@ if (!process.env.HOST_PIN && !fs.existsSync(PWF)) fs.writeFileSync(PWF, String(c
 const PW = (process.env.HOST_PIN || fs.readFileSync(PWF, 'utf8')).trim();
 const pwOk = pw => typeof pw === 'string' && pw.length === PW.length && crypto.timingSafeEqual(Buffer.from(pw), Buffer.from(PW));
 
-app.use(express.json()); app.use(express.static(path.join(__dirname, 'public'), { index: false }));
-app.get(['/', '/play', '/j/:pin'], (q, r) => r.sendFile(path.join(__dirname, 'public/play.html')));
-app.get('/host', (q, r) => r.sendFile(path.join(__dirname, 'public/host.html')));
+const VER = (process.env.RENDER_GIT_COMMIT || String(Date.now())).slice(0, 10);
+const html = f => { const src = fs.readFileSync(path.join(__dirname, 'public', f), 'utf8').replace(/(href|src)=\/(style\.css|cards\.js)/g, `$1=/$2?v=${VER}`); return (q, r) => { r.set('Cache-Control', 'no-store, max-age=0'); r.type('html').send(src); }; };
+app.use(express.json());
+app.get(['/', '/play', '/j/:pin'], html('play.html'));
+app.get('/host', html('host.html'));
+app.use(express.static(path.join(__dirname, 'public'), { index: false, setHeaders: (r, f) => r.set('Cache-Control', f.endsWith('.html') ? 'no-store' : 'no-cache') }));
 app.get('/healthz', (q, r) => r.json({ ok: 1, rooms: Object.keys(rooms).length }));
 app.post('/api/login', (q, r) => r.json({ ok: pwOk(q.body && q.body.pw) }));
 app.get('/api/qr', async (q, r) => r.type('svg').send(await QR.toString(String(q.query.u || ''), { type: 'svg', margin: 1 })));
@@ -42,7 +45,7 @@ function publicView(R) {
     dealer: t.players[t.dealerSeat] ? t.players[t.dealerSeat].id : null, sb: t.handNo && t.players[t.sbSeat] ? t.players[t.sbSeat].id : null, bb: t.handNo && t.players[t.bbSeat] ? t.players[t.bbSeat].id : null, order: t.actionOrder(), headsUp: !!t.headsUp,
     toAct: cur ? cur.id : null, turnDeadline: R.turnDeadline || null,
     players: t.players.map(p => { const s = R.seats[p.id] || {}; return { id: p.id, name: p.name, chips: p.chips, bet: p.bet, folded: p.folded && !p.out, allIn: p.allIn, out: p.out, sittingOut: !!s.sittingOut, connected: !!s.sid, lastAction: p.lastAction, hasCards: inHand && p.hole.length === 2 && !p.folded, shown: shown[p.id] ? { hole: shown[p.id].hole, hand: shown[p.id].hand, best: shown[p.id].best } : null }; }),
-    log: t.log.slice(-14), seq: t.seq || 0, result: inHand ? null : t.lastResult, winner: t.stage === 'gameover' ? t.winner : null, nextHandAt: R.nextHandAt || null,
+    log: t.log.slice(-14), seq: t.seq || 0, result: inHand ? null : t.lastResult, winner: t.stage === 'gameover' ? t.winner : null, endedByHost: t.stage === 'gameover' && !!t.endedByHost, standings: t.stage === 'gameover' ? t.standings() : null, nextHandAt: R.nextHandAt || null,
   };
 }
 function broadcast(R) {
@@ -128,6 +131,7 @@ io.on('connection', s => {
   H('host:nextLevel', R => { if (['lobby', 'gameover'].includes(R.table.stage)) throw new Error('Game not running'); bumpLevel(R); if (R.paused) R.levelLeft = levelMs(R); });
   H('host:deal', R => { if (R.table.stage !== 'handover') throw new Error('Hand still in play'); clear(R, 'next'); R.nextHandAt = null; R.table.startHand(); });
   H('host:kick', (R, o) => { if (R.table.stage !== 'lobby') throw new Error('Only in the lobby'); const st = R.seats[o.id]; if (st && st.sid) io.to(st.sid).emit('kicked'); delete R.seats[o.id]; R.table.removePlayer(o.id); });
+  H('host:end', R => { clear(R, 'next'); clear(R, 'turn'); R.nextHandAt = null; R.turnDeadline = null; R.paused = false; R.table.endGame(); });
   H('host:playAgain', R => { if (R.table.stage !== 'gameover') throw new Error('Game not over'); R.table.resetForNewGame(); R.paused = false; R.levelEndsAt = 0; R.levelLeft = levelMs(R); });
   // ---- players ----
   s.on('join', (o = {}, cb) => {

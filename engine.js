@@ -110,7 +110,19 @@ class Table {
     if (this.stage === 'lobby' || this.stage === 'gameover') this.dealerSeat = this.rand(this.players.length) - 1;
     this.startHand();
   }
-  resetForNewGame() {
+  // host ends the game: void any hand in progress (return all committed chips), rank by chips
+  endGame() {
+    if (this.stage === 'lobby' || this.stage === 'gameover') throw new Error('No game in progress');
+    const inHand = ['preflop', 'flop', 'turn', 'river'].includes(this.stage);
+    if (inHand) { for (const p of this.players) { p.chips += p.total; p.total = 0; p.bet = 0; } this.addLog('Hand voided - all bets returned'); }
+    for (const p of this.players) { p.hole = []; p.bet = 0; p.total = 0; p.allIn = false; p.folded = p.out; p.lastAction = p.out ? 'Out' : ''; }
+    this.board = []; this.toAct = -1; this.lastResult = null; this.stage = 'gameover'; this.endedByHost = true;
+    const st = this.standings(), top = st.filter(x => x.chips === st[0].chips);
+    this.winner = top.map(x => x.name).join(' & ');
+    this.addLog(`⏹ Game ended by host - ${top.length > 1 ? 'tied: ' : 'chip leader: '}${this.winner} (${st[0].chips})`);
+  }
+  standings() { return this.players.map((p, i) => ({ id: p.id, name: p.name, chips: p.chips, seat: i })).sort((a, b) => b.chips - a.chips || a.seat - b.seat).map((x, _, a) => ({ ...x, rank: 1 + a.filter(y => y.chips > x.chips).length })); }
+  resetForNewGame() { this.endedByHost = false;
     for (const p of this.players) Object.assign(p, { chips: this.startingChips, out: false, hole: [], bet: 0, total: 0, folded: false, allIn: false, lastAction: '' });
     this.level = 0; this.handLevel = 0; this.handNo = 0; this.board = []; this.log = []; this.lastResult = null; this.stage = 'lobby'; this.dealerSeat = -1;
   }

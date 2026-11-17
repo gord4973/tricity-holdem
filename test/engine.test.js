@@ -243,3 +243,23 @@ test('re-raise continues clockwise from the raiser', () => {
   while (t.stage === 'preflop') { const p = cur(t), L = t.legal(p.id); seq.push(p.id); const a = plan[p.id]; delete plan[p.id]; t.act(p.id, ...(a || [L.canCheck ? 'check' : 'call'])); }
   assert.deepEqual(seq, ['p3', 'p4', 'p0', 'p1', 'p2', 'p3', 'p4']);
 });
+
+// ---------- host ends the game ----------
+test('endGame mid-hand voids the hand, returns bets, ranks by chips', () => {
+  const t = table(3); start(t);
+  t.act('p0', 'raise', 10); t.act('p1', 'call');
+  const before = 120 * 3; t.endGame();
+  assert.equal(t.stage, 'gameover'); assert.ok(t.endedByHost);
+  assert.deepEqual(chips(t), [120, 120, 120], 'all bets returned');
+  assert.equal(chips(t).reduce((a, b) => a + b), before);
+  assert.deepEqual(t.standings().map(r => r.rank), [1, 1, 1]);
+  assert.equal(t.winner, 'P0 & P1 & P2');
+  assert.throws(() => t.endGame());
+  t.resetForNewGame(); assert.equal(t.endedByHost, false); assert.equal(t.stage, 'lobby');
+});
+test('endGame between hands ranks chip leader first', () => {
+  const t = table(3); start(t); ['p0', 'p1'].forEach(id => t.act(id, 'fold')); // BB p2 wins 1
+  t.endGame();
+  assert.deepEqual(t.standings().map(r => [r.id, r.chips, r.rank]), [['p2', 121, 1], ['p0', 120, 2], ['p1', 119, 3]]);
+  assert.equal(t.winner, 'P2');
+});

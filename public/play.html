@@ -65,14 +65,14 @@ function render(){const x=st;if(!x||!x.me)return;const me=x.players.find(p=>p.id
  let win5=[];if(x.result&&!x.result.byFold){const w=x.result.shown.find(s=>winIds.has(s.id));if(w)win5=w.best}
  const done=['handover','gameover'].includes(x.stage);
  $('board').innerHTML=boardHTML(x.board,done?win5:[]);$('pot').innerHTML=x.pot?`<span class=chipicon></span>Pot ${x.pot}${x.currentBet?` · bet ${x.currentBet}`:''}`:'';
- let rl=resultLines(x);if(x.stage==='gameover')rl.unshift(`🏆 <b>${esc(x.winner)}</b> wins the game!`);
+ let rl=resultLines(x);if(x.stage==='gameover'){rl=x.endedByHost?[`<div style="color:#ffd600;font-weight:900;font-size:1.2em">⏹ Game ended by host</div>🏆 Chip leader: <b>${esc(x.winner)}</b>`,standingsHTML(x,me.id)]:[`🏆 <b>${esc(x.winner)}</b> wins the game!`,standingsHTML(x,me.id)]}
  if(x.result&&!x.result.byFold&&done)rl.push(x.result.shown.map(s=>`<div class="sd ${winIds.has(s.id)?'w':''}"><span class=c>${s.hole.map(c=>cardHTML(c)).join('')}</span><span><b>${esc(s.name)}</b><br>${esc(s.hand)}</span></div>`).join(''));
  $('res').innerHTML=rl.join('<br>');
  $('hole').innerHTML=x.me.hole.length?x.me.hole.map(c=>cardHTML(c,'deal'+(done&&win5.length?(win5.includes(c)?' win':''):'')+(me.folded?' dim':''))).join(''):'';
  $('mname').textContent=me.name;$('stack').textContent=me.chips;$('mbet').textContent=me.bet?`In this round: ${me.bet}`:'';
  const myShown=me.shown&&me.shown.hand;$('myhand').textContent=myShown||'';
  const L=x.me.legal,cur=x.players.find(p=>p.id===x.toAct);
- let msg;if(me.out)msg='You are out of chips - enjoy watching!';else if(x.stage==='gameover')msg=x.winner===me.name?'🏆 You won the game!':'Game over';
+ let msg;if(me.out&&x.stage!=='gameover')msg='You are out of chips - enjoy watching!';else if(x.stage==='gameover')msg=x.endedByHost?`Game ended by host · you finished #${(x.standings.find(r=>r.id===me.id)||{}).rank} with ${me.chips} chips`:(x.winner===me.name?'🏆 You won the game!':'Game over');
  else if(L)msg=L.toCall?`Your turn - ${L.toCall} to call`:'Your turn';else if(done)msg=winIds.has(me.id)?'🎉 You win!':(x.paused?'Paused by host':'Next hand coming up…');
  else if(me.folded)msg=`You folded · ${cur?esc(cur.name)+' to act':''}`;else if(me.allIn)msg=`You're all-in! ${cur?'· '+esc(cur.name)+' to act':''}`;else msg=cur?`Waiting for ${esc(cur.name)}…`:'…';
  if(x.me.sittingOut&&!me.out)msg+=' (sitting out)';
@@ -90,7 +90,7 @@ function render(){const x=st;if(!x||!x.me)return;const me=x.players.find(p=>p.id
  $('plist').innerHTML=x.players.map(p=>`<div class="${p.id===x.toAct?'on':''} ${p.folded?'fo':''} ${p.out?'ot':''}"><span>${x.dealer===p.id?'Ⓓ ':''}${x.sb===p.id&&!done?'<small>SB</small> ':''}${x.bb===p.id&&!done?'<small>BB</small> ':''}${esc(p.name)}${p.id===me.id?' (you)':''}${(!p.connected||p.sittingOut)&&!p.out?' 💤':''}</span><span>${p.shown?esc(p.shown.hand)+' · ':''}${p.out?'out':p.folded?'folded':p.allIn?'ALL-IN':esc(p.lastAction||'')} · ${p.chips}</span></div>`).join('');
  $('log').innerHTML=x.log.slice(-6).map(esc).join('<br>');$('bSit').textContent=x.me.sittingOut?"I'm back":'Sit out';tick()}
 $('rzn').addEventListener('input',()=>{$('rzr').value=$('rzn').value});$('rzn').addEventListener('change',()=>setVal($('rzn').value));
-function tick(){if(!st||st.stage==='lobby')return;const now=Date.now()-offset,x=st;
+function tick(){if(!st||st.stage==='lobby')return;if(st.stage==='gameover'){$('nxt').textContent='🏁';return}const now=Date.now()-offset,x=st;
  const rem=x.paused?x.levelRemaining:x.levelRemaining-(now-x.serverNow);$('nxt').textContent=x.paused?'⏸ Paused':x.levelUp?`Next: ${x.nextBlinds.join('/')}`:`${x.upcoming.join('/')} in ${mmss(rem)}`;
  const tl=$('tl');if(tl)tl.textContent=x.turnDeadline&&x.toAct?` · ⏱ ${Math.max(0,Math.ceil((x.turnDeadline-now)/1000))}s`:''}
 setInterval(tick,500);
