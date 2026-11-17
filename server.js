@@ -38,13 +38,13 @@ function publicView(R) {
   const shown = {}; if (t.lastResult && !inHand) for (const s of t.lastResult.shown) shown[s.id] = s;
   const cur = inHand ? t.players[t.toAct] : null;
   return {
-    pin: R.pin, stage: t.stage, handNo: t.handNo, paused: R.paused, settings: R.settings, serverNow: Date.now(),
+    pin: R.pin, stage: t.stage, handNo: t.handNo, paused: R.paused, settings: { levelMin: R.settings.levelMin, turnSec: R.settings.turnSec }, buyIn: buyInInfo(R), serverNow: Date.now(),
     blinds: t.handNo ? t.blinds : blindsFor(t.level), nextBlinds: blindsFor(t.level), levelUp: t.handNo > 0 && t.level > t.handLevel,
     level: t.level + 1, handLevel: (t.handNo ? t.handLevel : t.level) + 1, turnMs: R.turnMs || 0, upcoming: blindsFor(t.level + 1), levelRemaining: levelRemaining(R),
     board: t.board, pot: t.potTotal ? (inHand || t.stage === 'showdown' ? t.potTotal() : 0) : 0, currentBet: inHand ? t.currentBet : 0,
     dealer: t.players[t.dealerSeat] ? t.players[t.dealerSeat].id : null, sb: t.handNo && t.players[t.sbSeat] ? t.players[t.sbSeat].id : null, bb: t.handNo && t.players[t.bbSeat] ? t.players[t.bbSeat].id : null, order: t.actionOrder(), headsUp: !!t.headsUp,
     toAct: cur ? cur.id : null, turnDeadline: R.turnDeadline || null,
-    players: t.players.map(p => { const s = R.seats[p.id] || {}; return { id: p.id, name: p.name, chips: p.chips, bet: p.bet, folded: p.folded && !p.out, allIn: p.allIn, out: p.out, sittingOut: !!s.sittingOut, connected: !!s.sid, mic: !!(s.sid && s.mic), speaking: !!(s.sid && s.mic && s.speaking), lastAction: p.lastAction, hasCards: inHand && p.hole.length === 2 && !p.folded, shown: shown[p.id] ? { hole: shown[p.id].hole, hand: shown[p.id].hand, best: shown[p.id].best } : null }; }),
+    players: t.players.map(p => { const s = R.seats[p.id] || {}; return { id: p.id, name: p.name, chips: p.chips, bet: p.bet, folded: p.folded && !p.out, allIn: p.allIn, out: p.out, sittingOut: !!s.sittingOut, connected: !!s.sid, pay: payOf(s), mic: !!(s.sid && s.mic), speaking: !!(s.sid && s.mic && s.speaking), lastAction: p.lastAction, hasCards: inHand && p.hole.length === 2 && !p.folded, shown: shown[p.id] ? { hole: shown[p.id].hole, hand: shown[p.id].hand, best: shown[p.id].best } : null }; }),
     log: t.log.slice(-14), seq: t.seq || 0, result: inHand ? null : t.lastResult, winner: t.stage === 'gameover' ? t.winner : null, endedByHost: t.stage === 'gameover' && !!t.endedByHost, standings: t.stage === 'gameover' ? t.standings() : null, nextHandAt: R.nextHandAt || null,
   };
 }
@@ -106,7 +106,21 @@ function bumpLevel(R) {
   const t = R.table; t.level++; R.levelEndsAt = Date.now() + levelMs(R); R.levelLeft = levelMs(R);
   const [s, b] = blindsFor(t.level); t.addLog(`⬆ Blinds go up to ${s}/${b} from the next hand`);
 }
-const clampSettings = o => ({ levelMin: Math.min(120, Math.max(1, Math.round(+o.levelMin || 10))), turnSec: [0, 15, 20, 30, 45, 60, 90].includes(+o.turnSec) ? +o.turnSec : 0 });
+const EMAIL = /^[^\s@<>"']{1,64}@[^\s@<>"']{1,190}\.[a-z]{2,}$/i;
+function clampSettings(o) {
+  const b = o.buyIn || {}, on = !!b.on, cents = Math.round(Number(String(b.amount ?? 5).replace(/[$,\s]/g, '')) * 100), email = String(b.email || '').trim().slice(0, 254);
+  if (on && !(cents >= 100 && cents <= 100000)) throw new Error('Buy-in amount must be between $1 and $1,000');
+  if (on && !EMAIL.test(email)) throw new Error('Enter a valid e-Transfer email for the buy-in');
+  return { levelMin: Math.min(120, Math.max(1, Math.round(+o.levelMin || 10))), turnSec: [0, 15, 20, 30, 45, 60, 90].includes(+o.turnSec) ? +o.turnSec : 0,
+    buyIn: on ? { on: true, cents, email } : { on: false, cents: Number.isFinite(cents) && cents >= 100 ? cents : 500, email: EMAIL.test(email) ? email : '' } };
+}
+const payOf = st => (st && st.pay) || 'none';
+function buyInInfo(R) {
+  const b = R.settings.buyIn || { on: false }; if (!b.on) return { on: false };
+  const t = R.table, confirmed = t.players.filter(p => payOf(R.seats[p.id]) === 'confirmed').length;
+  const n = t.stage === 'lobby' ? confirmed : (R.buyInCount || confirmed);
+  return { on: true, cents: b.cents, email: b.email, confirmed, pot: b.cents * n, unpaid: t.players.length - confirmed };
+}
 
 io.on('connection', s => {
   const hostRoom = () => { const R = rooms[s.data.hostPin]; return R && R.hostSid === s.id ? R : null; };
@@ -114,7 +128,7 @@ io.on('connection', s => {
   // ---- host ----
   s.on('host:create', (o = {}, cb) => {
     if (!pwOk(o.pw)) return err(cb, 'Wrong host PIN');
-    const R = createRoom(clampSettings(o)); R.hostSid = s.id; s.data.hostPin = R.pin; ok(cb, { pin: R.pin }); broadcast(R);
+    let cs; try { cs = clampSettings(o); } catch (e) { return err(cb, e.message); } const R = createRoom(cs); R.hostSid = s.id; s.data.hostPin = R.pin; ok(cb, { pin: R.pin }); broadcast(R);
   });
   s.on('host:resume', (o = {}, cb) => {
     const R = rooms[o.pin]; if (!pwOk(o.pw) || !R) return err(cb, 'Game not found');
@@ -124,6 +138,8 @@ io.on('connection', s => {
   H('host:settings', (R, o) => { if (R.table.stage !== 'lobby') throw new Error('Game already started'); R.settings = clampSettings(o); R.levelLeft = levelMs(R); });
   H('host:start', R => {
     const t = R.table; if (t.stage !== 'lobby') throw new Error('Already started');
+    const bi = buyInInfo(R); if (bi.on && bi.unpaid > 0) throw new Error(`${bi.unpaid} player${bi.unpaid > 1 ? 's have' : ' has'} not been confirmed for the buy-in - confirm or remove them first`);
+    R.buyInCount = bi.on ? bi.confirmed : 0;
     t.startGame(); R.paused = false; R.levelEndsAt = Date.now() + levelMs(R); R.levelLeft = levelMs(R);
   });
   H('host:pause', (R, o) => {
@@ -135,7 +151,8 @@ io.on('connection', s => {
   H('host:deal', R => { if (R.table.stage !== 'handover') throw new Error('Hand still in play'); clear(R, 'next'); R.nextHandAt = null; R.table.startHand(); });
   H('host:kick', (R, o) => { if (R.table.stage !== 'lobby') throw new Error('Only in the lobby'); const st = R.seats[o.id]; if (st && st.sid) io.to(st.sid).emit('kicked'); delete R.seats[o.id]; R.table.removePlayer(o.id); });
   H('host:end', R => { clear(R, 'next'); clear(R, 'turn'); R.nextHandAt = null; R.turnDeadline = null; R.paused = false; R.table.endGame(); });
-  H('host:playAgain', R => { if (R.table.stage !== 'gameover') throw new Error('Game not over'); R.table.resetForNewGame(); R.paused = false; R.levelEndsAt = 0; R.levelLeft = levelMs(R); });
+  H('host:confirm', (R, o) => { if (R.table.stage !== 'lobby') throw new Error('Only in the lobby'); const st = R.seats[o.id]; if (!st || !R.table.get(o.id)) throw new Error('No such player'); st.pay = o.on ? 'confirmed' : (st.pay === 'confirmed' ? 'pending' : st.pay); });
+  H('host:playAgain', R => { if (R.table.stage !== 'gameover') throw new Error('Game not over'); R.table.resetForNewGame(); for (const k in R.seats) R.seats[k].pay = 'none'; R.buyInCount = 0; R.paused = false; R.levelEndsAt = 0; R.levelLeft = levelMs(R); });
   // ---- players ----
   s.on('join', (o = {}, cb) => {
     const R = rooms[String(o.pin || '').trim()]; if (!R) return err(cb, 'Game not found - check the PIN');
@@ -155,6 +172,7 @@ io.on('connection', s => {
   });
   const P = (ev, fn) => s.on(ev, (o = {}, cb) => { const R = rooms[s.data.pin], id = s.data.pid; if (!R || !R.seats[id] || R.seats[id].sid !== s.id) return err(cb, 'Not in a game'); try { fn(R, id, o || {}); ok(cb); } catch (e) { err(cb, e.message); } after(R); });
   P('act', (R, id, o) => { R.table.act(id, String(o.action), o.amount); });
+  P('buyin:sent', (R, id, o) => { const st = R.seats[id]; if (!(R.settings.buyIn || {}).on) throw new Error('No buy-in for this game'); if (R.table.stage !== 'lobby') throw new Error('Game already started'); if (st.pay === 'confirmed') throw new Error('Already confirmed by the host'); st.pay = o.on ? 'pending' : 'none'; });
   P('sitout', (R, id, o) => { const st = R.seats[id]; st.sittingOut = !!o.on; R.table.addLog(`${R.table.get(id).name} ${st.sittingOut ? 'is sitting out' : 'is back'}`); });
   P('leave', (R, id) => {
     const t = R.table, p = t.get(id);

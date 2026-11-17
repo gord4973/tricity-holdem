@@ -24,8 +24,13 @@ section{min-height:100vh;min-height:100dvh;padding:12px 12px 18px;display:flex;f
 </style></head><body>
 <section id=j class=center><div class=logo style="font-size:3em"><span class=dia>◆</span>Tricity <b>Hold'em</b><small>Tricity Mitsubishi · play money only</small></div>
 <div class="card pop" style="width:100%;max-width:380px;margin-top:20px"><input id=pin placeholder="Game PIN" inputmode=numeric style="text-align:center;font-size:1.4em;font-weight:700"><input id=nm placeholder="Nickname" maxlength=16 style="text-align:center;font-size:1.4em;font-weight:700;margin-top:10px"><button class=red style="width:100%;margin-top:10px;font-size:1.3em" onclick=join()>Take a seat ♠</button><div id=err style="color:#e60012;margin-top:8px"></div></div>
-<p style="color:#ffffff99;font-size:.85em;max-width:340px">Free play-money game. Everyone starts with 120 chips. No real money, no buy-in.</p></section>
-<section id=w class="center hidden"><div class="big pop">You're in! ♠♥♦♣</div><p id=me style="font-size:1.4em;font-weight:700"></p><p>Find your name on the big screen.<br>The host will deal soon…</p><p id=wcount style="color:#ffffffaa"></p><button class=ghost onclick=leave()>Leave</button></section>
+<p style="color:#ffffff99;font-size:.85em;max-width:340px">Everyone starts with 120 play chips. If the host has set a buy-in, you'll see the details after you join.</p></section>
+<section id=w class="center hidden"><div class="big pop">You're in! ♠♥♦♣</div><p id=me style="font-size:1.4em;font-weight:700"></p><p>Find your name on the big screen.<br>The host will deal soon…</p><div id=bicard class="card hidden" style="width:100%;max-width:400px;text-align:center;margin:6px 0 12px"><div style="font-weight:900;font-size:1.2em">💵 Buy-in: <span id=biamt></span></div>
+<div style="margin-top:8px;font-size:.95em">e-Transfer to</div><div style="display:flex;gap:8px;align-items:center;justify-content:center;margin-top:4px"><b id=biemail style="word-break:break-all"></b><button class=dark style="padding:8px 12px" onclick=copyEmail()>Copy</button></div>
+<p style="font-size:.9em;color:#444">Send an Interac e-Transfer from your banking app, then tap I've sent it.</p>
+<div>Status: <span id=bistatus class=pay></span></div><button id=bisent class=green style="width:100%;margin-top:10px;font-size:1.15em" onclick=biSent()>I've sent it</button>
+<p style="font-size:.75em;color:#777;margin:8px 0 0">The app doesn't send or check money. The host confirms when it arrives.</p></div>
+<p id=wcount style="color:#ffffffaa"></p><button class=ghost onclick=leave()>Leave</button></section>
 <section id=g class=hidden>
 <div class=hdr><span class=pill>Blinds <b id=bl></b></span><span class=pill id=hn></span><span class=pill id=nxt></span></div>
 <div class=felt><div id=board></div><div id=pot></div><div id=res></div></div>
@@ -51,6 +56,8 @@ function vrender(){const on=Voice.micOn;$('bMic').className=on?('on'+(Voice.spea
 async function micTap(){try{await Voice.toggle()}catch(e){toast(e&&e.name==='NotAllowedError'?'Microphone permission was blocked - allow it in your browser settings':((e&&e.message)||'Could not start the microphone'))}vrender()}
 Voice.init(s,()=>st&&st.me?st.me.id:null,vrender);
 s.on('voice',v=>{Voice.peerVoice(v);vrender();if(!st)return;const p=st.players.find(q=>q.id===v.id);if(p){p.mic=v.mic;p.speaking=v.speaking;render()}});
+function copyEmail(){const e=$('biemail').textContent;(navigator.clipboard?navigator.clipboard.writeText(e):Promise.reject()).then(()=>toast('Email copied'),()=>{const r=document.createRange();r.selectNodeContents($('biemail'));const sel=getSelection();sel.removeAllRanges();sel.addRange(r);toast('Select and copy the email')})}
+function biSent(){const me=st&&st.players.find(p=>p.id===st.me.id);s.emit('buyin:sent',{on:!(me&&me.pay==='pending')},r=>{if(r&&r.error)toast(r.error)})}
 function join(){const pin=$('pin').value.trim(),name=$('nm').value;$('err').textContent='';
  s.emit('join',{pin,name},r=>{if(r.error)return $('err').textContent=r.error;sess={pin,token:r.token,name:r.name};localStorage.setItem('holdemSeat',JSON.stringify(sess));Voice.joined();$('me').textContent=r.name})}
 function rejoin(){if(!sess||(m&&m[1]!==sess.pin))return;s.emit('join',{pin:sess.pin,token:sess.token},r=>{if(r.error){localStorage.removeItem('holdemSeat');sess=null;Voice.reset();show('j')}else{Voice.joined()}if(!r.error)$('me').textContent=r.name})}
@@ -70,13 +77,14 @@ function roundV(){const v=curV();setVal(Math.floor(v/10)*10+10)} // 22->30, 30->
 function doRaise(){setVal($('rzn').value);const L=st.me.legal,v=+$('rzn').value;if(v>=L.maxTo)return act('allin');act(L.isBet?'bet':'raise',v)}
 s.on('state',x=>{st=x;offset=Date.now()-x.serverNow;render();Voice.sync(x.players);vrender()});
 function render(){const x=st;if(!x||!x.me)return;const me=x.players.find(p=>p.id===x.me.id);if(!me)return;
- if(x.stage==='lobby'){show('w');$('me').textContent=me.name;const mics=x.players.filter(p=>p.mic);$('wcount').innerHTML=esc(x.players.length+' player'+(x.players.length>1?'s':'')+' at the table')+(mics.length?'<br>'+mics.map(p=>`${p.speaking?'🗣️':'🎤'} ${esc(p.name)}`).join(' · '):'')+'<br><small>Tap 🎤 to talk to the table</small>';return}
+ if(x.stage==='lobby'){show('w');const bi=x.buyIn;$('bicard').classList.toggle('hidden',!bi.on);if(bi.on){$('biamt').textContent=money(bi.cents);$('biemail').textContent=bi.email;$('bistatus').textContent=PAYTXT[me.pay];$('bistatus').className='pay '+me.pay;
+  $('bisent').textContent=me.pay==='pending'?'Undo - I haven\'t sent it':'I\'ve sent it';$('bisent').className=me.pay==='pending'?'dark':'green';$('bisent').classList.toggle('hidden',me.pay==='confirmed');}$('me').textContent=me.name;const mics=x.players.filter(p=>p.mic);$('wcount').innerHTML=esc(x.players.length+' player'+(x.players.length>1?'s':'')+' at the table')+(mics.length?'<br>'+mics.map(p=>`${p.speaking?'🗣️':'🎤'} ${esc(p.name)}`).join(' · '):'')+'<br><small>Tap 🎤 to talk to the table</small>';return}
  show('g');$('bl').textContent=x.blinds.join('/');$('hn').textContent=x.stage==='gameover'?'Game over':'Hand #'+x.handNo;
  const winIds=new Set();if(x.result)x.result.pots.forEach(p=>!p.uncalled&&p.winners.forEach(w=>winIds.add(w.id)));
  let win5=[];if(x.result&&!x.result.byFold){const w=x.result.shown.find(s=>winIds.has(s.id));if(w)win5=w.best}
  const done=['handover','gameover'].includes(x.stage);
  $('board').innerHTML=boardHTML(x.board,done?win5:[]);$('pot').innerHTML=x.pot?`<span class=chipicon></span>Pot ${x.pot}${x.currentBet?` · bet ${x.currentBet}`:''}`:'';
- let rl=resultLines(x);if(x.stage==='gameover'){rl=x.endedByHost?[`<div style="color:#ffd600;font-weight:900;font-size:1.2em">⏹ Game ended by host</div>🏆 Chip leader: <b>${esc(x.winner)}</b>`,standingsHTML(x,me.id)]:[`🏆 <b>${esc(x.winner)}</b> wins the game!`,standingsHTML(x,me.id)]}
+ let rl=resultLines(x);if(x.stage==='gameover'){rl=x.endedByHost?[`<div style="color:#ffd600;font-weight:900;font-size:1.2em">⏹ Game ended by host</div>🏆 Chip leader: <b>${esc(x.winner)}</b>`,standingsHTML(x,me.id),potLine(x)]:[`🏆 <b>${esc(x.winner)}</b> wins the game!`,standingsHTML(x,me.id),potLine(x)]}
  if(x.result&&!x.result.byFold&&done)rl.push(x.result.shown.map(s=>`<div class="sd ${winIds.has(s.id)?'w':''}"><span class=c>${s.hole.map(c=>cardHTML(c)).join('')}</span><span><b>${esc(s.name)}</b><br>${esc(s.hand)}</span></div>`).join(''));
  $('res').innerHTML=rl.join('<br>');
  $('hole').innerHTML=x.me.hole.length?x.me.hole.map(c=>cardHTML(c,'deal'+(done&&win5.length?(win5.includes(c)?' win':''):'')+(me.folded?' dim':''))).join(''):'';
