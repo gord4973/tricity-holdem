@@ -22,7 +22,7 @@ app.get('/api/qr', async (q, r) => r.type('svg').send(await QR.toString(String(q
 
 const rooms = {};
 const BOT_MIN = process.env.BOT_MS != null ? +process.env.BOT_MS : null; // tests can speed bots up
-const SHOW_MS = +process.env.SHOWDOWN_MS || 9000, FOLD_MS = +process.env.FOLDWIN_MS || 4000, AWAY_MS = +process.env.AWAY_MS || 12000, SITOUT_MS = 1500;
+const SHOW_MS = +process.env.SHOWDOWN_MS || 9000, FOLD_MS = +process.env.FOLDWIN_MS || 4000, AWAY_MS = +process.env.AWAY_MS || 30000, AWAY_FAST_MS = +process.env.AWAY_FAST_MS || 5000, SITOUT_MS = 1500;
 function newPin() { let p; do p = String(crypto.randomInt(1000, 9999)); while (rooms[p]); return p; }
 const tok = () => crypto.randomBytes(16).toString('hex');
 
@@ -62,6 +62,7 @@ function broadcast(R) {
 function voicePeers(R, id) { return Object.keys(R.seats).filter(k => k !== id && R.seats[k].sid); }
 function voiceUpdate(R, id) { const st = R.seats[id]; if (!st) return; const v = { id, mic: !!(st.sid && st.mic), speaking: !!(st.sid && st.mic && st.speaking) };
   if (R.hostSid) io.to(R.hostSid).emit('voice', v); for (const k in R.seats) if (R.seats[k].sid) io.to(R.seats[k].sid).emit('voice', v); }
+const sockAlive = sid => !!(sid && io.sockets.sockets.get(sid) && io.sockets.sockets.get(sid).connected);
 function clear(R, k) { clearTimeout(R.timers[k]); delete R.timers[k]; }
 
 function armTurn(R) {
@@ -70,13 +71,16 @@ function armTurn(R) {
   const p = t.players[t.toAct], s = R.seats[p.id] || {};
   if (s.bot) return armBot(R, p, s);
   let ms = 0;
-  if (s.sittingOut) ms = SITOUT_MS; else if (!s.sid) ms = AWAY_MS; else if (R.settings.turnSec > 0) ms = R.settings.turnSec * 1000;
+  if (s.sittingOut) ms = SITOUT_MS;
+  else if (!s.sid) ms = (s.missed || 0) >= 2 ? Math.min(AWAY_FAST_MS, AWAY_MS) : (R.settings.turnSec > 0 ? R.settings.turnSec * 1000 : AWAY_MS); // away: keep seat + chips, auto check/fold
+  else if (R.settings.turnSec > 0) ms = R.settings.turnSec * 1000;
   if (!ms) return;
   R.turnDeadline = Date.now() + ms; R.turnMs = ms;
   const key = `${t.handNo}:${t.stage}:${t.toAct}:${t.seq}`;
   R.timers.turn = setTimeout(() => {
     if (`${t.handNo}:${t.stage}:${t.toAct}:${t.seq}` !== key) return;
     const L = t.legal(p.id); if (!L) return;
+    if (!s.sid && !s.sittingOut) s.missed = (s.missed || 0) + 1;
     try { t.act(p.id, L.canCheck ? 'check' : 'fold'); for (let i = t.log.length - 1; i >= 0; i--) if (t.log[i].startsWith(p.name + ' ')) { t.log[i] += s.sittingOut || !s.sid ? ' (away)' : ' (time)'; break; } } catch (e) { }
     after(R);
   }, ms);
@@ -151,7 +155,7 @@ function buyInInfo(R) {
 
 io.on('connection', s => {
   const hostRoom = () => { const R = rooms[s.data.hostPin]; return R && R.hostSid === s.id ? R : null; };
-  const ok = (cb, x = {}) => typeof cb === 'function' && cb({ ok: 1, ...x }), err = (cb, e) => typeof cb === 'function' && cb({ error: e });
+  const ok = (cb, x = {}) => typeof cb === 'function' && cb({ ok: 1, ...x }), err = (cb, e, code) => typeof cb === 'function' && cb(code ? { error: e, code } : { error: e });
   // ---- host ----
   s.on('host:create', (o = {}, cb) => {
     if (!pwOk(o.pw)) return err(cb, 'Wrong host PIN');
@@ -187,26 +191,54 @@ io.on('connection', s => {
     t.addPlayer(id, name); R.seats[id] = { token: tok(), sid: null, sittingOut: false, bot: lv, mic: false, pay: 'bot' };
     t.addLog(`🤖 ${name} (${lv}) joined the table`);
   });
+  s.on('host:rejoin', (o = {}, cb) => {
+    const R = hostRoom(); if (!R) return err(cb, 'Not host'); const st = R.seats[o.id], p = R.table.get(o.id);
+    if (!st || !p || st.bot) return err(cb, 'No such player');
+    const code = crypto.randomBytes(6).toString('hex'), exp = Date.now() + 15 * 60000;
+    st.rejoin = { code, exp }; st.rejoinOpenUntil = exp;
+    ok(cb, { path: `/j/${R.pin}?r=${code}`, name: p.name, connected: sockAlive(st.sid) });
+  });
   H('host:confirm', (R, o) => { if (R.table.stage !== 'lobby') throw new Error('Only in the lobby'); const st = R.seats[o.id]; if (!st || !R.table.get(o.id)) throw new Error('No such player'); if (st.bot) throw new Error('Computer players don\'t pay a buy-in'); st.pay = o.on ? 'confirmed' : (st.pay === 'confirmed' ? 'pending' : st.pay); });
   H('host:playAgain', R => { if (R.table.stage !== 'gameover') throw new Error('Game not over'); R.table.resetForNewGame(); for (const k in R.seats) if (!R.seats[k].bot) R.seats[k].pay = 'none'; R.buyInCount = 0; R.paused = false; R.levelEndsAt = 0; R.levelLeft = levelMs(R); });
   // ---- players ----
   s.on('join', (o = {}, cb) => {
     const R = rooms[String(o.pin || '').trim()]; if (!R) return err(cb, 'Game not found - check the PIN');
+    if (o.rejoin) { // host-issued reconnect link / QR
+      const id = Object.keys(R.seats).find(k => R.seats[k].rejoin && R.seats[k].rejoin.code === String(o.rejoin));
+      if (!id || R.seats[id].rejoin.exp < Date.now()) return err(cb, 'That reconnect link has expired - ask the host for a new one', 'rejoinExpired');
+      R.seats[id].rejoin = null; return bindSeat(R, id, true, cb, 'via host link');
+    }
     if (o.token) { // reconnect to the same seat
       const id = Object.keys(R.seats).find(k => R.seats[k].token === o.token);
-      if (id) { const st = R.seats[id]; if (st.sid && st.sid !== s.id) io.to(st.sid).emit('kicked', 'Opened on another device'); st.sid = s.id; st.mic = false; st.speaking = false; s.data.pin = R.pin; s.data.pid = id; R.table.addLog(`${R.table.get(id).name} reconnected`); voiceUpdate(R, id); ok(cb, { token: o.token, id, name: R.table.get(id).name }); return after(R); }
-      if (!o.name) return err(cb, 'Session expired - please join again');
+      if (id) return bindSeat(R, id, false, cb);
+      if (!o.name) return err(cb, 'Session expired - please join again', 'expired');
+    }
+    if (o.reclaim) { // manual "Rejoin my seat": PIN + name, only while that seat is away (or the host has allowed it)
+      const nm = String(o.name || '').trim().toLowerCase(), p = R.table.players.find(q => q.name.toLowerCase() === nm && !R.seats[q.id].bot);
+      if (!p) return err(cb, 'No seat with that name in this game', 'noSeat');
+      const st = R.seats[p.id], allowed = st.rejoinOpenUntil && st.rejoinOpenUntil > Date.now();
+      if (sockAlive(st.sid) && !allowed) return err(cb, `${p.name}'s seat is still connected on another screen. If it's you, ask the host to tap your seat and choose "Let ${p.name} rejoin".`, 'seatConnected');
+      return bindSeat(R, p.id, true, cb, 'rejoined their seat');
     }
     const name = String(o.name || '').replace(/\s+/g, ' ').trim().slice(0, 16);
     if (!name) return err(cb, 'Enter a nickname');
-    if (R.table.stage !== 'lobby') return err(cb, 'This game has already started');
+    if (R.table.stage !== 'lobby') { const p = R.table.players.find(q => q.name.toLowerCase() === name.toLowerCase() && !R.seats[q.id].bot); return p ? err(cb, `There is already a seat for ${p.name} in this game`, 'canReclaim') : err(cb, 'This game has already started'); }
     if (R.table.players.length >= 20) return err(cb, 'Table is full (20 players)');
-    if (R.table.players.some(p => p.name.toLowerCase() === name.toLowerCase())) return err(cb, 'Nickname taken');
+    if (R.table.players.some(p => p.name.toLowerCase() === name.toLowerCase())) { const p = R.table.players.find(q => q.name.toLowerCase() === name.toLowerCase()); return R.seats[p.id].bot ? err(cb, 'Nickname taken') : err(cb, `${p.name} is already at this table`, 'canReclaim'); }
     const id = 'p' + crypto.randomBytes(4).toString('hex'), token = tok();
     R.table.addPlayer(id, name); R.seats[id] = { token, sid: s.id, sittingOut: false };
     s.data.pin = R.pin; s.data.pid = id; ok(cb, { token, id, name }); after(R);
   });
-  const P = (ev, fn) => s.on(ev, (o = {}, cb) => { const R = rooms[s.data.pin], id = s.data.pid; if (!R || !R.seats[id] || R.seats[id].sid !== s.id) return err(cb, 'Not in a game'); try { fn(R, id, o || {}); ok(cb); } catch (e) { err(cb, e.message); } after(R); });
+  function bindSeat(R, id, newToken, cb, how) {
+    const st = R.seats[id], p = R.table.get(id); if (!st || !p) return err(cb, 'No such seat');
+    if (st.sid && st.sid !== s.id) io.to(st.sid).emit('kicked', { soft: true, msg: 'Your seat was opened on another screen.' });
+    const was = st.sid; if (newToken) st.token = tok();
+    st.sid = s.id; st.mic = false; st.speaking = false; st.missed = 0; st.rejoinOpenUntil = 0; if (newToken) st.sittingOut = false; s.data.pin = R.pin; s.data.pid = id;
+    if (was !== s.id) R.table.addLog(`${p.name} ${how || 'reconnected'}`);
+    voiceUpdate(R, id); ok(cb, { token: st.token, id, name: p.name, pin: R.pin }); after(R);
+  }
+  s.on('seat:check', (o = {}, cb) => { const R = rooms[s.data.pin], st = R && R.seats[s.data.pid]; ok(cb, { bound: !!(st && st.sid === s.id), game: !!R }); });
+  const P = (ev, fn) => s.on(ev, (o = {}, cb) => { const R = rooms[s.data.pin], id = s.data.pid; if (!R || !R.seats[id] || R.seats[id].sid !== s.id) return err(cb, 'Not in a game', 'rebind'); try { fn(R, id, o || {}); ok(cb); } catch (e) { err(cb, e.message); } after(R); });
   P('act', (R, id, o) => { R.table.act(id, String(o.action), o.amount); });
   P('buyin:sent', (R, id, o) => { const st = R.seats[id]; if (!(R.settings.buyIn || {}).on) throw new Error('No buy-in for this game'); if (R.table.stage !== 'lobby') throw new Error('Game already started'); if (st.pay === 'confirmed') throw new Error('Already confirmed by the host'); st.pay = o.on ? 'pending' : 'none'; });
   P('sitout', (R, id, o) => { const st = R.seats[id]; st.sittingOut = !!o.on; R.table.addLog(`${R.table.get(id).name} ${st.sittingOut ? 'is sitting out' : 'is back'}`); });

@@ -52,6 +52,10 @@ body{overflow:hidden}section{position:fixed;inset:0;padding:2.5vh 2.5vw;display:
 <div class=ctrls><button id=pauseBtn class=gold onclick="cmd('host:pause')">⏸ Pause</button> <button class=red onclick="$('endModal').classList.remove('hidden')">⏹ End game</button> <button class=blue onclick="if(confirm('Raise the blinds to the next level now? (applies from the next hand)'))cmd('host:nextLevel')">⏫ Next blind level</button> <button id=dealBtn class=green onclick="cmd('host:deal')">🂠 Deal next hand</button></div></div>
 <div class=felt id=felt><div class=oval></div><div class=mid><div id=board></div><div id=pot></div><div id=onote></div><div id=res></div><div id=hlog></div></div></div></section>
 
+<div id=rjModal class="modal hidden" onclick="if(event.target===this)this.classList.add('hidden')"><div class="card pop" style="width:min(560px,92vw)"><div id=rjTitle style="font-size:1.6em;font-weight:900"></div><p id=rjState></p>
+<button id=rjBtn class=green style="font-size:1.2em" onclick=letRejoin()></button><div id=rjOut class=hidden><img id=rjQr style="width:min(260px,60vw);background:#fff;padding:8px;border-radius:12px;margin-top:10px"><div id=rjUrl style="font-weight:700;word-break:break-all;margin:8px 0"></div>
+<p style="font-size:.9em;color:#555">Scan with their phone, or they can open the game, tap <b>Rejoin my seat</b> and enter the PIN and their name (allowed for 15 minutes). Their chips and seat are kept.</p></div>
+<button class=dark style="margin-top:10px" onclick="$('rjModal').classList.add('hidden')">Close</button></div></div>
 <div id=endModal class="modal hidden"><div class="card pop"><div style="font-size:2em;font-weight:900">End this game now?</div><p>The current hand is cancelled and all bets go back to the players. Final standings: players with chips by chip count, then players who are out, the last one out highest.</p><div style="display:flex;gap:12px;justify-content:center"><button class=red style="font-size:1.3em" onclick="$('endModal').classList.add('hidden');cmd('host:end')">Yes, end game</button><button class=dark style="font-size:1.3em" onclick="$('endModal').classList.add('hidden')">Cancel</button></div></div></div>
 <section id=over class="center hidden"><div id=ended style="font-size:3vh;font-weight:900;color:#ffd600" class=hidden>⏹ GAME ENDED BY HOST</div><div class="big pop">🏆 <span id=wname></span> <span id=wverb>wins!</span></div><div id=bipot style="font-size:3vh"></div><div id=stand style="font-size:2.6vh;width:min(70vw,900px);max-height:52vh;overflow:auto"></div><p style="font-size:2.6vh">Thanks for playing Tricity Hold'em</p>
 <div style="display:flex;gap:2vw"><button class=green style="font-size:3vh" onclick="cmd('host:playAgain')">Play again (everyone back to 120)</button><button class=dark style="font-size:3vh" onclick="localStorage.removeItem('holdemHostPin');location.reload()">New table</button></div></section>
@@ -65,6 +69,10 @@ function resume(){s.emit('host:resume',{pw:pwv(),pin:PIN},r=>{if(r.error){$('ler
 s.on('connect',()=>{if(PIN&&sessionStorage.getItem('holdemPw'))resume()});
 function editBi(){const b=st.buyIn;$('ebion').checked=b.on;$('ebiamt').value=b.on?(b.cents/100):($('biamt').value||5);$('ebiemail').value=b.on?b.email:($('biemail').value||'');$('bierr').textContent='';$('biedit').classList.remove('hidden')}
 function saveBi(){s.emit('host:settings',{levelMin:st.settings.levelMin,turnSec:st.settings.turnSec,buyIn:{on:$('ebion').checked,amount:$('ebiamt').value,email:$('ebiemail').value}},r=>{if(r&&r.error)return $('bierr').textContent=r.error;$('biedit').classList.add('hidden')})}
+let rjId=null;function rejoinModal(id){const p=st.players.find(q=>q.id===id);if(!p||p.bot)return;rjId=id;$('rjTitle').textContent='Reconnect '+p.name;
+ $('rjState').textContent=p.connected?`${p.name} looks connected. If their phone is stuck, you can still let them rejoin.`:`${p.name} is away. Their turns are auto-checked or folded until they're back.`;
+ $('rjBtn').textContent=`Let ${p.name} rejoin`;$('rjOut').classList.add('hidden');$('rjModal').classList.remove('hidden')}
+function letRejoin(){s.emit('host:rejoin',{id:rjId},r=>{if(r.error)return toast(r.error);const u=location.origin+r.path;$('rjQr').src='/api/qr?u='+encodeURIComponent(u);$('rjUrl').textContent=u;$('rjOut').classList.remove('hidden')})}
 function cmd(ev,o={}){s.emit(ev,o,r=>{if(r&&r.error)toast(r.error)})}
 setInterval(()=>fetch('/healthz').catch(()=>{}),240000); // keep the free server awake while hosting
 s.on('state',x=>{st=x;offset=Date.now()-x.serverNow;render()});
@@ -86,11 +94,11 @@ function render(){const x=st;if(!x)return;
  seats(x,winIds,win5);tick()}
 function seats(x,winIds,win5){const f=$('felt');f.querySelectorAll('.seat,.betchip').forEach(e=>e.remove());const n=x.players.length,W=f.clientWidth,Hh=f.clientHeight;
  x.players.forEach((p,i)=>{const a=Math.PI/2+2*Math.PI*i/n,cx=W/2+Math.cos(a)*W*0.45,cy=Hh/2+Math.sin(a)*Hh*0.43;
-  const d=document.createElement('div');d.className='seat'+(x.toAct===p.id?' acting':'')+(p.folded?' folded':'')+(p.out?' out':'')+(winIds.has(p.id)&&x.result?' winner':'');d.style.left=cx+'px';d.style.top=cy+'px';
+  const d=document.createElement('div');d.className='seat'+(x.toAct===p.id?' acting':'')+(p.folded?' folded':'')+(p.out?' out':'')+(winIds.has(p.id)&&x.result?' winner':'');d.style.left=cx+'px';d.style.top=cy+'px';if(!p.bot){d.style.cursor='pointer';d.onclick=()=>rejoinModal(p.id)}
   const b=[];if(x.dealer===p.id)b.push('<span class="role d">DEALER</span>');if(x.sb===p.id)b.push(`<span class="role sb">SMALL BLIND ${x.blinds[0]}</span>`);if(x.bb===p.id)b.push(`<span class="role bb">BIG BLIND ${x.blinds[1]}</span>`);
   const oi=(x.order||[]).indexOf(p.id);
   const cards=p.shown?p.shown.hole.map(c=>cardHTML(c,win5.includes(c)?'win':'')).join(''):p.hasCards?cardHTML('back')+cardHTML('back'):'';
-  const tag=p.out?'<span class=tag style="background:#444">OUT</span>':p.allIn?'<span class=tag>ALL-IN</span>':(!p.connected||p.sittingOut)?'<span class="tag away">AWAY</span>':'';
+  const tag=p.out?'<span class=tag style="background:#444">OUT</span>':p.allIn?'<span class=tag>ALL-IN</span>':(!p.connected||p.sittingOut)?'<span class="tag away">AWAY · tap to reconnect</span>':'';
   d.innerHTML=`<div class=badges>${b.join('')}</div>${tag}<div class=nm>${esc(p.name)}${botTag(p)}</div>${p.mic?`<span class="vmic${p.speaking?' talk':''}">🎤</span>`:''}<div class=cards>${cards}</div><div class=st><span class=chipicon></span>${p.chips}</div><div class=act>${p.shown?`<span class=hand>${esc(p.shown.hand)}</span>`:esc(p.folded?'Folded':p.lastAction||'')}</div>${x.toAct===p.id&&x.turnDeadline?'<div class=tbar><i id=tb></i></div>':''}${oi>=0?`<span class=ord>${x.toAct===p.id?'TO ACT':'#'+(oi+1)}</span>`:''}`;f.appendChild(d);
   if(p.bet>0){const c=document.createElement('div');c.className='betchip';c.innerHTML=`<span class=chipicon></span>${p.bet}`;c.style.left=(W/2+Math.cos(a)*W*0.31)+'px';c.style.top=(Hh/2+Math.sin(a)*Hh*0.27)+'px';f.appendChild(c)}})}
 function tick(){if(!st)return;const now=Date.now()-offset,x=st;

@@ -31,3 +31,11 @@ The app only tracks buy-ins. It never moves or checks money.
 - Bots get only their own cards plus public table info, act through the same legal-action rules, take about 1–3 s per move, and stop on Pause or End game.
 - Buy-in: bots never pay and never collect. The pot goes to the best-placed **human** (chips, then who was knocked out last). If a bot wins, the line says so.
 - Tests: `node --test test/bots.test.js` (engine sim incl. Hard vs Easy), `node test/sim.js 200` (win-rate table), `node test/bots.js <url>` (browser), `node test/botserver.js <url>` (fast server run: start the server with BOT_MS=20 SHOWDOWN_MS=150 FOLDWIN_MS=100).
+
+## Seat recovery
+- The phone stores its seat token. It re-sends it on every reconnect, on wake-up (visibility, pageshow, online, focus) and in a heartbeat every 10 s (`seat:check`).
+- If an action comes back with "Not in a game" (code `rebind`), the phone rejoins with its token and retries the action once. If no answer comes, it reconnects and retries once.
+- If that still fails, the phone shows a **Rejoin my seat** screen: enter the PIN and your name. This only works while that seat is away, unless the host has allowed it. If another screen takes the seat, the old screen shows **Use this screen** instead of a dead error.
+- Host: tap any player's seat, then **Let <name> rejoin**. This shows a one-time QR code and link (valid 15 min) and allows a name rejoin for 15 min.
+- An away player keeps their seat and chips. Their turns are auto-checked or folded after the turn timer, or after 30 s when the timer is off. After 2 missed turns in a row it's 5 s.
+- Test: `node test/recover.js <url>` (fast local server: `BOT_MS=300 AWAY_MS=4000 AWAY_FAST_MS=1000`).

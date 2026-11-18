@@ -23,7 +23,7 @@ section{min-height:100vh;min-height:100dvh;padding:12px 12px 18px;display:flex;f
 .plist .mic{font-size:.85em}.plist .talking{color:#38e07b;font-weight:900}section{padding-bottom:80px}
 </style></head><body>
 <section id=j class=center><div class=logo style="font-size:3em"><span class=dia>◆</span>Tricity <b>Hold'em</b><small>Tricity Mitsubishi · play money only</small></div>
-<div class="card pop" style="width:100%;max-width:380px;margin-top:20px"><input id=pin placeholder="Game PIN" inputmode=numeric style="text-align:center;font-size:1.4em;font-weight:700"><input id=nm placeholder="Nickname" maxlength=16 style="text-align:center;font-size:1.4em;font-weight:700;margin-top:10px"><button class=red style="width:100%;margin-top:10px;font-size:1.3em" onclick=join()>Take a seat ♠</button><div id=err style="color:#e60012;margin-top:8px"></div></div>
+<div class="card pop" style="width:100%;max-width:380px;margin-top:20px"><input id=pin placeholder="Game PIN" inputmode=numeric style="text-align:center;font-size:1.4em;font-weight:700"><input id=nm placeholder="Nickname" maxlength=16 style="text-align:center;font-size:1.4em;font-weight:700;margin-top:10px"><button class=red style="width:100%;margin-top:10px;font-size:1.3em" onclick=join()>Take a seat ♠</button><div id=err style="color:#e60012;margin-top:8px"></div><button id=errrj class="gold hidden" style="width:100%;margin-top:8px" onclick="showRejoin('')">↩ Rejoin my seat</button></div>
 <p style="color:#ffffff99;font-size:.85em;max-width:340px">Everyone starts with 120 play chips. If the host has set a buy-in, you'll see the details after you join.</p></section>
 <section id=w class="center hidden"><div class="big pop">You're in! ♠♥♦♣</div><p id=me style="font-size:1.4em;font-weight:700"></p><p>Find your name on the big screen.<br>The host will deal soon…</p><div id=bicard class="card hidden" style="width:100%;max-width:400px;text-align:center;margin:6px 0 12px"><div style="font-weight:900;font-size:1.2em">💵 Buy-in: <span id=biamt></span></div>
 <div style="margin-top:8px;font-size:.95em">e-Transfer to</div><div style="display:flex;gap:8px;align-items:center;justify-content:center;margin-top:4px"><b id=biemail style="word-break:break-all"></b><button class=dark style="padding:8px 12px" onclick=copyEmail()>Copy</button></div>
@@ -43,28 +43,63 @@ section{min-height:100vh;min-height:100dvh;padding:12px 12px 18px;display:flex;f
 <button class=gold id=bConfirm style="width:100%;font-size:1.15em" onclick=doRaise()>Raise</button></div></div>
 <div class=plist id=plist></div><div id=log></div>
 <div class=foot><button class=ghost id=bSit onclick=sit()>Sit out</button><button class=ghost onclick=leave()>Leave table</button></div></section>
+<section id=rj class="center hidden"><div class="big pop" style="font-size:2em">Rejoin my seat</div><p id=rjmsg style="max-width:340px"></p>
+<div class="card pop" style="width:100%;max-width:380px"><button id=rjuse class="green hidden" style="width:100%;font-size:1.2em;margin-bottom:12px" onclick=useHere()>📱 Use this screen</button>
+<input id=rjpin placeholder="Game PIN" inputmode=numeric style="text-align:center;font-size:1.3em;font-weight:700"><input id=rjname placeholder="Your name at the table" maxlength=16 style="text-align:center;font-size:1.3em;font-weight:700;margin-top:10px">
+<button class=red style="width:100%;margin-top:10px;font-size:1.2em" onclick=reclaim()>↩ Rejoin my seat</button><div id=rjerr style="color:#e60012;margin-top:8px"></div>
+<p style="font-size:.8em;color:#666;margin:10px 0 0">Your chips and seat are kept while you're away. If your seat still shows as connected, ask the host to tap your seat and choose "Let you rejoin".</p></div>
+<button class=ghost style="margin-top:14px" onclick="show('j')">Join as a new player instead</button></section>
 <section id=out class="center hidden"><div class="big pop">Thanks for playing!</div><p id=outmsg></p><button class=red onclick="location.href='/'">Join another game</button></section>
 <div id=vbar class=hidden><button id=bSpk onclick="Voice.setSpeakers(!Voice.speakersOn)">🔊</button><button id=bMic class=off onclick=micTap()>🎤 Mic off</button></div>
 <div id=vhint class=hidden onclick="this.classList.add('hidden')">🔈 Tap here to hear other players</div>
 <script src=/socket.io/socket.io.js></script><script src=/cards.js></script><script src=/voice.js></script><script>
-const s=io(),$=id=>document.getElementById(id);let st=null,offset=0,lastTurnKey='',rzOpen=false;
+const s=io({reconnectionDelayMax:3000}),$=id=>document.getElementById(id);let st=null,offset=0,lastTurnKey='',rzOpen=false;
 const m=location.pathname.match(/\/j\/(\d+)/);if(m){$('pin').value=m[1]}
 let sess=JSON.parse(localStorage.getItem('holdemSeat')||'null');
-function show(id){['j','w','g','out'].forEach(x=>$(x).classList.toggle('hidden',x!==id));$('vbar').classList.toggle('hidden',!(id==='w'||id==='g'))}
+function show(id){['j','w','g','out','rj'].forEach(x=>$(x).classList.toggle('hidden',x!==id));$('vbar').classList.toggle('hidden',!(id==='w'||id==='g'))}
 function vrender(){const on=Voice.micOn;$('bMic').className=on?('on'+(Voice.speaking?' talk':'')):'off';$('bMic').textContent=on?'🎤 Mic on':'🎤 Mic off';$('bSpk').className=Voice.speakersOn?'':'off';$('bSpk').textContent=Voice.speakersOn?'🔊':'🔇';
  $('vhint').classList.toggle('hidden',Voice.unlocked||!Voice.stats.audios||!Voice.speakersOn)}
 async function micTap(){try{await Voice.toggle()}catch(e){toast(e&&e.name==='NotAllowedError'?'Microphone permission was blocked - allow it in your browser settings':((e&&e.message)||'Could not start the microphone'))}vrender()}
 Voice.init(s,()=>st&&st.me?st.me.id:null,vrender);
 s.on('voice',v=>{Voice.peerVoice(v);vrender();if(!st)return;const p=st.players.find(q=>q.id===v.id);if(p){p.mic=v.mic;p.speaking=v.speaking;render()}});
 function copyEmail(){const e=$('biemail').textContent;(navigator.clipboard?navigator.clipboard.writeText(e):Promise.reject()).then(()=>toast('Email copied'),()=>{const r=document.createRange();r.selectNodeContents($('biemail'));const sel=getSelection();sel.removeAllRanges();sel.addRange(r);toast('Select and copy the email')})}
-function biSent(){const me=st&&st.players.find(p=>p.id===st.me.id);s.emit('buyin:sent',{on:!(me&&me.pay==='pending')},r=>{if(r&&r.error)toast(r.error)})}
-function join(){const pin=$('pin').value.trim(),name=$('nm').value;$('err').textContent='';
- s.emit('join',{pin,name},r=>{if(r.error)return $('err').textContent=r.error;sess={pin,token:r.token,name:r.name};localStorage.setItem('holdemSeat',JSON.stringify(sess));Voice.joined();$('me').textContent=r.name})}
-function rejoin(){if(!sess||(m&&m[1]!==sess.pin))return;s.emit('join',{pin:sess.pin,token:sess.token},r=>{if(r.error){localStorage.removeItem('holdemSeat');sess=null;Voice.reset();show('j')}else{Voice.joined()}if(!r.error)$('me').textContent=r.name})}
-s.on('connect',rejoin);s.on('kicked',msg=>{Voice.reset();localStorage.removeItem('holdemSeat');sess=null;show('out');$('outmsg').textContent=msg||'You were removed from the table.'});
+function biSent(){const me=st&&st.players.find(p=>p.id===st.me.id);send('buyin:sent',{on:!(me&&me.pay==='pending')},r=>{if(r&&r.error)toast(r.error)})}
+function join(){const pin=$('pin').value.trim(),name=$('nm').value;$('err').textContent='';$('errrj').classList.add('hidden');
+ s.emit('join',{pin,name},r=>{if(r.error){$('err').textContent=r.error;if(r.code==='canReclaim'){$('errrj').classList.remove('hidden')}return}saveSess(r,pin);Voice.joined();$('me').textContent=r.name})}
+// ---- seat recovery: token rejoin on every (re)connect / wake-up, retry actions once, manual "Rejoin my seat" fallback ----
+let parked=false,rejoining=null;const rc=new URLSearchParams(location.search).get('r');let linkCode=m&&rc?rc:null;
+function saveSess(r,pin){sess={pin:r.pin||pin||(sess&&sess.pin),token:r.token,name:r.name};localStorage.setItem('holdemSeat',JSON.stringify(sess))}
+const waitConnect=ms=>new Promise(res=>{if(s.connected)return res(true);const t=setTimeout(()=>{s.off('connect',f);res(false)},ms),f=()=>{clearTimeout(t);res(true)};s.once('connect',f)});
+function rejoin(){if(!sess||parked)return Promise.resolve(false);if(rejoining)return rejoining;
+ rejoining=new Promise(res=>{s.timeout(7000).emit('join',{pin:sess.pin,token:sess.token},(e,r)=>{rejoining=null;
+  if(e)return res(false);
+  if(r.error){if(/not found/i.test(r.error)){localStorage.removeItem('holdemSeat');sess=null;Voice.reset();show('j');$('err').textContent='That game has ended. Ask the host for the new PIN.'}else showRejoin(r.error);return res(false)}
+  saveSess(r);Voice.joined();$('me').textContent=r.name;res(true)})});return rejoining}
+function useLink(){const code=linkCode;linkCode=null;history.replaceState(null,'',location.pathname);
+ s.emit('join',{pin:m[1],rejoin:code},r=>{if(r.error){if(sess)rejoin();else{show('j');$('err').textContent=r.error}return}parked=false;saveSess(r,m[1]);Voice.joined();$('me').textContent=r.name;toast('Welcome back, '+r.name)})}
+s.on('connect',()=>{if(linkCode)return useLink();rejoin()});
+function kickSock(){try{s.disconnect()}catch(e){}s.connect()}
+// emit with an ack; on "not in a game" re-authenticate once and retry, on no answer reconnect and retry once
+async function send(ev,o,cb,tries=0){
+ if(!s.connected){s.connect();await waitConnect(6000);await rejoin()}
+ s.timeout(7000).emit(ev,o,async(e,r)=>{
+  if(e){if(tries<1){kickSock();if(await waitConnect(8000)){await rejoin();return send(ev,o,cb,tries+1)}}toast('Connection problem - reconnecting…');return check()}
+  if(r&&r.code==='rebind'){if(tries<1&&await rejoin())return send(ev,o,cb,tries+1);return showRejoin('Your phone lost its seat connection.')}
+  if(r&&r.error&&tries>0&&/not your turn/i.test(r.error))return; // first try already went through
+  cb&&cb(r)})}
+let checking=false;
+function check(){if(!sess||parked||checking||linkCode)return;if(!s.connected){s.connect();return}checking=true;
+ s.timeout(5000).emit('seat:check',{},(e,r)=>{checking=false;if(e)return kickSock();if(!r.bound)rejoin().then(ok=>{if(!ok&&sess&&!parked&&$('rj').classList.contains('hidden'))showRejoin('Your phone lost its seat connection.')})})}
+setInterval(()=>{if(document.visibilityState==='visible')check()},10000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')check()});['pageshow','online','focus'].forEach(ev=>window.addEventListener(ev,()=>check()));
+function showRejoin(msg){show('rj');$('rjmsg').textContent=msg||'';$('rjerr').textContent='';$('rjpin').value=(sess&&sess.pin)||(m&&m[1])||$('pin').value||'';$('rjname').value=(sess&&sess.name)||$('nm').value||'';$('rjuse').classList.toggle('hidden',!parked)}
+function reclaim(){const pin=$('rjpin').value.trim(),name=$('rjname').value.trim();$('rjerr').textContent='';
+ s.timeout(7000).emit('join',{pin,name,reclaim:true},(e,r)=>{if(e)return $('rjerr').textContent='No connection - check your internet and try again';if(r.error)return $('rjerr').textContent=r.error;parked=false;saveSess(r,pin);Voice.joined();$('me').textContent=r.name;toast('Welcome back, '+r.name)})}
+function useHere(){parked=false;rejoin().then(ok=>{if(!ok)showRejoin('Could not take the seat back automatically.')})}
+s.on('kicked',x=>{if(x&&x.soft){parked=true;Voice.reset();showRejoin(x.msg+' Tap "Use this screen" to play here.');return}Voice.reset();localStorage.removeItem('holdemSeat');sess=null;show('out');$('outmsg').textContent=x||'You were removed from the table.'});
 function leave(){if(!confirm('Leave the table? Your hands will be folded.'))return;Voice.reset();s.emit('leave',{},()=>{});localStorage.removeItem('holdemSeat');sess=null;show('out');$('outmsg').textContent='You left the table.'}
-function sit(){s.emit('sitout',{on:!(st&&st.me&&st.me.sittingOut)},()=>{})}
-function act(a,amount){s.emit('act',{action:a,amount},r=>{if(r.error)toast(r.error)});rzOpen=false}
+function sit(){send('sitout',{on:!(st&&st.me&&st.me.sittingOut)},()=>{})}
+function act(a,amount){send('act',{action:a,amount},r=>{if(r&&r.error)toast(r.error)});rzOpen=false}
 function callCheck(){const L=st.me.legal;act(L.toCall?'call':'check')}
 function toggleRz(){rzOpen=!rzOpen;if(rzOpen)q('min');render()}
 function q(k){const x=st,L=x.me.legal,pot=x.pot,v=k==='min'?L.minTo:k==='all'?L.maxTo:k==='half'?x.currentBet+Math.floor((pot+L.toCall)/2):x.currentBet+pot+L.toCall;setVal(v)}
