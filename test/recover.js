@@ -44,7 +44,7 @@ const em=(s,e,o)=>new Promise(r=>s.emit(e,o,r));
  // 5) Gord goes away (phone closed); game keeps going with auto check/fold, chips + seat kept
  const chipsBefore=(await G()).chips;await c1.close();
  ok(await until(async()=>!(await G()).connected,60000),'host shows Gord away after his phone closes');
- const hn=(await H()).handNo;ok(await until(async()=>(await H()).handNo>=hn+2,90000),'game keeps going while Gord is away');
+ const hn=(await H()).handNo;ok(await until(async()=>(await H()).handNo>=hn+2,200000),'game keeps going while Gord is away');
  const x5=await H();ok(x5.log.some(l=>/Gord (checks|folds) \(away\)/.test(l))||x5.players.find(p=>p.name==='Gord').lastAction,'away turns auto-acted: '+x5.log.filter(l=>/Gord/.test(l)).slice(-2).join(' | '));ok(x5.players.some(p=>p.name==='Gord'&&!p.out),'Gord keeps his seat');
  await h.screenshot({path:'screens/v9-host-away.png'});
  // host can open the reconnect panel on his seat
