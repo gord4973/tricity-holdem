@@ -266,6 +266,12 @@ class Table {
       if (uncalled) this.addLog(`${wl[0].name} gets ${pot.amount} back (uncalled)`);
       else this.addLog(`${wl.map(w => w.name).join(' & ')} ${wl.length > 1 ? 'split' : 'wins'} ${label.toLowerCase()} ${pot.amount} with ${evals[winners[0]].name}`);
     });
+    // summary order: best hand first (engine evaluator), ties together with main-pot winners first, then seat order from the button
+    const main = result.pots.find(p => !p.uncalled), mainW = new Set(main ? main.winners.map(w => w.id) : []);
+    result.shown.sort((a, b) => cmp(evals[b.id].score, evals[a.id].score) || (mainW.has(b.id) - mainW.has(a.id)) || seatOrder(a.id) - seatOrder(b.id));
+    result.shown.forEach(s => { s.rank = 1 + result.shown.filter(o => cmp(evals[o.id].score, evals[s.id].score) > 0).length;
+      s.won = result.pots.filter(p => !p.uncalled && p.winners.some(w => w.id === s.id)).map(p => p.label); });
+    result.folded = this.players.filter(p => p.folded && !p.out && p.hole.length).map(p => ({ id: p.id, name: p.name }));
     this.lastResult = result;
     this.endHand();
   }

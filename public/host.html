@@ -26,7 +26,7 @@ body{overflow:hidden}section{position:fixed;inset:0;padding:2.5vh 2.5vw;display:
 .betchip{position:absolute;transform:translate(-50%,-50%);font-weight:900;font-size:1.9vh;background:#000c;border-radius:20px;padding:.3vh .8vh;white-space:nowrap}
 .tbar{height:.6vh;background:#ffffff22;border-radius:9px;overflow:hidden;margin-top:.3vh}.tbar i{display:block;height:100%;background:#ffd600}
 #over{background:#000d;z-index:5}#over .big{font-size:9vh;font-weight:900}
-</style></head><body>
+.sdlist{display:inline-block;text-align:left;margin-top:.6vh;font-size:1.7vh;background:#0006;border-radius:1vh;padding:.6vh 1.2vh}.sdlist .w{color:#ffd600}.sdlist .fo{opacity:.5}</style></head><body>
 <section id=login class=center><div class=logo style="font-size:4em"><span class=dia>◆</span>Tricity <b>Hold'em</b><small>Tricity Mitsubishi · play money only</small></div>
 <div class="card pop" style="margin-top:3vh"><label>Host PIN</label><input id=pw type=password inputmode=numeric autocomplete=current-password>
 <label>Blind level length (minutes)</label><input id=lvl type=number min=1 max=120 value=10>
@@ -89,7 +89,7 @@ function render(){const x=st;if(!x)return;
  if(x.result&&!x.result.byFold){const w=x.result.shown.find(s=>winIds.has(s.id));if(w)win5.push(...w.best)}
  $('board').innerHTML=boardHTML(x.board,x.stage==='handover'||x.stage==='gameover'?win5:[]);
  $('onote').textContent=orderNote(x)?'↻ Clockwise · '+orderNote(x):'';$('pot').innerHTML=x.pot?`<span class=chipicon></span>Pot ${x.pot}`:'';
- const rl=resultLines(x);$('res').innerHTML=rl.length?rl.join('<br>'):'';
+ const rl=resultLines(x);if(x.result&&!x.result.byFold&&x.result.shown&&x.result.shown.length)rl.push(`<div class=sdlist>${x.result.shown.map(s=>`<div class="${winIds.has(s.id)?'w':''}"><b>${s.rank}. ${esc(s.name)}</b> ${s.hole.join(' ').replace(/([2-9TJQKA])([shdc])/g,(m,r,u)=>(r==='T'?'10':r)+({s:'♠',h:'♥',d:'♦',c:'♣'})[u])} — ${esc(s.hand)}${s.won&&s.won.length?` 🏆 ${s.won.map(esc).join(', ')}`:''}</div>`).join('')}${(x.result.folded||[]).map(f=>`<div class=fo>${esc(f.name)} · folded</div>`).join('')}</div>`);$('res').innerHTML=rl.length?rl.join('<br>'):'';
  $('hlog').innerHTML=x.log.slice(-4).map(esc).join('<br>');
  seats(x,winIds,win5);tick()}
 function seats(x,winIds,win5){const f=$('felt');f.querySelectorAll('.seat,.betchip').forEach(e=>e.remove());const n=x.players.length,W=f.clientWidth,Hh=f.clientHeight;

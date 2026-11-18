@@ -263,3 +263,23 @@ test('endGame between hands ranks chip leader first', () => {
   assert.deepEqual(t.standings().map(r => [r.id, r.chips, r.rank]), [['p2', 121, 1], ['p0', 120, 2], ['p1', 119, 3]]);
   assert.equal(t.winner, 'P2');
 });
+test('showdown summary is sorted best hand first; side-pot winner labels kept', () => {
+  const t = table(4, [120, 120, 60, 30]);
+  rig(t, [['Jh', '2d'], ['Qh', 'Qd'], ['Kh', 'Kd'], ['Ah', 'Ad']], ['As', 'Ks', '7c', '3d', '8s']);
+  start(t); // D=0 SB=1 BB=2 UTG=3
+  t.act('p3', 'allin'); t.act('p0', 'allin'); t.act('p1', 'allin'); t.act('p2', 'call');
+  const r = t.lastResult;
+  assert.deepEqual(r.shown.map(s => [s.id, s.rank]), [['p3', 1], ['p2', 2], ['p1', 3], ['p0', 4]]);
+  assert.deepEqual(r.shown.map(s => s.won), [['Main pot'], ['Side pot 1'], ['Side pot 2'], []]);
+  assert.deepEqual(r.folded, []);
+});
+test('showdown summary: tied hands grouped, folded players listed after shown hands', () => {
+  const t = table(4);
+  rig(t, [['2h', '3d'], ['Ah', 'Kd'], ['4c', '4d'], ['Ac', 'Kh']], ['Qs', 'Js', 'Tc', '7d', '2s']);
+  start(t); // UTG p3, D p0, SB p1, BB p2
+  t.act('p3', 'call'); t.act('p0', 'fold'); t.act('p1', 'call'); t.act('p2', 'check');
+  while (t.stage !== 'handover') t.act(t.players[t.toAct].id, 'check');
+  const r = t.lastResult;
+  assert.deepEqual(r.shown.map(s => [s.id, s.rank]), [['p1', 1], ['p3', 1], ['p2', 3]]);
+  assert.deepEqual(r.folded.map(f => f.id), ['p0']);
+});

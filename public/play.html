@@ -120,7 +120,7 @@ function render(){const x=st;if(!x||!x.me)return;const me=x.players.find(p=>p.id
  const done=['handover','gameover'].includes(x.stage);
  $('board').innerHTML=boardHTML(x.board,done?win5:[]);$('pot').innerHTML=x.pot?`<span class=chipicon></span>Pot ${x.pot}${x.currentBet?` · bet ${x.currentBet}`:''}`:'';
  let rl=resultLines(x);if(x.stage==='gameover'){rl=x.endedByHost?[`<div style="color:#ffd600;font-weight:900;font-size:1.2em">⏹ Game ended by host</div>🏆 Chip leader: <b>${esc(x.winner)}</b>`,standingsHTML(x,me.id),potLine(x)]:[`🏆 <b>${esc(x.winner)}</b> wins the game!`,standingsHTML(x,me.id),potLine(x)]}
- if(x.result&&!x.result.byFold&&done)rl.push(x.result.shown.map(s=>`<div class="sd ${winIds.has(s.id)?'w':''}"><span class=c>${s.hole.map(c=>cardHTML(c)).join('')}</span><span><b>${esc(s.name)}</b><br>${esc(s.hand)}</span></div>`).join(''));
+ if(x.result&&!x.result.byFold&&done)rl.push(x.result.shown.map(s=>`<div class="sd ${winIds.has(s.id)?'w':''}"><span class=c>${s.hole.map(c=>cardHTML(c)).join('')}</span><span><b>${s.rank?s.rank+'. ':''}${esc(s.name)}</b>${s.won&&s.won.length?` <small>🏆 ${s.won.map(esc).join(', ')}</small>`:''}<br>${esc(s.hand)}</span></div>`).join('')+(x.result.folded||[]).map(f=>`<div class="sd" style="opacity:.5"><span><b>${esc(f.name)}</b> · folded</span></div>`).join(''));
  $('res').innerHTML=rl.join('<br>');
  $('hole').innerHTML=x.me.hole.length?x.me.hole.map(c=>cardHTML(c,'deal'+(done&&win5.length?(win5.includes(c)?' win':''):'')+(me.folded?' dim':''))).join(''):'';
  $('mname').textContent=me.name;$('stack').textContent=me.chips;$('mbet').textContent=me.bet?`In this round: ${me.bet}`:'';
