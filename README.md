@@ -23,3 +23,11 @@ The app only tracks buy-ins. It never moves or checks money.
 - Pot = amount × confirmed players. Final standings show "Pot: $X — pay to <winner>". Play again keeps the settings and resets every player to Not paid.
 - The email is only sent to the host screen and to players who have joined this game.
 - Test: `node test/buyin.js <url>`
+
+## Computer players
+- In the lobby, the host taps **+ Easy**, **+ Medium** or **+ Hard** to add a computer player (up to 5 per game; they count toward the 20 seats). Remove one with ✕.
+- Names start with the skill letter: E for Easy (Eddie, Ella…), M for Medium (Max, Mia…), H for Hard (Hank, Holly…). Names never repeat. A 🤖 badge shows the level on the TV and on phones.
+- Easy is loose and passive and makes mistakes. Medium plays by hand strength, draws and pot odds. Hard uses position-aware preflop ranges, Monte Carlo equity, pot odds, value bets, semi-bluffs, bluffs and push/fold when short-stacked.
+- Bots get only their own cards plus public table info, act through the same legal-action rules, take about 1–3 s per move, and stop on Pause or End game.
+- Buy-in: bots never pay and never collect. The pot goes to the best-placed **human** (chips, then who was knocked out last). If a bot wins, the line says so.
+- Tests: `node --test test/bots.test.js` (engine sim incl. Hard vs Easy), `node test/sim.js 200` (win-rate table), `node test/bots.js <url>` (browser), `node test/botserver.js <url>` (fast server run: start the server with BOT_MS=20 SHOWDOWN_MS=150 FOLDWIN_MS=100).

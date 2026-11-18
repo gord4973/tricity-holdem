@@ -2,6 +2,7 @@
 // Tricity Hold'em - multiplayer play-money Texas Hold'em (host screen + phones). No real money anywhere.
 const express = require('express'), http = require('http'), fs = require('fs'), path = require('path'), crypto = require('crypto'), QR = require('qrcode');
 const { Table, blindsFor } = require('./engine');
+const Bots = require('./bots');
 const app = express(), srv = http.createServer(app), io = require('socket.io')(srv, { cors: { origin: '*' }, pingInterval: 20000, pingTimeout: 30000 });
 const PWF = path.join(__dirname, 'data/host_password.txt');
 fs.mkdirSync(path.dirname(PWF), { recursive: true });
@@ -15,11 +16,12 @@ app.use(express.json());
 app.get(['/', '/play', '/j/:pin'], html('play.html'));
 app.get('/host', html('host.html'));
 app.use(express.static(path.join(__dirname, 'public'), { index: false, setHeaders: (r, f) => r.set('Cache-Control', f.endsWith('.html') ? 'no-store' : 'no-cache') }));
-app.get('/healthz', (q, r) => r.json({ ok: 1, rooms: Object.keys(rooms).length }));
+app.get('/healthz', (q, r) => r.json({ ok: 1, rooms: Object.keys(rooms).length, botErrors: Object.values(rooms).reduce((a, R) => a + (R.botErrors || 0), 0) }));
 app.post('/api/login', (q, r) => r.json({ ok: pwOk(q.body && q.body.pw) }));
 app.get('/api/qr', async (q, r) => r.type('svg').send(await QR.toString(String(q.query.u || ''), { type: 'svg', margin: 1 })));
 
 const rooms = {};
+const BOT_MIN = process.env.BOT_MS != null ? +process.env.BOT_MS : null; // tests can speed bots up
 const SHOW_MS = +process.env.SHOWDOWN_MS || 9000, FOLD_MS = +process.env.FOLDWIN_MS || 4000, AWAY_MS = +process.env.AWAY_MS || 12000, SITOUT_MS = 1500;
 function newPin() { let p; do p = String(crypto.randomInt(1000, 9999)); while (rooms[p]); return p; }
 const tok = () => crypto.randomBytes(16).toString('hex');
@@ -44,7 +46,7 @@ function publicView(R) {
     board: t.board, pot: t.potTotal ? (inHand || t.stage === 'showdown' ? t.potTotal() : 0) : 0, currentBet: inHand ? t.currentBet : 0,
     dealer: t.players[t.dealerSeat] ? t.players[t.dealerSeat].id : null, sb: t.handNo && t.players[t.sbSeat] ? t.players[t.sbSeat].id : null, bb: t.handNo && t.players[t.bbSeat] ? t.players[t.bbSeat].id : null, order: t.actionOrder(), headsUp: !!t.headsUp,
     toAct: cur ? cur.id : null, turnDeadline: R.turnDeadline || null,
-    players: t.players.map(p => { const s = R.seats[p.id] || {}; return { id: p.id, name: p.name, chips: p.chips, bet: p.bet, folded: p.folded && !p.out, allIn: p.allIn, out: p.out, sittingOut: !!s.sittingOut, connected: !!s.sid, pay: payOf(s), mic: !!(s.sid && s.mic), speaking: !!(s.sid && s.mic && s.speaking), lastAction: p.lastAction, hasCards: inHand && p.hole.length === 2 && !p.folded, shown: shown[p.id] ? { hole: shown[p.id].hole, hand: shown[p.id].hand, best: shown[p.id].best } : null }; }),
+    players: t.players.map(p => { const s = R.seats[p.id] || {}; return { id: p.id, name: p.name, chips: p.chips, bet: p.bet, folded: p.folded && !p.out, allIn: p.allIn, out: p.out, sittingOut: !!s.sittingOut, connected: !!(s.sid || s.bot), bot: s.bot || null, pay: s.bot ? 'bot' : payOf(s), mic: !!(s.sid && s.mic), speaking: !!(s.sid && s.mic && s.speaking), lastAction: p.lastAction, hasCards: inHand && p.hole.length === 2 && !p.folded, shown: shown[p.id] ? { hole: shown[p.id].hole, hand: shown[p.id].hand, best: shown[p.id].best } : null }; }),
     log: t.log.slice(-14), seq: t.seq || 0, result: inHand ? null : t.lastResult, winner: t.stage === 'gameover' ? t.winner : null, endedByHost: t.stage === 'gameover' && !!t.endedByHost, standings: t.stage === 'gameover' ? t.standings() : null, nextHandAt: R.nextHandAt || null,
   };
 }
@@ -66,6 +68,7 @@ function armTurn(R) {
   clear(R, 'turn'); R.turnDeadline = null;
   const t = R.table; if (!['preflop', 'flop', 'turn', 'river'].includes(t.stage) || R.paused) return;
   const p = t.players[t.toAct], s = R.seats[p.id] || {};
+  if (s.bot) return armBot(R, p, s);
   let ms = 0;
   if (s.sittingOut) ms = SITOUT_MS; else if (!s.sid) ms = AWAY_MS; else if (R.settings.turnSec > 0) ms = R.settings.turnSec * 1000;
   if (!ms) return;
@@ -75,6 +78,19 @@ function armTurn(R) {
     if (`${t.handNo}:${t.stage}:${t.toAct}:${t.seq}` !== key) return;
     const L = t.legal(p.id); if (!L) return;
     try { t.act(p.id, L.canCheck ? 'check' : 'fold'); for (let i = t.log.length - 1; i >= 0; i--) if (t.log[i].startsWith(p.name + ' ')) { t.log[i] += s.sittingOut || !s.sid ? ' (away)' : ' (time)'; break; } } catch (e) { }
+    after(R);
+  }, ms);
+}
+function armBot(R, p, s) {
+  const t = R.table, v = Bots.viewFor(t, p.id); if (!v) return;
+  let ms = BOT_MIN != null ? BOT_MIN : Bots.delayMs(v);
+  if (R.settings.turnSec > 0) ms = Math.min(ms, R.settings.turnSec * 1000 - 500);
+  const key = `${t.handNo}:${t.stage}:${t.toAct}:${t.seq}`;
+  R.timers.turn = setTimeout(() => {
+    if (R.paused || `${t.handNo}:${t.stage}:${t.toAct}:${t.seq}` !== key) return;
+    const v2 = Bots.viewFor(t, p.id); if (!v2) return;
+    let d; try { d = Bots.decide(s.bot, v2); t.act(p.id, d.action, d.amount); }
+    catch (e) { R.botErrors = (R.botErrors || 0) + 1; console.warn('bot fallback', p.name, e.message, JSON.stringify(d)); try { t.act(p.id, v2.legal.canCheck ? 'check' : 'fold'); } catch (e2) { } }
     after(R);
   }, ms);
 }
@@ -114,12 +130,27 @@ function clampSettings(o) {
   return { levelMin: Math.min(120, Math.max(1, Math.round(+o.levelMin || 10))), turnSec: [0, 15, 20, 30, 45, 60, 90].includes(+o.turnSec) ? +o.turnSec : 0,
     buyIn: on ? { on: true, cents, email } : { on: false, cents: Number.isFinite(cents) && cents >= 100 ? cents : 500, email: EMAIL.test(email) ? email : '' } };
 }
+// Who collects the buy-in pot: the best-placed human. Bots never pay in and never collect.
+// Humans rank by chips, then by who was knocked out later, then by chips at the start of that hand. Exact ties split.
+function payout(R) {
+  const t = R.table, isBot = p => !!(R.seats[p.id] || {}).bot;
+  const maxC = Math.max(0, ...t.players.map(p => p.chips));
+  const leaders = t.players.filter(p => p.chips === maxC && maxC > 0);
+  const botWinner = leaders.length && leaders.every(isBot) ? leaders.map(p => p.name).join(' & ') : null;
+  const key = p => [p.chips, p.out ? (p.outHand || 0) : 1e9, p.out ? (p.startChips || 0) : 0];
+  const hs = t.players.filter(p => !isBot(p)).sort((a, b) => { const x = key(a), y = key(b); return y[0] - x[0] || y[1] - x[1] || y[2] - x[2]; });
+  if (!hs.length) return { payTo: null, botWinner };
+  const k0 = key(hs[0]).join(), best = hs.filter(p => key(p).join() === k0);
+  return { payTo: best.map(p => p.name).join(' & '), botWinner };
+}
 const payOf = st => (st && st.pay) || 'none';
 function buyInInfo(R) {
   const b = R.settings.buyIn || { on: false }; if (!b.on) return { on: false };
-  const t = R.table, confirmed = t.players.filter(p => payOf(R.seats[p.id]) === 'confirmed').length;
+  const t = R.table, humans = t.players.filter(p => !(R.seats[p.id] || {}).bot), confirmed = humans.filter(p => payOf(R.seats[p.id]) === 'confirmed').length;
   const n = t.stage === 'lobby' ? confirmed : (R.buyInCount || confirmed);
-  return { on: true, cents: b.cents, email: b.email, confirmed, pot: b.cents * n, unpaid: t.players.length - confirmed };
+  const out = { on: true, cents: b.cents, email: b.email, confirmed, humans: humans.length, pot: b.cents * n, unpaid: humans.length - confirmed };
+  if (t.stage === 'gameover') Object.assign(out, payout(R));
+  return out;
 }
 
 io.on('connection', s => {
@@ -151,8 +182,17 @@ io.on('connection', s => {
   H('host:deal', R => { if (R.table.stage !== 'handover') throw new Error('Hand still in play'); clear(R, 'next'); R.nextHandAt = null; R.table.startHand(); });
   H('host:kick', (R, o) => { if (R.table.stage !== 'lobby') throw new Error('Only in the lobby'); const st = R.seats[o.id]; if (st && st.sid) io.to(st.sid).emit('kicked'); delete R.seats[o.id]; R.table.removePlayer(o.id); });
   H('host:end', R => { clear(R, 'next'); clear(R, 'turn'); R.nextHandAt = null; R.turnDeadline = null; R.paused = false; R.table.endGame(); });
-  H('host:confirm', (R, o) => { if (R.table.stage !== 'lobby') throw new Error('Only in the lobby'); const st = R.seats[o.id]; if (!st || !R.table.get(o.id)) throw new Error('No such player'); st.pay = o.on ? 'confirmed' : (st.pay === 'confirmed' ? 'pending' : st.pay); });
-  H('host:playAgain', R => { if (R.table.stage !== 'gameover') throw new Error('Game not over'); R.table.resetForNewGame(); for (const k in R.seats) R.seats[k].pay = 'none'; R.buyInCount = 0; R.paused = false; R.levelEndsAt = 0; R.levelLeft = levelMs(R); });
+  H('host:addBot', (R, o) => {
+    const t = R.table; if (t.stage !== 'lobby') throw new Error('Only in the lobby');
+    const lv = String(o.level || '').toLowerCase(); if (!Bots.LEVELS.includes(lv)) throw new Error('Pick Easy, Medium or Hard');
+    if (Object.values(R.seats).filter(x => x.bot).length >= 5) throw new Error('Maximum 5 computer players');
+    if (t.players.length >= 20) throw new Error('Table is full (20 players)');
+    const name = Bots.pickName(lv, t.players.map(p => p.name)), id = 'b' + crypto.randomBytes(4).toString('hex');
+    t.addPlayer(id, name); R.seats[id] = { token: tok(), sid: null, sittingOut: false, bot: lv, mic: false, pay: 'bot' };
+    t.addLog(`🤖 ${name} (${lv}) joined the table`);
+  });
+  H('host:confirm', (R, o) => { if (R.table.stage !== 'lobby') throw new Error('Only in the lobby'); const st = R.seats[o.id]; if (!st || !R.table.get(o.id)) throw new Error('No such player'); if (st.bot) throw new Error('Computer players don\'t pay a buy-in'); st.pay = o.on ? 'confirmed' : (st.pay === 'confirmed' ? 'pending' : st.pay); });
+  H('host:playAgain', R => { if (R.table.stage !== 'gameover') throw new Error('Game not over'); R.table.resetForNewGame(); for (const k in R.seats) if (!R.seats[k].bot) R.seats[k].pay = 'none'; R.buyInCount = 0; R.paused = false; R.levelEndsAt = 0; R.levelLeft = levelMs(R); });
   // ---- players ----
   s.on('join', (o = {}, cb) => {
     const R = rooms[String(o.pin || '').trim()]; if (!R) return err(cb, 'Game not found - check the PIN');

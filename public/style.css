@@ -24,3 +24,4 @@ input,select{font:inherit;padding:12px;border-radius:10px;border:2px solid #ccc;
 .modal{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;z-index:50}.modal .card{text-align:center;max-width:90vw}
 .potline{margin:10px auto;background:#1e8a3c;color:#fff;border-radius:12px;padding:10px 16px;font-size:1.15em;display:inline-block}
 .pay{display:inline-block;border-radius:8px;padding:2px 8px;font-size:.75em;font-weight:900;margin-left:6px;vertical-align:middle}.pay.none{background:#e60012;color:#fff}.pay.pending{background:#ffd600;color:#111}.pay.confirmed{background:#38e07b;color:#111}
+.botb{display:inline-block;border-radius:8px;padding:1px 7px;font-size:.7em;font-weight:900;margin-left:5px;vertical-align:middle;background:#3a4a6b;color:#fff;white-space:nowrap}.botb.easy{background:#2e7d32}.botb.medium{background:#b26a00}.botb.hard{background:#8e1b1b}

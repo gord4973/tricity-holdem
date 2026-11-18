@@ -123,7 +123,7 @@ class Table {
   }
   standings() { return this.players.map((p, i) => ({ id: p.id, name: p.name, chips: p.chips, seat: i })).sort((a, b) => b.chips - a.chips || a.seat - b.seat).map((x, _, a) => ({ ...x, rank: 1 + a.filter(y => y.chips > x.chips).length })); }
   resetForNewGame() { this.endedByHost = false;
-    for (const p of this.players) Object.assign(p, { chips: this.startingChips, out: false, hole: [], bet: 0, total: 0, folded: false, allIn: false, lastAction: '' });
+    for (const p of this.players) Object.assign(p, { chips: this.startingChips, out: false, outHand: 0, startChips: this.startingChips, hole: [], bet: 0, total: 0, folded: false, allIn: false, lastAction: '' });
     this.level = 0; this.handLevel = 0; this.handNo = 0; this.board = []; this.log = []; this.lastResult = null; this.stage = 'lobby'; this.dealerSeat = -1;
   }
 
@@ -133,7 +133,7 @@ class Table {
     this.handLevel = this.level; this.handNo++;
     const [sb, bb] = this.blinds;
     this.deck = this.makeDeck ? this.makeDeck() : shuffle(newDeck(), this.rand); this.board = []; this.lastResult = null;
-    for (const p of this.players) Object.assign(p, { hole: [], bet: 0, total: 0, folded: p.out, allIn: false, acted: false, lastActCount: -1, lastAction: '' });
+    for (const p of this.players) Object.assign(p, { hole: [], bet: 0, total: 0, folded: p.out, allIn: false, acted: false, lastActCount: -1, lastAction: '', startChips: p.chips });
     this.dealerSeat = this.nextSeat(this.dealerSeat, p => !p.out);
     const headsUp = live.length === 2; this.headsUp = headsUp;
     this.sbSeat = headsUp ? this.dealerSeat : this.nextSeat(this.dealerSeat, p => !p.out);
@@ -261,7 +261,7 @@ class Table {
     this.endHand();
   }
   endHand() {
-    for (const p of this.players) { p.bet = 0; if (!p.out && p.chips === 0) { p.out = true; p.lastAction = 'Out'; this.addLog(`${p.name} is eliminated`); } }
+    for (const p of this.players) { p.bet = 0; if (!p.out && p.chips === 0) { p.out = true; p.outHand = this.handNo; p.lastAction = 'Out'; this.addLog(`${p.name} is eliminated`); } }
     this.toAct = -1;
     const live = this.alive();
     if (live.length < 2) { this.stage = 'gameover'; this.winner = live[0] ? live[0].name : null; this.addLog(`🏆 ${this.winner} wins the game!`); }
