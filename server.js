@@ -1,7 +1,7 @@
 'use strict';
 // Tricity Hold'em - multiplayer play-money Texas Hold'em (host screen + phones). No real money anywhere.
 const express = require('express'), http = require('http'), fs = require('fs'), path = require('path'), crypto = require('crypto'), QR = require('qrcode');
-const { Table, blindsFor } = require('./engine');
+const { Table, blindsFor, rankPlayers } = require('./engine');
 const Bots = require('./bots');
 const app = express(), srv = http.createServer(app), io = require('socket.io')(srv, { cors: { origin: '*' }, pingInterval: 20000, pingTimeout: 30000 });
 const PWF = path.join(__dirname, 'data/host_password.txt');
@@ -46,7 +46,7 @@ function publicView(R) {
     board: t.board, pot: t.potTotal ? (inHand || t.stage === 'showdown' ? t.potTotal() : 0) : 0, currentBet: inHand ? t.currentBet : 0,
     dealer: t.players[t.dealerSeat] ? t.players[t.dealerSeat].id : null, sb: t.handNo && t.players[t.sbSeat] ? t.players[t.sbSeat].id : null, bb: t.handNo && t.players[t.bbSeat] ? t.players[t.bbSeat].id : null, order: t.actionOrder(), headsUp: !!t.headsUp,
     toAct: cur ? cur.id : null, turnDeadline: R.turnDeadline || null,
-    players: t.players.map(p => { const s = R.seats[p.id] || {}; return { id: p.id, name: p.name, chips: p.chips, bet: p.bet, folded: p.folded && !p.out, allIn: p.allIn, out: p.out, sittingOut: !!s.sittingOut, connected: !!(s.sid || s.bot), bot: s.bot || null, pay: s.bot ? 'bot' : payOf(s), mic: !!(s.sid && s.mic), speaking: !!(s.sid && s.mic && s.speaking), lastAction: p.lastAction, hasCards: inHand && p.hole.length === 2 && !p.folded, shown: shown[p.id] ? { hole: shown[p.id].hole, hand: shown[p.id].hand, best: shown[p.id].best } : null }; }),
+    players: t.players.map(p => { const s = R.seats[p.id] || {}; return { id: p.id, name: p.name, chips: p.chips, bet: p.bet, folded: p.folded && !p.out, allIn: p.allIn, out: p.out, outHand: p.out ? (p.outHand || 0) : 0, sittingOut: !!s.sittingOut, connected: !!(s.sid || s.bot), bot: s.bot || null, pay: s.bot ? 'bot' : payOf(s), mic: !!(s.sid && s.mic), speaking: !!(s.sid && s.mic && s.speaking), lastAction: p.lastAction, hasCards: inHand && p.hole.length === 2 && !p.folded, shown: shown[p.id] ? { hole: shown[p.id].hole, hand: shown[p.id].hand, best: shown[p.id].best } : null }; }),
     log: t.log.slice(-14), seq: t.seq || 0, result: inHand ? null : t.lastResult, winner: t.stage === 'gameover' ? t.winner : null, endedByHost: t.stage === 'gameover' && !!t.endedByHost, standings: t.stage === 'gameover' ? t.standings() : null, nextHandAt: R.nextHandAt || null,
   };
 }
@@ -130,18 +130,14 @@ function clampSettings(o) {
   return { levelMin: Math.min(120, Math.max(1, Math.round(+o.levelMin || 10))), turnSec: [0, 15, 20, 30, 45, 60, 90].includes(+o.turnSec) ? +o.turnSec : 0,
     buyIn: on ? { on: true, cents, email } : { on: false, cents: Number.isFinite(cents) && cents >= 100 ? cents : 500, email: EMAIL.test(email) ? email : '' } };
 }
-// Who collects the buy-in pot: the best-placed human. Bots never pay in and never collect.
-// Humans rank by chips, then by who was knocked out later, then by chips at the start of that hand. Exact ties split.
+// Who collects the buy-in pot: the best-placed human under the same ranking as the standings. Bots never pay in and never collect.
 function payout(R) {
-  const t = R.table, isBot = p => !!(R.seats[p.id] || {}).bot;
-  const maxC = Math.max(0, ...t.players.map(p => p.chips));
-  const leaders = t.players.filter(p => p.chips === maxC && maxC > 0);
+  const t = R.table, isBot = p => !!(R.seats[p.id] || {}).bot, all = rankPlayers(t.players);
+  const leaders = all.filter(r => r.rank === 1).map(r => t.get(r.id));
   const botWinner = leaders.length && leaders.every(isBot) ? leaders.map(p => p.name).join(' & ') : null;
-  const key = p => [p.chips, p.out ? (p.outHand || 0) : 1e9, p.out ? (p.startChips || 0) : 0];
-  const hs = t.players.filter(p => !isBot(p)).sort((a, b) => { const x = key(a), y = key(b); return y[0] - x[0] || y[1] - x[1] || y[2] - x[2]; });
+  const hs = rankPlayers(t.players.filter(p => !isBot(p)));
   if (!hs.length) return { payTo: null, botWinner };
-  const k0 = key(hs[0]).join(), best = hs.filter(p => key(p).join() === k0);
-  return { payTo: best.map(p => p.name).join(' & '), botWinner };
+  return { payTo: hs.filter(r => r.rank === 1).map(r => r.name).join(' & '), botWinner };
 }
 const payOf = st => (st && st.pay) || 'none';
 function buyInInfo(R) {

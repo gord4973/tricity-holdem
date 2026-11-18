@@ -79,6 +79,15 @@ function buildPots(contrib) {
 }
 const sameSet = (a, b) => a.length === b.length && a.every(x => b.includes(x));
 
+// ---- final ranking (one rule for standings, game-over places and the buy-in payout) ----
+// 1) players with chips, most chips first; 2) eliminated players, last one out highest; 3) same hand: more chips at the start of that hand
+// ranks higher; exact ties share the place.
+function rankKey(p) { return p.out || p.chips <= 0 ? [0, p.outHand || 0, p.startChips || 0] : [1, p.chips, 0]; }
+function rankCmp(a, b) { const x = rankKey(a), y = rankKey(b); return y[0] - x[0] || y[1] - x[1] || y[2] - x[2]; }
+function rankPlayers(players) {
+  const list = players.map((p, i) => ({ p, i })).sort((a, b) => rankCmp(a.p, b.p) || a.i - b.i);
+  return list.map(({ p, i }) => ({ id: p.id, name: p.name, chips: p.chips, seat: i, out: !!p.out, outHand: p.outHand || 0, rank: 1 + list.filter(o => rankCmp(o.p, p) < 0).length }));
+}
 // ---- table ----
 class Table {
   constructor(opts = {}) {
@@ -117,11 +126,11 @@ class Table {
     if (inHand) { for (const p of this.players) { p.chips += p.total; p.total = 0; p.bet = 0; } this.addLog('Hand voided - all bets returned'); }
     for (const p of this.players) { p.hole = []; p.bet = 0; p.total = 0; p.allIn = false; p.folded = p.out; p.lastAction = p.out ? 'Out' : ''; }
     this.board = []; this.toAct = -1; this.lastResult = null; this.stage = 'gameover'; this.endedByHost = true;
-    const st = this.standings(), top = st.filter(x => x.chips === st[0].chips);
+    const st = this.standings(), top = st.filter(x => x.rank === 1);
     this.winner = top.map(x => x.name).join(' & ');
     this.addLog(`⏹ Game ended by host - ${top.length > 1 ? 'tied: ' : 'chip leader: '}${this.winner} (${st[0].chips})`);
   }
-  standings() { return this.players.map((p, i) => ({ id: p.id, name: p.name, chips: p.chips, seat: i })).sort((a, b) => b.chips - a.chips || a.seat - b.seat).map((x, _, a) => ({ ...x, rank: 1 + a.filter(y => y.chips > x.chips).length })); }
+  standings() { return rankPlayers(this.players); }
   resetForNewGame() { this.endedByHost = false;
     for (const p of this.players) Object.assign(p, { chips: this.startingChips, out: false, outHand: 0, startChips: this.startingChips, hole: [], bet: 0, total: 0, folded: false, allIn: false, lastAction: '' });
     this.level = 0; this.handLevel = 0; this.handNo = 0; this.board = []; this.log = []; this.lastResult = null; this.stage = 'lobby'; this.dealerSeat = -1;
@@ -270,4 +279,4 @@ class Table {
   }
 }
 
-module.exports = { Table, eval5, bestHand, handName, buildPots, cmp, newDeck, shuffle, blindsFor, BLIND_LEVELS, STARTING_CHIPS };
+module.exports = { rankPlayers, rankCmp, Table, eval5, bestHand, handName, buildPots, cmp, newDeck, shuffle, blindsFor, BLIND_LEVELS, STARTING_CHIPS };

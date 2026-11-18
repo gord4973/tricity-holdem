@@ -91,7 +91,7 @@ function render(){const x=st;if(!x||!x.me)return;const me=x.players.find(p=>p.id
  $('mname').textContent=me.name;$('stack').textContent=me.chips;$('mbet').textContent=me.bet?`In this round: ${me.bet}`:'';
  const myShown=me.shown&&me.shown.hand;$('myhand').textContent=myShown||'';
  const L=x.me.legal,cur=x.players.find(p=>p.id===x.toAct);
- let msg;if(me.out&&x.stage!=='gameover')msg='You are out of chips - enjoy watching!';else if(x.stage==='gameover')msg=x.endedByHost?`Game ended by host · you finished #${(x.standings.find(r=>r.id===me.id)||{}).rank} with ${me.chips} chips`:(x.winner===me.name?'🏆 You won the game!':'Game over');
+ let msg;if(me.out&&x.stage!=='gameover')msg='You are out of chips - enjoy watching!';else if(x.stage==='gameover')msg=x.endedByHost?`Game ended by host · you finished #${(x.standings.find(r=>r.id===me.id)||{}).rank} with ${me.chips} chips`:(x.winner===me.name?'🏆 You won the game!':`Game over · you finished #${(x.standings.find(r=>r.id===me.id)||{}).rank}`);
  else if(L)msg=L.toCall?`Your turn - ${L.toCall} to call`:'Your turn';else if(done)msg=winIds.has(me.id)?'🎉 You win!':(x.paused?'Paused by host':'Next hand coming up…');
  else if(me.folded)msg=`You folded · ${cur?esc(cur.name)+' to act':''}`;else if(me.allIn)msg=`You're all-in! ${cur?'· '+esc(cur.name)+' to act':''}`;else msg=cur?`Waiting for ${esc(cur.name)}…`:'…';
  if(x.me.sittingOut&&!me.out)msg+=' (sitting out)';
