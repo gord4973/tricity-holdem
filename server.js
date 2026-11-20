@@ -15,7 +15,7 @@ const html = f => { const src = fs.readFileSync(path.join(__dirname, 'public', f
 app.use(express.json());
 app.get(['/', '/play', '/j/:pin'], html('play.html'));
 app.get('/host', html('host.html'));
-app.use(express.static(path.join(__dirname, 'public'), { index: false, setHeaders: (r, f) => r.set('Cache-Control', f.endsWith('.html') ? 'no-store' : 'no-cache') }));
+app.use(express.static(path.join(__dirname, 'public'), { index: false, setHeaders: (r, f) => { r.set('Cache-Control', f.endsWith('.html') ? 'no-store' : 'no-cache'); if (/manifest[^/]*\.json$/.test(f)) r.type('application/manifest+json'); if (f.endsWith('sw.js')) r.set('Service-Worker-Allowed', '/'); } }));
 app.get('/healthz', (q, r) => r.json({ ok: 1, rooms: Object.keys(rooms).length, botErrors: Object.values(rooms).reduce((a, R) => a + (R.botErrors || 0), 0) }));
 app.post('/api/login', (q, r) => r.json({ ok: pwOk(q.body && q.body.pw) }));
 app.get('/api/qr', async (q, r) => r.type('svg').send(await QR.toString(String(q.query.u || ''), { type: 'svg', margin: 1 })));

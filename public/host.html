@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Tricity Hold'em - Host</title><link rel=stylesheet href=/style.css>
+<!doctype html><html><head><meta charset=utf-8><meta name=theme-color content="#120406"><link rel=manifest href=/manifest-host.json><link rel=icon type=image/png href=/favicon.png><link rel=apple-touch-icon href=/apple-touch-icon.png><meta name=apple-mobile-web-app-capable content=yes><meta name=mobile-web-app-capable content=yes><meta name=apple-mobile-web-app-status-bar-style content=black-translucent><meta name=apple-mobile-web-app-title content="Hold'em Host"><meta name=viewport content="width=device-width,initial-scale=1"><title>Tricity Hold'em - Host</title><link rel=stylesheet href=/style.css>
 <style>
 body{overflow:hidden}section{position:fixed;inset:0;padding:2.5vh 2.5vw;display:flex;flex-direction:column}
 .top{display:flex;justify-content:space-between;align-items:center;gap:2vw}
@@ -106,4 +106,4 @@ function tick(){if(!st)return;const now=Date.now()-offset,x=st;
   $('nx').textContent=x.paused?'⏸ PAUSED':x.levelUp?`${x.nextBlinds.join('/')} from next hand`:`${x.upcoming.join('/')} in ${mmss(rem)}`;
   const tb=$('tb');if(tb&&x.turnDeadline){const tot=x.turnMs||1;tb.style.width=Math.max(0,Math.min(100,(x.turnDeadline-now)/tot*100))+'%'}}}
 setInterval(tick,250);addEventListener('resize',render);
-</script></body></html>
+</script><script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}))</script></body></html>
