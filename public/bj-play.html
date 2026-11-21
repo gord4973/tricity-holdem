@@ -1,0 +1,162 @@
+<!doctype html><html><head><meta charset=utf-8><link rel=manifest href=/manifest-bj.json?v=1><link rel=icon type=image/png href=/favicon-bj-player.png?v=1><link rel=apple-touch-icon href=/apple-touch-icon-bj-player.png?v=1><meta name=apple-mobile-web-app-capable content=yes><meta name=mobile-web-app-capable content=yes><meta name=apple-mobile-web-app-status-bar-style content=black-translucent><meta name=apple-mobile-web-app-title content="Blackjack"><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><meta name=theme-color content="#062a16"><title>Tricity Free Bet Blackjack</title><link rel=stylesheet href=/style.css><link rel=stylesheet href=/bj.css>
+<style>
+body{background:radial-gradient(ellipse at top,#0d4a24,#062a16 55%,#020d06)}
+section{min-height:100vh;min-height:100dvh;padding:10px 10px 90px;display:flex;flex-direction:column;max-width:560px;margin:0 auto}
+.hdr{display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:.9em;gap:6px}.hdr .pill{background:#ffffff1a;border-radius:20px;padding:5px 10px;white-space:nowrap}
+.felt{background:radial-gradient(ellipse at 50% 0%,#1f7a3f,#0d4a24 80%);border:5px solid #5a2b12;border-radius:0 0 50% 50%/0 0 90px 90px;padding:8px 8px 16px;text-align:center;margin-top:8px;box-shadow:inset 0 0 25px #000a;position:relative}
+.felt .rule{font-size:.68em;font-weight:900;letter-spacing:.08em;color:#ffd600cc;margin-top:4px}.felt .rule2{font-size:.62em;font-weight:700;letter-spacing:.06em;color:#ffffffaa}
+#dealer{font-size:8.5vw;min-height:1.9em}@media(min-width:560px){#dealer{font-size:46px}}#dlbl{font-weight:900;font-size:.9em}
+#ann{font-weight:900;font-size:1.05em;color:#ffd600;min-height:1.3em;margin-top:4px}
+#spot{position:relative;display:flex;justify-content:center;gap:10px;flex-wrap:wrap;font-size:11vw;margin-top:10px;min-height:1.6em}@media(min-width:560px){#spot{font-size:60px}}#spot .hand .lbl{font-size:.32em}#spot .lams{font-size:.42em}#spot .res{font-size:.3em}#spot .hcash{font-size:.3em}
+#status{margin-top:8px;text-align:center;font-weight:900;font-size:1.1em;padding:9px;border-radius:12px;background:#ffffff14}#status.turn{background:#ffd600;color:#111;animation:pulse 1.2s infinite}@keyframes pulse{50%{box-shadow:0 0 0 6px #ffd60055}}
+#betbox .spots{display:flex;justify-content:center;gap:22px;margin-top:10px;align-items:center}
+#betbox .circle{width:118px;height:118px;flex-direction:column;cursor:pointer;background:#ffffff0d;font-size:20px}#betbox .circle.pog{width:92px;height:92px}#betbox .circle.sel{box-shadow:0 0 0 4px #ffd600,0 0 18px #ffd600aa}
+#betbox .circle small{position:absolute;bottom:-1.6em;font-size:.6em;font-weight:900;white-space:nowrap}#betbox .circle .amt{position:absolute;top:-1.4em;font-weight:900;font-size:.75em}
+.tray{display:flex;justify-content:center;gap:14px;margin-top:30px}.tray .chip{font-size:30px;cursor:pointer;transition:transform .08s}.tray .chip:active{transform:scale(.9)}.tray .chip.dis{opacity:.3;filter:grayscale(1)}
+.brow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px}.brow button{padding:12px 4px;font-size:.95em}
+#bReady{width:100%;margin-top:8px;font-size:1.2em;padding:15px}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.acts button{font-size:1.2em;padding:17px 6px;position:relative}.acts button .fr{position:absolute;top:-8px;right:-4px;background:#f3c432;color:#5a3a00;border-radius:12px;padding:1px 8px;font-size:.6em;font-weight:900;box-shadow:0 2px 4px #0008}
+#stats{margin-top:10px;background:#0d2f4a;border:1px solid #3f8fd0;border-radius:12px;padding:8px 12px;font-size:.95em;line-height:1.5}#stats:empty{display:none}#stats b{color:#fff}#stats .rec{color:#ffd600}
+.bank{display:flex;justify-content:space-between;align-items:center;margin-top:12px;background:#0007;border-radius:12px;padding:8px 12px}.bank .big{font-size:1.7em;font-weight:900}.bank .stack{font-size:15px}
+.plist{margin-top:10px;font-size:.86em;background:#0007;border-radius:12px;padding:6px 10px}.plist div{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #ffffff12}.plist div:last-child{border:0}.plist .on{color:#ffd600;font-weight:900}.plist .ot{opacity:.35;text-decoration:line-through}
+#log{margin-top:8px;font-size:.78em;color:#ffffffbb;line-height:1.5;background:#0006;border-radius:12px;padding:8px 10px}
+.foot{display:flex;gap:8px;margin-top:12px}.foot button{flex:1;font-size:.85em;padding:10px}
+.big{font-size:2.3em;font-weight:900}
+#vbar{position:fixed;right:10px;bottom:10px;display:flex;gap:8px;z-index:40}#vbar button{border-radius:30px;padding:12px 16px;font-size:1em;box-shadow:0 4px 14px #000a}
+#bMic.off{background:#b00012}#bMic.on{background:#1e8a3c}#bMic.on.talk{box-shadow:0 0 0 4px #38e07b88,0 4px 14px #000a}#bSpk{background:#333}#bSpk.off{background:#555;opacity:.8}
+#vhint{position:fixed;left:10px;right:10px;bottom:70px;text-align:center;background:#ffd600;color:#111;font-weight:900;border-radius:12px;padding:10px;z-index:39}
+.logo .dia{color:#ffd600}.logo b{color:#ffd600}
+</style></head><body>
+<section id=j class=center><div class=logo style="font-size:2.7em"><span class=dia>♠</span>Tricity <b>Blackjack</b><small>Free Bet · play money only</small></div>
+<div class="card pop" style="width:100%;max-width:380px;margin-top:20px"><input id=pin placeholder="Game PIN" inputmode=numeric style="text-align:center;font-size:1.4em;font-weight:700"><input id=nm placeholder="Nickname" maxlength=16 style="text-align:center;font-size:1.4em;font-weight:700;margin-top:10px"><button class=red style="width:100%;margin-top:10px;font-size:1.3em" onclick=join()>Take a seat ♠</button><div id=err style="color:#e60012;margin-top:8px"></div><button id=errrj class="gold hidden" style="width:100%;margin-top:8px" onclick="showRejoin('')">↩ Rejoin my seat</button></div>
+<p style="color:#ffffff99;font-size:.85em;max-width:340px">Everyone starts with $400 in play chips: one $100, four $25 and forty $5 chips. Blackjack pays 3 to 2.</p></section>
+<section id=w class="center hidden"><div class="big pop">You're seated! ♠♥♦♣</div><p id=me style="font-size:1.4em;font-weight:700"></p><p>Find your seat on the big screen.<br>The dealer will open betting soon…</p><div id=bicard class="card hidden" style="width:100%;max-width:400px;text-align:center;margin:6px 0 12px"><div style="font-weight:900;font-size:1.2em">💵 Buy-in: <span id=biamt></span></div>
+<div style="margin-top:8px;font-size:.95em">e-Transfer to</div><div style="display:flex;gap:8px;align-items:center;justify-content:center;margin-top:4px"><b id=biemail style="word-break:break-all"></b><button class=dark style="padding:8px 12px" onclick=copyEmail()>Copy</button></div>
+<p style="font-size:.9em;color:#444">Send an Interac e-Transfer from your banking app, then tap I've sent it.</p>
+<div>Status: <span id=bistatus class=pay></span></div><button id=bisent class=green style="width:100%;margin-top:10px;font-size:1.15em" onclick=biSent()>I've sent it</button>
+<p style="font-size:.75em;color:#777;margin:8px 0 0">The app doesn't send or check money. The host confirms when it arrives.</p></div>
+<p id=wcount style="color:#ffffffaa"></p><button class=ghost onclick="$('rules').classList.remove('hidden')">📜 Table rules &amp; Pot of Gold</button><button class=ghost style="margin-top:8px" onclick=leave()>Leave</button></section>
+<section id=g class=hidden>
+<div class=hdr><span class=pill id=lim></span><span class=pill id=rnd></span><span class=pill id=clk></span></div>
+<div class=felt><div style="font-size:.7em;color:#ffffffaa;font-weight:700">DEALER</div><div id=dealer></div><div id=dlbl></div><div id=ann></div>
+<div class=rule>BLACKJACK PAYS 3 TO 2</div><div class=rule2>DEALER HITS SOFT 17 · <b style="color:#ffd600">DEALER 22 PUSHES</b> · INSURANCE PAYS 2 TO 1</div></div>
+<div id=spot></div>
+<div id=status></div>
+<div id=betbox class=hidden><div class=spots><div class="circle sel" id=cMain onclick="pickSpot('main')"><span class=amt id=aMain></span><div id=sMain></div><small>BET</small></div><div class="circle pog" id=cPog onclick="pickSpot('pog')"><span class=amt id=aPog></span><div id=sPog></div><small>🪙 POT OF GOLD</small></div></div>
+<div class=tray id=tray></div>
+<div class=brow><button class=dark onclick="send('bet:clear',{},ackErr)">Clear</button><button class=blue id=bRebet onclick="send('bet:rebet',{},ackErr)">Rebet</button><button class=blue id=bRebet2 onclick="send('bet:rebet',{x2:true},ackErr)">Rebet ×2</button></div>
+<button class=green id=bReady onclick=ready()>Deal me in ✓</button></div>
+<div id=insbox class=hidden><div class=acts><button class=green onclick="send('insure',{yes:true},ackErr)" id=bInsY>Insurance</button><button class=red onclick="send('insure',{yes:false},ackErr)">No insurance</button></div></div>
+<div id=actbox class=hidden><div class=acts><button class=green id=bHit onclick="act('hit')">Hit</button><button class=red id=bStand onclick="act('stand')">Stand</button><button class=blue id=bDbl onclick="act('double')">Double</button><button class=gold id=bSpl onclick="act('split')">Split</button></div></div>
+<div id=stats></div>
+<div class=bank><div><div style="font-size:.8em;color:#ffffffaa">MY CHIPS</div><div class=big id=bal></div></div><div class=stack id=mystack></div></div>
+<div class=plist id=plist></div><div id=log></div>
+<div class=foot><button class=ghost onclick="$('rules').classList.remove('hidden')">📜 Rules</button><button class=ghost id=bSit onclick=sit()>Sit out</button><button class=ghost onclick=leave()>Leave</button></div></section>
+<section id=over class="center hidden"><div class="big pop">🏁 Game over</div><div id=ostand style="width:100%"></div><div id=opot></div><p>Thanks for playing Tricity Blackjack!</p></section>
+<section id=rj class="center hidden"><div class="big pop" style="font-size:2em">Rejoin my seat</div><p id=rjmsg style="max-width:340px"></p>
+<div class="card pop" style="width:100%;max-width:380px"><button id=rjuse class="green hidden" style="width:100%;font-size:1.2em;margin-bottom:12px" onclick=useHere()>📱 Use this screen</button>
+<input id=rjpin placeholder="Game PIN" inputmode=numeric style="text-align:center;font-size:1.3em;font-weight:700"><input id=rjname placeholder="Your name at the table" maxlength=16 style="text-align:center;font-size:1.3em;font-weight:700;margin-top:10px">
+<button class=red style="width:100%;margin-top:10px;font-size:1.2em" onclick=reclaim()>↩ Rejoin my seat</button><div id=rjerr style="color:#e60012;margin-top:8px"></div>
+<p style="font-size:.8em;color:#666;margin:10px 0 0">Your chips and seat are kept while you're away. If your seat still shows as connected, ask the host to tap your seat and choose "Let (your name) rejoin".</p></div>
+<button class=ghost style="margin-top:14px" onclick="show('j')">Join as a new player instead</button></section>
+<section id=out class="center hidden"><div class="big pop">Thanks for playing!</div><p id=outmsg></p><button class=red onclick="location.href='/blackjack'">Join another game</button></section>
+<div id=rules class="modal hidden" onclick="if(event.target===this)this.classList.add('hidden')"><div class="card pop" style="max-width:460px;background:#0d4a24;color:#fff;max-height:88vh;overflow:auto"><div style="font-size:1.4em;font-weight:900">Free Bet Blackjack</div><div id=rulesBody></div><button class=dark style="margin-top:10px" onclick="$('rules').classList.add('hidden')">Close</button></div></div>
+<div id=vbar class=hidden><button id=bSpk onclick="Voice.setSpeakers(!Voice.speakersOn)">🔊</button><button id=bMic class=off onclick=micTap()>🎤 Mic off</button></div>
+<div id=vhint class=hidden onclick="this.classList.add('hidden')">🔈 Tap here to hear other players</div>
+<script src=/socket.io/socket.io.js></script><script src=/cards.js></script><script src=/bj.js></script><script src=/voice.js></script><script>
+const s=io('/bj',{reconnectionDelayMax:3000}),$=id=>document.getElementById(id);let st=null,offset=0,spot='main',lastTurnKey='',lastRound=0,lastNet=null;
+const m=location.pathname.match(/\/j\/(\d+)/);if(m){$('pin').value=m[1]}
+let sess=JSON.parse(localStorage.getItem('bjSeat')||'null');
+function show(id){['j','w','g','out','rj','over'].forEach(x=>$(x).classList.toggle('hidden',x!==id));$('vbar').classList.toggle('hidden',!(id==='w'||id==='g'))}
+function vrender(){const on=Voice.micOn;$('bMic').className=on?('on'+(Voice.speaking?' talk':'')):'off';$('bMic').textContent=on?'🎤 Mic on':'🎤 Mic off';$('bSpk').className=Voice.speakersOn?'':'off';$('bSpk').textContent=Voice.speakersOn?'🔊':'🔇';$('vhint').classList.toggle('hidden',Voice.unlocked||!Voice.stats.audios||!Voice.speakersOn)}
+async function micTap(){try{await Voice.toggle()}catch(e){toast(e&&e.name==='NotAllowedError'?'Microphone permission was blocked - allow it in your browser settings':((e&&e.message)||'Could not start the microphone'))}vrender()}
+Voice.init(s,()=>st&&st.me?st.me.id:null,vrender);
+s.on('voice',v=>{Voice.peerVoice(v);vrender();if(!st)return;const p=st.players.find(q=>q.id===v.id);if(p){p.mic=v.mic;p.speaking=v.speaking;render()}});
+const ackErr=r=>{if(r&&r.error)toast(r.error)};
+function copyEmail(){const e=$('biemail').textContent;(navigator.clipboard?navigator.clipboard.writeText(e):Promise.reject()).then(()=>toast('Email copied'),()=>toast('Select and copy the email'))}
+function biSent(){const me=st&&st.players.find(p=>p.id===st.me.id);send('buyin:sent',{on:!(me&&me.pay==='pending')},ackErr)}
+function join(){const pin=$('pin').value.trim(),name=$('nm').value;$('err').textContent='';$('errrj').classList.add('hidden');
+ s.emit('join',{pin,name},r=>{if(r.error){$('err').textContent=r.error;if(r.code==='canReclaim')$('errrj').classList.remove('hidden');return}saveSess(r,pin);Voice.joined();$('me').textContent=r.name})}
+// ---- seat recovery (same as Hold'em) ----
+let parked=false,rejoining=null;const rc=new URLSearchParams(location.search).get('r');let linkCode=m&&rc?rc:null;
+function saveSess(r,pin){sess={pin:r.pin||pin||(sess&&sess.pin),token:r.token,name:r.name};localStorage.setItem('bjSeat',JSON.stringify(sess))}
+const waitConnect=ms=>new Promise(res=>{if(s.connected)return res(true);const t=setTimeout(()=>{s.off('connect',f);res(false)},ms),f=()=>{clearTimeout(t);res(true)};s.once('connect',f)});
+function rejoin(){if(!sess||parked)return Promise.resolve(false);if(rejoining)return rejoining;
+ rejoining=new Promise(res=>{s.timeout(7000).emit('join',{pin:sess.pin,token:sess.token},(e,r)=>{rejoining=null;if(e)return res(false);
+  if(r.error){if(/not found/i.test(r.error)){localStorage.removeItem('bjSeat');sess=null;Voice.reset();show('j');$('err').textContent='That game has ended. Ask the host for the new PIN.'}else showRejoin(r.error);return res(false)}
+  saveSess(r);Voice.joined();$('me').textContent=r.name;res(true)})});return rejoining}
+function useLink(){const code=linkCode;linkCode=null;history.replaceState(null,'',location.pathname);
+ s.emit('join',{pin:m[1],rejoin:code},r=>{if(r.error){if(sess)rejoin();else{show('j');$('err').textContent=r.error}return}parked=false;saveSess(r,m[1]);Voice.joined();$('me').textContent=r.name;toast('Welcome back, '+r.name)})}
+s.on('connect',()=>{if(linkCode)return useLink();rejoin()});
+function kickSock(){try{s.disconnect()}catch(e){}s.connect()}
+async function send(ev,o,cb,tries=0){
+ if(!s.connected){s.connect();await waitConnect(6000);await rejoin()}
+ s.timeout(7000).emit(ev,o,async(e,r)=>{
+  if(e){if(tries<1){kickSock();if(await waitConnect(8000)){await rejoin();return send(ev,o,cb,tries+1)}}toast('Connection problem - reconnecting…');return check()}
+  if(r&&r.code==='rebind'){if(tries<1&&await rejoin())return send(ev,o,cb,tries+1);return showRejoin('Your phone lost its seat connection.')}
+  if(r&&r.error&&tries>0&&/not your turn/i.test(r.error))return;
+  cb&&cb(r)})}
+let checking=false;
+function check(){if(!sess||parked||checking||linkCode)return;if(!s.connected){s.connect();return}checking=true;
+ s.timeout(5000).emit('seat:check',{},(e,r)=>{checking=false;if(e)return kickSock();if(!r.bound)rejoin().then(ok=>{if(!ok&&sess&&!parked&&$('rj').classList.contains('hidden'))showRejoin('Your phone lost its seat connection.')})})}
+setInterval(()=>{if(document.visibilityState==='visible')check()},10000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')check()});['pageshow','online','focus'].forEach(ev=>window.addEventListener(ev,()=>check()));
+function showRejoin(msg){show('rj');$('rjmsg').textContent=msg||'';$('rjerr').textContent='';$('rjpin').value=(sess&&sess.pin)||(m&&m[1])||$('pin').value||'';$('rjname').value=(sess&&sess.name)||$('nm').value||'';$('rjuse').classList.toggle('hidden',!parked)}
+function reclaim(){const pin=$('rjpin').value.trim(),name=$('rjname').value.trim();$('rjerr').textContent='';
+ s.timeout(7000).emit('join',{pin,name,reclaim:true},(e,r)=>{if(e)return $('rjerr').textContent='No connection - check your internet and try again';if(r.error)return $('rjerr').textContent=r.error;parked=false;saveSess(r,pin);Voice.joined();$('me').textContent=r.name;toast('Welcome back, '+r.name)})}
+function useHere(){parked=false;rejoin().then(ok=>{if(!ok)showRejoin('Could not take the seat back automatically.')})}
+s.on('kicked',x=>{if(x&&x.soft){parked=true;Voice.reset();showRejoin(x.msg+' Tap "Use this screen" to play here.');return}Voice.reset();localStorage.removeItem('bjSeat');sess=null;show('out');$('outmsg').textContent=x||'You were removed from the table.'});
+function leave(){if(!confirm('Leave the table? Any hand in play will stand.'))return;Voice.reset();s.emit('leave',{},()=>{});localStorage.removeItem('bjSeat');sess=null;show('out');$('outmsg').textContent='You left the table.'}
+function sit(){send('sitout',{on:!(st&&st.me&&st.me.sittingOut)},()=>{})}
+// ---- table ----
+function pickSpot(k){if(k==='pog'&&!st.settings.pog)return;spot=k;render()}
+function bet(v){send('bet:add',{spot,chip:v},ackErr)}
+function ready(){const me=st.players.find(p=>p.id===st.me.id);send('bet:ready',{on:!me.bet.ready},ackErr)}
+function act(a){send('act',{action:a},ackErr)}
+s.on('state',x=>{offset=Date.now()-x.serverNow;st=x;render()});
+function floatNet(n){const e=document.createElement('div');e.className='float'+(n<0?' neg':'');e.textContent=netTxt(n);e.style.fontSize='.45em';$('spot').appendChild(e);setTimeout(()=>e.remove(),2500)}
+function render(){const x=st;if(!x||!x.me)return;const me=x.players.find(p=>p.id===x.me.id);if(!me)return;$('rulesBody').innerHTML=rulesHTML(x);
+ if(x.stage==='lobby'){show('w');$('wcount').textContent=`${x.players.length} / 7 seats taken`;const b=x.buyIn;$('bicard').classList.toggle('hidden',!b.on);if(b.on){$('biamt').textContent=money(b.cents);$('biemail').textContent=b.email;$('bistatus').className='pay '+me.pay;$('bistatus').textContent=PAYTXT[me.pay];$('bisent').textContent=me.pay==='pending'?'Undo - I haven\'t sent it':"I've sent it";$('bisent').disabled=me.pay==='confirmed'}return}
+ if(x.stage==='gameover'){show('over');$('ostand').innerHTML=standingsHTMLbj(x,me.id);$('opot').innerHTML=potLine(x);return}
+ show('g');const S=x.settings;$('lim').textContent=`${money(S.minBet)}–${money(S.maxBet)}`;$('rnd').textContent='Round '+x.round;
+ // dealer
+ $('dealer').innerHTML=x.dealer.cards.length?cardsHTML(x.dealer.cards.map((c,i)=>c),'d'+x.round):'<span style="opacity:.3">🂠</span>';$('dlbl').textContent=x.dealer.label?('Dealer: '+x.dealer.label):'';
+ $('ann').textContent=x.stage==='settled'?announce(x):x.stage==='insurance'?'Dealer shows an Ace — insurance?':x.paused?'⏸ Paused by the host':'';
+ // my hands
+ const b=me.box,myTurn=x.turn&&x.turn.id===me.id;
+ $('spot').innerHTML=b?b.hands.map((h,i)=>handHTML(h,'m'+x.round+':'+i,{active:myTurn&&x.turn.hand===i,unit:b.unit})).join(''):'';
+ if(x.stage==='settled'&&b&&lastRound!==x.round){lastRound=x.round;floatNet(b.net)}
+ // status
+ const L=x.me.legal,cur=x.turn&&x.players.find(p=>p.id===x.turn.id);let msg='',turn=false;
+ if(x.stage==='betting'){msg=me.out?'You are out of chips':me.bet.ready?'Bet locked in — waiting for the deal':`Place your bet (${money(S.minBet)} min)`}
+ else if(x.stage==='insurance')msg=x.me.canInsure?`Insurance? Costs ${money(Math.floor(b.unit/2))}, pays 2 to 1`:'Waiting for insurance decisions…';
+ else if(L){turn=true;msg=b.hands.length>1?`YOUR TURN — hand ${x.turn.hand+1} of ${b.hands.length}`:'YOUR TURN'}
+ else if(x.stage==='playing')msg=cur?`${cur.name} is playing…`:'';
+ else if(x.stage==='dealer')msg='Dealer is playing…';
+ else if(x.stage==='settled')msg=b?`${b.net>0?'You win '+money(b.net):b.net<0?'You lose '+money(-b.net):'Push'}${b.pog?(b.pogPaid?` · 🪙 Pot of Gold paid ${money(b.pogPaid-b.pog)}`:''):''}`:'You sat this round out';
+ if(!b&&['insurance','playing','dealer'].includes(x.stage))msg='Not in this round — next bets soon';
+ $('status').innerHTML=esc(msg)+'<span id=tl></span>';$('status').className=turn?'turn':'';
+ const key=x.round+':'+(x.turn?x.turn.id+x.turn.hand:'')+':'+x.stage;if(turn&&key!==lastTurnKey&&navigator.vibrate)navigator.vibrate([120,60,120]);lastTurnKey=key;
+ // betting
+ const betting=x.stage==='betting'&&!me.out;$('betbox').classList.toggle('hidden',!betting);
+ if(betting){const avail=me.chips-me.bet.main-me.bet.pog,lock=me.bet.ready;$('cPog').style.display=S.pog?'':'none';if(!S.pog)spot='main';
+  $('cMain').classList.toggle('sel',spot==='main');$('cPog').classList.toggle('sel',spot==='pog');$('sMain').innerHTML=stackHTML(me.bet.main,6);$('sPog').innerHTML=stackHTML(me.bet.pog,5);
+  $('aMain').textContent=me.bet.main?money(me.bet.main):'';$('aPog').textContent=me.bet.pog?money(me.bet.pog):'';
+  $('tray').innerHTML=DEN.slice(0,3).slice().reverse().map(d=>`<span class="chip ${d.c}${lock||d.v>avail?' dis':''}" onclick="${lock||d.v>avail?'':'bet('+d.v+')'}"><span>$${d.l}</span></span>`).join('');
+  $('bRebet').disabled=lock||!x.me.last;$('bRebet2').disabled=lock||!x.me.last;$('bReady').textContent=lock?'Change my bet':(me.bet.main?`Deal me in ✓ (${money(me.bet.main+me.bet.pog)})`:'Deal me in ✓');$('bReady').className=lock?'dark':'green';$('bReady').disabled=!lock&&me.bet.main<S.minBet}
+ // insurance + actions
+ $('insbox').classList.toggle('hidden',!x.me.canInsure);
+ $('actbox').classList.toggle('hidden',!L);if(L){$('bHit').disabled=!L.canHit;$('bDbl').disabled=!L.canDouble;$('bSpl').disabled=!L.canSplit;
+  $('bDbl').innerHTML='Double'+(L.canDouble&&L.doubleFree?'<span class=fr>FREE</span>':L.canDouble?` <small>${money(L.unit)}</small>`:'');$('bSpl').innerHTML='Split'+(L.canSplit&&L.splitFree?'<span class=fr>FREE</span>':L.canSplit?` <small>${money(L.unit)}</small>`:'')}
+ // stats
+ const T=x.me.stats;$('stats').innerHTML=T?[T.hands.length?`📊 My hand${T.hands.length>1?'s':''}: <b>${T.hands.map(esc).join(' · ')}</b>`:'',T.rec?`🎯 Recommended: <b class=rec>${esc(T.rec)}</b>${T.freeHand?' <small>(free-bet hand)</small>':''}`:'',T.bust!=null?`💥 Bust chance if you hit: <b>${Math.round(T.bust)}%</b>`:'',`🃏 Dealer (${esc(T.up[0]==='T'?'10':T.up[0])} up) busts: <b>${Math.round(T.dealerBust)}%</b> · makes 22 (push): <b>${Math.round(T.dealer22)}%</b>`].filter(Boolean).join('<br>'):'';
+ // bank
+ const inPlay=me.bet.main+me.bet.pog;$('bal').textContent=money(x.stage==='betting'?me.chips-inPlay:me.chips);$('mystack').innerHTML=stackHTML(x.stage==='betting'?me.chips-inPlay:me.chips,10);
+ $('plist').innerHTML=x.players.map(p=>{const pb=p.box,on=x.turn&&x.turn.id===p.id;return `<div class="${on?'on':''} ${p.out?'ot':''}"><span>${esc(p.name)}${botTag(p)}${p.id===me.id?' (you)':''}${!p.connected||p.sittingOut?' 💤':''}${p.mic?` <span>${p.speaking?'🗣️':'🎤'}</span>`:''}</span><span>${pb?pb.hands.map(h=>esc(h.label)+(h.result?' '+RES[h.result]:'')).join(' / ')+' · ':x.stage==='betting'&&p.bet.main?(p.bet.ready?'✓ ':'')+money(p.bet.main)+' · ':''}${money(p.chips)}</span></div>`}).join('');
+ $('log').innerHTML=x.log.slice(-5).map(esc).join('<br>');$('bSit').textContent=x.me.sittingOut?"I'm back":'Sit out';tick()}
+function standingsHTMLbj(x,meId){if(!x.standings)return'';const md=['🥇','🥈','🥉'];return `<div class=stand>${x.standings.map(r=>`<div class="${r.id===meId?'me':''} ${r.rank===1?'top':''}"><span>${md[r.rank-1]||r.rank+'.'} ${esc(r.name)}</span><span>${r.out?'out round '+r.outHand:money(r.chips)}</span></div>`).join('')}</div>`}
+function tick(){if(!st||!['betting','insurance','playing','settled'].includes(st.stage))return $('clk').textContent='';const now=Date.now()-offset,x=st;let d=null;
+ if(x.stage==='betting'&&x.betDeadline)d=x.betDeadline;else if((x.stage==='playing'||x.stage==='insurance')&&x.turnDeadline)d=x.turnDeadline;else if(x.stage==='settled'&&x.nextRoundAt)d=x.nextRoundAt;
+ $('clk').textContent=x.paused?'⏸ Paused':d?`⏱ ${Math.max(0,Math.ceil((d-now)/1000))}s`:`Shoe ${x.shoe.remaining}`;const tl=$('tl');if(tl)tl.textContent=''}
+setInterval(tick,500);
+</script><script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}))</script></body></html>

@@ -12,12 +12,16 @@ const PW = (process.env.HOST_PIN || fs.readFileSync(PWF, 'utf8')).trim();
 const pwOk = pw => typeof pw === 'string' && pw.length === PW.length && crypto.timingSafeEqual(Buffer.from(pw), Buffer.from(PW));
 
 const VER = (process.env.RENDER_GIT_COMMIT || String(Date.now())).slice(0, 10);
-const html = f => { const src = fs.readFileSync(path.join(__dirname, 'public', f), 'utf8').replace(/(href|src)=\/(style\.css|cards\.js|voice\.js)/g, `$1=/$2?v=${VER}`); return (q, r) => { r.set('Cache-Control', 'no-store, max-age=0'); r.type('html').send(src); }; };
+const html = f => { const src = fs.readFileSync(path.join(__dirname, 'public', f), 'utf8').replace(/(href|src)=\/(style\.css|cards\.js|voice\.js|bj\.js|bj\.css)/g, `$1=/$2?v=${VER}`); return (q, r) => { r.set('Cache-Control', 'no-store, max-age=0'); r.type('html').send(src); }; };
 app.use(express.json());
 app.get(['/', '/play', '/j/:pin'], html('play.html'));
 app.get('/host', html('host.html'));
+// Free Bet Blackjack table (same server, own socket namespace /bj)
+app.get(['/blackjack', '/blackjack/j/:pin'], html('bj-play.html'));
+app.get('/blackjack/host', html('bj-host.html'));
+app.get(['/bj', '/bj/'], (q, r) => r.redirect('/blackjack')); app.get('/bj/host', (q, r) => r.redirect('/blackjack/host')); app.get('/bj/j/:pin', (q, r) => r.redirect('/blackjack/j/' + encodeURIComponent(q.params.pin)));
 app.use(express.static(path.join(__dirname, 'public'), { index: false, setHeaders: (r, f) => { r.set('Cache-Control', f.endsWith('.html') ? 'no-store' : 'no-cache'); if (/manifest[^/]*\.json$/.test(f)) r.type('application/manifest+json'); if (f.endsWith('sw.js')) r.set('Service-Worker-Allowed', '/'); } }));
-app.get('/healthz', (q, r) => r.json({ ok: 1, rooms: Object.keys(rooms).length, botErrors: Object.values(rooms).reduce((a, R) => a + (R.botErrors || 0), 0), watchdog: Object.values(rooms).reduce((a, R) => a + (R.watchdog || 0), 0) }));
+app.get('/healthz', (q, r) => r.json({ ok: 1, rooms: Object.keys(rooms).length, botErrors: Object.values(rooms).reduce((a, R) => a + (R.botErrors || 0), 0), watchdog: Object.values(rooms).reduce((a, R) => a + (R.watchdog || 0), 0), blackjack: BJ.health() }));
 app.post('/api/login', (q, r) => r.json({ ok: pwOk(q.body && q.body.pw) }));
 app.get('/api/qr', async (q, r) => r.type('svg').send(await QR.toString(String(q.query.u || ''), { type: 'svg', margin: 1 })));
 
@@ -313,4 +317,5 @@ io.on('connection', s => {
     const H2 = rooms[s.data.hostPin]; if (H2 && H2.hostSid === s.id) H2.hostSid = null;
   });
 });
+const BJ = require('./bj/server')({ io, pwOk });
 srv.listen(process.env.PORT || 3460, () => console.log('holdem on', process.env.PORT || 3460));

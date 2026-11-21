@@ -1,0 +1,23 @@
+/* Tricity Free Bet Blackjack - shared table styles */
+.chip{--c:#c00;--e:#fff;display:inline-flex;align-items:center;justify-content:center;width:2.2em;height:2.2em;border-radius:50%;font-weight:900;font-size:1em;color:#fff;position:relative;
+ background:radial-gradient(circle,var(--c) 0 52%,var(--e) 53% 57%,var(--c) 58% 100%);box-shadow:inset 0 0 0 .16em var(--c),inset 0 0 0 .3em var(--e),0 .12em .2em #000a;text-shadow:0 1px 1px #0008;flex:none}
+.chip::before{content:'';position:absolute;inset:0;border-radius:50%;background:repeating-conic-gradient(var(--e) 0 9deg,transparent 9deg 45deg);-webkit-mask:radial-gradient(circle,transparent 0 70%,#000 71%);mask:radial-gradient(circle,transparent 0 70%,#000 71%)}
+.chip span{position:relative;font-size:.62em;letter-spacing:-.02em}
+.chip.k100{--c:#141414;--e:#e8e8e8}.chip.k25{--c:#13853a;--e:#fff}.chip.k5{--c:#d0101e;--e:#fff}.chip.k2{--c:#ff7eb6;--e:#fff}.chip.k2 span{color:#600}
+.chip.gold,.lammer{--c:#e3a816;--e:#fff3b0;color:#5a3a00;text-shadow:none}
+.lammer{display:inline-flex;align-items:center;justify-content:center;width:1.9em;height:1.9em;border-radius:50%;font-weight:900;font-size:.8em;background:radial-gradient(circle at 35% 30%,#fff6c2,#f3c432 45%,#b67d06);border:.12em solid #fff1a6;box-shadow:0 .1em .25em #000b,inset 0 0 .3em #8a5a00;position:relative;flex:none;animation:lam .5s cubic-bezier(.2,1.6,.4,1)}
+.lammer::after{content:'FREE';position:absolute;font-size:.42em;bottom:.25em;letter-spacing:.02em}.lammer b{font-size:.62em;margin-top:-.4em}
+@keyframes lam{from{transform:translateY(-1.5em) scale(.4);opacity:0}to{transform:none;opacity:1}}
+.stk{display:inline-flex;gap:.18em;align-items:flex-end}.stk .col{display:flex;flex-direction:column-reverse;align-items:center}.stk .col .chip{margin-top:-1.75em}.stk .col .chip:first-child{margin-top:0}
+.stk .cnt{font-size:.55em;font-weight:900;color:#fff;background:#000a;border-radius:6px;padding:0 .3em;margin-top:.15em}
+.circle{border:.16em solid #ffffffcc;border-radius:50%;display:flex;align-items:center;justify-content:center;position:relative}
+.circle.pog{border-color:#f3c432;background:radial-gradient(circle,#f3c43222,transparent 70%)}
+.res{display:inline-block;font-weight:900;border-radius:8px;padding:.1em .45em;font-size:.8em;letter-spacing:.02em}
+.res.win,.res.blackjack{background:#38e07b;color:#082}.res.blackjack{background:#ffd600;color:#3a2a00}.res.push,.res.push22{background:#e0e0e0;color:#333}.res.lose,.res.bust{background:#e60012;color:#fff}
+.hand{display:inline-flex;flex-direction:column;align-items:center;gap:.15em;position:relative}.hand .cards{white-space:nowrap}.hand .cards .pc{margin-left:-.75em}.hand .cards .pc:first-child{margin-left:0}
+.hand .lbl{font-weight:900;background:#000b;border-radius:20px;padding:.05em .55em;font-size:.75em}.hand.act .lbl{background:#ffd600;color:#111}.hand.act .cards{filter:drop-shadow(0 0 .25em #ffd600)}
+.hand .lams{display:flex;gap:.1em;justify-content:center}
+.float{position:absolute;left:50%;top:0;transform:translateX(-50%);font-weight:900;color:#38e07b;text-shadow:0 2px 4px #000;animation:flt 2.4s ease-out forwards;pointer-events:none;white-space:nowrap;z-index:5}.float.neg{color:#ff6b6b}
+@keyframes flt{0%{opacity:0;transform:translate(-50%,.5em) scale(.7)}15%{opacity:1;transform:translate(-50%,0) scale(1.15)}100%{opacity:0;transform:translate(-50%,-2.5em) scale(1)}}
+.paytab{border-collapse:collapse;font-weight:700}.paytab td{padding:.1em .6em;border-bottom:1px solid #ffffff22}.paytab td:last-child{text-align:right;color:#ffd600}
+.rules li{margin:.25em 0}
