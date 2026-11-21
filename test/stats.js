@@ -15,8 +15,8 @@ let fails = 0; const check = (c, m) => { console.log(`  ${c ? '✓' : '✖ FAIL'
     const s = await conn(); socks[name] = s;
     s.on('state', x => { log[name].push({ phase, x });
       if (!x.me || !x.me.legal) return;
-      // Ann folds pre-flop on hands divisible by 4 once stats are on, so we can check stats disappear after a fold
-      const fold = name === 'Ann' && phase === 'on' && x.stage === 'preflop' && x.handNo % 4 === 0;
+      // Ann folds pre-flop on her first turn once stats are on (and on hands divisible by 4), so we can check stats disappear after a fold
+      const fold = name === 'Ann' && phase === 'on' && x.stage === 'preflop' && (!annFoldHand || x.handNo % 4 === 0);
       if (fold) annFoldHand = x.handNo;
       setTimeout(() => s.emit('act', { action: fold ? 'fold' : x.me.legal.canCheck ? 'check' : 'call' }, () => {}), 60); });
     await emit(s, 'join', { pin, name });
