@@ -16,7 +16,7 @@ app.use(express.json());
 app.get(['/', '/play', '/j/:pin'], html('play.html'));
 app.get('/host', html('host.html'));
 app.use(express.static(path.join(__dirname, 'public'), { index: false, setHeaders: (r, f) => { r.set('Cache-Control', f.endsWith('.html') ? 'no-store' : 'no-cache'); if (/manifest[^/]*\.json$/.test(f)) r.type('application/manifest+json'); if (f.endsWith('sw.js')) r.set('Service-Worker-Allowed', '/'); } }));
-app.get('/healthz', (q, r) => r.json({ ok: 1, rooms: Object.keys(rooms).length, botErrors: Object.values(rooms).reduce((a, R) => a + (R.botErrors || 0), 0) }));
+app.get('/healthz', (q, r) => r.json({ ok: 1, rooms: Object.keys(rooms).length, botErrors: Object.values(rooms).reduce((a, R) => a + (R.botErrors || 0), 0), watchdog: Object.values(rooms).reduce((a, R) => a + (R.watchdog || 0), 0) }));
 app.post('/api/login', (q, r) => r.json({ ok: pwOk(q.body && q.body.pw) }));
 app.get('/api/qr', async (q, r) => r.type('svg').send(await QR.toString(String(q.query.u || ''), { type: 'svg', margin: 1 })));
 
@@ -65,10 +65,14 @@ function voiceUpdate(R, id) { const st = R.seats[id]; if (!st) return; const v =
 const sockAlive = sid => !!(sid && io.sockets.sockets.get(sid) && io.sockets.sockets.get(sid).connected);
 function clear(R, k) { clearTimeout(R.timers[k]); delete R.timers[k]; }
 
+// A turn is identified by hand, street, seat and the engine's turn counter (NOT the log length:
+// log lines such as the automatic "blinds go up" used to change the key and silently cancel a pending turn).
+const turnKey = t => `${t.handNo}:${t.stage}:${t.toAct}:${t.turnSeq || 0}`;
+const safe = (R, what, fn) => { try { fn(); } catch (e) { console.error(`[${R.pin}] ${what} failed:`, e && e.stack || e); try { after(R); } catch (e2) { console.error('after failed', e2); } } };
 function armTurn(R) {
-  clear(R, 'turn'); R.turnDeadline = null;
+  clear(R, 'turn'); R.turnDeadline = null; R.turnArm = null;
   const t = R.table; if (!['preflop', 'flop', 'turn', 'river'].includes(t.stage) || R.paused) return;
-  const p = t.players[t.toAct], s = R.seats[p.id] || {};
+  const p = t.players[t.toAct]; if (!p) return; const s = R.seats[p.id] || {};
   if (s.bot) return armBot(R, p, s);
   let ms = 0;
   if (s.sittingOut) ms = SITOUT_MS;
@@ -76,31 +80,31 @@ function armTurn(R) {
   else if (R.settings.turnSec > 0) ms = R.settings.turnSec * 1000;
   if (!ms) return;
   R.turnDeadline = Date.now() + ms; R.turnMs = ms;
-  const key = `${t.handNo}:${t.stage}:${t.toAct}:${t.seq}`;
-  R.timers.turn = setTimeout(() => {
-    if (`${t.handNo}:${t.stage}:${t.toAct}:${t.seq}` !== key) return;
+  const key = turnKey(t); R.turnArm = { key, due: Date.now() + ms };
+  R.timers.turn = setTimeout(() => safe(R, 'turn timer', () => {
+    delete R.timers.turn; if (turnKey(t) !== key || R.paused) return;
     const L = t.legal(p.id); if (!L) return;
     if (!s.sid && !s.sittingOut) s.missed = (s.missed || 0) + 1;
-    try { t.act(p.id, L.canCheck ? 'check' : 'fold'); for (let i = t.log.length - 1; i >= 0; i--) if (t.log[i].startsWith(p.name + ' ')) { t.log[i] += s.sittingOut || !s.sid ? ' (away)' : ' (time)'; break; } } catch (e) { }
+    t.act(p.id, L.canCheck ? 'check' : 'fold'); for (let i = t.log.length - 1; i >= 0; i--) if (t.log[i].startsWith(p.name + ' ')) { t.log[i] += s.sittingOut || !s.sid ? ' (away)' : ' (time)'; break; }
     after(R);
-  }, ms);
+  }), ms);
 }
 function armBot(R, p, s) {
   const t = R.table, v = Bots.viewFor(t, p.id); if (!v) return;
   let ms = BOT_MIN != null ? BOT_MIN : Bots.delayMs(v);
   if (R.settings.turnSec > 0) ms = Math.min(ms, R.settings.turnSec * 1000 - 500);
-  const key = `${t.handNo}:${t.stage}:${t.toAct}:${t.seq}`;
-  R.timers.turn = setTimeout(() => {
-    if (R.paused || `${t.handNo}:${t.stage}:${t.toAct}:${t.seq}` !== key) return;
+  const key = turnKey(t); R.turnArm = { key, due: Date.now() + ms };
+  R.timers.turn = setTimeout(() => safe(R, 'bot turn', () => {
+    delete R.timers.turn; if (R.paused || turnKey(t) !== key) return;
     const v2 = Bots.viewFor(t, p.id); if (!v2) return;
     let d; try { d = Bots.decide(s.bot, v2); t.act(p.id, d.action, d.amount); }
-    catch (e) { R.botErrors = (R.botErrors || 0) + 1; console.warn('bot fallback', p.name, e.message, JSON.stringify(d)); try { t.act(p.id, v2.legal.canCheck ? 'check' : 'fold'); } catch (e2) { } }
+    catch (e) { R.botErrors = (R.botErrors || 0) + 1; console.warn('bot fallback', p.name, e.message, JSON.stringify(d)); if (t.legal(p.id)) t.act(p.id, v2.legal.canCheck ? 'check' : 'fold'); }
     after(R);
-  }, ms);
+  }), ms);
 }
 // called after every state change
 function after(R) {
-  R.lastActive = Date.now();
+  R.lastActive = Date.now(); R.lastChange = Date.now();
   const t = R.table;
   if (t.stage === 'handover' && !R.timers.next) scheduleNext(R);
   if (t.stage === 'gameover') { clear(R, 'next'); R.nextHandAt = null; R.levelEndsAt = 0; R.levelLeft = levelMs(R); }
@@ -111,15 +115,33 @@ function scheduleNext(R) {
   if (R.paused || R.table.stage !== 'handover') return;
   const ms = R.table.lastResult && R.table.lastResult.byFold ? FOLD_MS : SHOW_MS;
   R.nextHandAt = Date.now() + ms;
-  R.timers.next = setTimeout(() => { delete R.timers.next; R.nextHandAt = null; if (!R.paused && R.table.stage === 'handover') { R.table.startHand(); after(R); } }, ms);
+  R.timers.next = setTimeout(() => safe(R, 'next hand', () => { delete R.timers.next; R.nextHandAt = null; if (!R.paused && R.table.stage === 'handover') { R.table.startHand(); after(R); } }), ms);
 }
-// blind clock
+// Watchdog: never let a table sit still. Runs every second per room.
+function watchdog(R) {
+  const t = R.table; if (R.paused) return;
+  const log = why => { R.watchdog = (R.watchdog || 0) + 1; console.warn(`[${R.pin}] watchdog: ${why} (hand ${t.handNo} ${t.stage})`); };
+  if (t.stage === 'handover' && !R.timers.next) { log('next hand was not scheduled'); return after(R); }
+  if (!['preflop', 'flop', 'turn', 'river'].includes(t.stage)) return;
+  const p = t.players[t.toAct]; if (!p) return; const s = R.seats[p.id] || {};
+  const needsTimer = s.bot || s.sittingOut || !s.sid || R.settings.turnSec > 0;
+  const a = R.turnArm;
+  if (needsTimer && (!R.timers.turn || !a || a.key !== turnKey(t))) { log(`no live timer for ${p.name}'s turn - re-arming`); return after(R); }
+  if (needsTimer && a && Date.now() > a.due + 5000) { log(`timer for ${p.name} overdue - re-arming`); return after(R); }
+  // human turn with no timer: make sure the phone has the latest state (in case an update was missed)
+  if (!needsTimer && s.sid && Date.now() - (R.lastChange || 0) > 20000 && Date.now() - (R.lastResend || 0) > 20000) {
+    R.lastResend = Date.now(); const L = t.legal(p.id); io.to(s.sid).emit('state', { ...publicView(R), me: { id: p.id, hole: p.hole, legal: L, sittingOut: !!s.sittingOut } });
+  }
+}
+// blind clock + watchdog
 setInterval(() => {
   for (const pin in rooms) {
     const R = rooms[pin], t = R.table;
-    if (Date.now() - R.lastActive > 6 * 3600e3) { Object.keys(R.timers).forEach(k => clear(R, k)); delete rooms[pin]; continue; }
-    if (R.paused || !R.levelEndsAt || ['lobby', 'gameover'].includes(t.stage)) continue;
-    if (Date.now() >= R.levelEndsAt) { bumpLevel(R); broadcast(R); }
+    try {
+      if (Date.now() - R.lastActive > 6 * 3600e3) { Object.keys(R.timers).forEach(k => clear(R, k)); delete rooms[pin]; continue; }
+      if (!R.paused && R.levelEndsAt && !['lobby', 'gameover'].includes(t.stage) && Date.now() >= R.levelEndsAt) { bumpLevel(R); broadcast(R); }
+      watchdog(R);
+    } catch (e) { console.error(`[${pin}] clock/watchdog error:`, e && e.stack || e); }
   }
 }, 1000);
 function bumpLevel(R) {
@@ -198,6 +220,7 @@ io.on('connection', s => {
     st.rejoin = { code, exp }; st.rejoinOpenUntil = exp;
     ok(cb, { path: `/j/${R.pin}?r=${code}`, name: p.name, connected: sockAlive(st.sid) });
   });
+  if (process.env.TEST_HOOKS === '1') s.on('test:loseTimers', (o, cb) => { const R = hostRoom(); if (R) { clear(R, 'turn'); clear(R, 'next'); } cb && cb({ ok: 1 }); }); // test-only: simulate a lost timer
   H('host:confirm', (R, o) => { if (R.table.stage !== 'lobby') throw new Error('Only in the lobby'); const st = R.seats[o.id]; if (!st || !R.table.get(o.id)) throw new Error('No such player'); if (st.bot) throw new Error('Computer players don\'t pay a buy-in'); st.pay = o.on ? 'confirmed' : (st.pay === 'confirmed' ? 'pending' : st.pay); });
   H('host:playAgain', R => { if (R.table.stage !== 'gameover') throw new Error('Game not over'); R.table.resetForNewGame(); for (const k in R.seats) if (!R.seats[k].bot) R.seats[k].pay = 'none'; R.buyInCount = 0; R.paused = false; R.levelEndsAt = 0; R.levelLeft = levelMs(R); });
   // ---- players ----
@@ -237,7 +260,10 @@ io.on('connection', s => {
     if (was !== s.id) R.table.addLog(`${p.name} ${how || 'reconnected'}`);
     voiceUpdate(R, id); ok(cb, { token: st.token, id, name: p.name, pin: R.pin }); after(R);
   }
-  s.on('seat:check', (o = {}, cb) => { const R = rooms[s.data.pin], st = R && R.seats[s.data.pid]; ok(cb, { bound: !!(st && st.sid === s.id), game: !!R }); });
+  s.on('seat:check', (o = {}, cb) => {
+    const R = rooms[s.data.pin], id = s.data.pid, st = R && R.seats[id], bound = !!(st && st.sid === s.id); ok(cb, { bound, game: !!R });
+    if (bound && R.table.get(id)) { const p = R.table.get(id); s.emit('state', { ...publicView(R), me: { id, hole: p.hole, legal: R.table.legal(id), sittingOut: !!st.sittingOut } }); } // heartbeat also resyncs a phone that missed an update
+  });
   const P = (ev, fn) => s.on(ev, (o = {}, cb) => { const R = rooms[s.data.pin], id = s.data.pid; if (!R || !R.seats[id] || R.seats[id].sid !== s.id) return err(cb, 'Not in a game', 'rebind'); try { fn(R, id, o || {}); ok(cb); } catch (e) { err(cb, e.message); } after(R); });
   P('act', (R, id, o) => { R.table.act(id, String(o.action), o.amount); });
   P('buyin:sent', (R, id, o) => { const st = R.seats[id]; if (!(R.settings.buyIn || {}).on) throw new Error('No buy-in for this game'); if (R.table.stage !== 'lobby') throw new Error('Game already started'); if (st.pay === 'confirmed') throw new Error('Already confirmed by the host'); st.pay = o.on ? 'pending' : 'none'; });

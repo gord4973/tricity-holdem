@@ -171,7 +171,7 @@ class Table {
     if (inHand.length === 1) return this.finishByFold(inHand[0]);
     if (this.bettingDone()) return this.nextStreet();
     const i = this.nextSeat(this.toAct, p => this.needsAction(p));
-    this.toAct = i; this.turnStarted = Date.now();
+    this.toAct = i; this.turnStarted = Date.now(); this.turnSeq = (this.turnSeq || 0) + 1;
     this.onEvent('turn', this.players[i]);
   }
   legal(id) {
