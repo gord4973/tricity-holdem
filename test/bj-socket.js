@@ -19,7 +19,7 @@ function autoPlayer(s, name, opts = {}) {
 }
 (async () => {
   // ---------- 1. rigged round: free double + Pot of Gold paid through the sockets ----------
-  {
+  if (!process.env.LIVE) {
     const host = await conn(); let hs; host.on('state', x => hs = x);
     const { pin } = await emit(host, 'host:create', { pw: PW, minBet: 10, betSec: 0, turnSec: 0 }); const a = await conn(); let as; a.on('state', x => as = x);
     await emit(a, 'join', { pin, name: 'Ann' }); await emit(host, 'host:start', {}); await waitFor(() => as && as.stage === 'betting');
@@ -56,7 +56,7 @@ function autoPlayer(s, name, opts = {}) {
       if (rounds === 6 && !statsOn) { statsOn = true; await emit(host, 'host:stats', { on: true }); }
       if (rounds % 7 === 3) { ben.paused = true; ben.s.disconnect(); dropped++; setTimeout(async () => { ben.s.connect(); await new Promise(r => ben.s.once('connect', r)); await emit(ben.s, 'join', { pin, token: jb.token }); ben.paused = false; }, 4000); }
       if (rounds % 9 === 5) { await emit(host, 'host:pause', {}); pauses++; await sleep(1500); await emit(host, 'host:pause', {}); }
-      if (rounds % 11 === 8) { await emit(host, 'test:loseTimers', {}); lostTimers++; }
+      if (rounds % 11 === 8 && !process.env.LIVE) { await emit(host, 'test:loseTimers', {}); lostTimers++; }
     }
   }
   for (const x of hostStates) if (['insurance', 'playing'].includes(x.stage) && !(x.dealer.cards.length === 2 && x.dealer.cards[1] === 'back')) holeLeak++;
