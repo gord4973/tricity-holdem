@@ -13,7 +13,7 @@ const emit = (s, e, o) => new Promise(r => s.emit(e, o, r));
   for (let g = 1; g <= G; g++) {
     await emit(host, 'host:start', {}); const t0 = Date.now(); let last = '', lastChange = Date.now();
     while (st.stage !== 'gameover') { await new Promise(r => setTimeout(r, 200)); const k = st.seq + ':' + st.log.length + st.log.slice(-1); if (k !== last) { last = k; lastChange = Date.now(); }
-      if (Date.now() - lastChange > 8000) { console.log('  ✖ FAIL stall', st.stage, st.toAct); fails++; break; }
+      if (Date.now() - lastChange > (B.includes('localhost') ? 8000 : 15000)) { console.log('  ✖ FAIL stall', st.stage, st.toAct); fails++; break; }
       if (st.handNo % 15 === 0 && st.stage === 'handover') await emit(host, 'host:nextLevel', {}); }
     console.log(`  game ${g}: ${st.handNo} hands in ${((Date.now() - t0) / 1000).toFixed(0)}s, winner ${st.winner}`);
     await emit(host, 'host:playAgain', {});

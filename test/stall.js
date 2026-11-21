@@ -5,7 +5,7 @@ const B = process.argv[2] || 'http://localhost:3463', SECS = +process.argv[3] ||
 const conn = () => new Promise(r => { const s = io(B, { transports: ['websocket'], forceNew: true }); s.once('connect', () => r(s)); });
 const em = (s, e, o) => new Promise(r => s.emit(e, o, r)), sleep = ms => new Promise(r => setTimeout(r, ms));
 (async () => {
-  let fails = 0; const host = await conn(); const { pin } = await em(host, 'host:create', { pw: PW, levelMin: 1 }); let st; host.on('state', x => st = x);
+  let fails = 0; const host = await conn(); const { pin } = await em(host, 'host:create', { pw: PW, levelMin: 1, stats: process.env.STATS === '1' }); let st; host.on('state', x => st = x);
   for (const lv of ['easy', 'medium', 'hard', 'easy', 'medium']) await em(host, 'host:addBot', { level: lv });
   // one human who checks/calls, one who drops and comes back, so away timers + reconnects happen too
   const mk = async name => { const s = await conn(); s.on('state', x => { if (x.me && x.me.legal && !s.idle) s.emit('act', { action: x.me.legal.canCheck ? 'check' : 'call' }, () => {}); }); const r = await em(s, 'join', { pin, name }); return { s, r }; };

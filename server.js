@@ -3,6 +3,7 @@
 const express = require('express'), http = require('http'), fs = require('fs'), path = require('path'), crypto = require('crypto'), QR = require('qrcode');
 const { Table, blindsFor, rankPlayers } = require('./engine');
 const Bots = require('./bots');
+const Stats = require('./stats');
 const app = express(), srv = http.createServer(app), io = require('socket.io')(srv, { cors: { origin: '*' }, pingInterval: 20000, pingTimeout: 30000 });
 const PWF = path.join(__dirname, 'data/host_password.txt');
 fs.mkdirSync(path.dirname(PWF), { recursive: true });
@@ -40,7 +41,7 @@ function publicView(R) {
   const shown = {}; if (t.lastResult && !inHand) for (const s of t.lastResult.shown) shown[s.id] = s;
   const cur = inHand ? t.players[t.toAct] : null;
   return {
-    pin: R.pin, stage: t.stage, handNo: t.handNo, paused: R.paused, settings: { levelMin: R.settings.levelMin, turnSec: R.settings.turnSec }, buyIn: buyInInfo(R), serverNow: Date.now(),
+    pin: R.pin, stage: t.stage, handNo: t.handNo, paused: R.paused, settings: { levelMin: R.settings.levelMin, turnSec: R.settings.turnSec, stats: !!R.settings.stats }, buyIn: buyInInfo(R), serverNow: Date.now(),
     blinds: t.handNo ? t.blinds : blindsFor(t.level), nextBlinds: blindsFor(t.level), levelUp: t.handNo > 0 && t.level > t.handLevel,
     level: t.level + 1, handLevel: (t.handNo ? t.handLevel : t.level) + 1, turnMs: R.turnMs || 0, upcoming: blindsFor(t.level + 1), levelRemaining: levelRemaining(R),
     board: t.board, pot: t.potTotal ? (inHand || t.stage === 'showdown' ? t.potTotal() : 0) : 0, currentBet: inHand ? t.currentBet : 0,
@@ -56,8 +57,30 @@ function broadcast(R) {
   for (const id in R.seats) {
     const s = R.seats[id]; if (!s.sid) continue;
     const p = R.table.get(id); if (!p) continue;
-    io.to(s.sid).emit('state', { ...pub, me: { id, hole: p.hole, legal: R.table.legal(id), sittingOut: !!s.sittingOut } });
+    io.to(s.sid).emit('state', { ...pub, me: meView(R, id, p) });
   }
+}
+// Private per-player view. `stats` (beginner hand + win odds) only when the host has Stats on; it is built from this
+// player's own cards, the board and the opponent COUNT only - never other players' hole cards.
+function meView(R, id, p) {
+  const s = R.seats[id] || {}, me = { id, hole: p.hole, legal: R.table.legal(id), sittingOut: !!s.sittingOut };
+  if (R.settings.stats && !s.bot) { try { me.stats = statsFor(R, id, p); } catch (e) { console.error(`[${R.pin}] stats failed:`, e && e.stack || e); } }
+  return me;
+}
+function statsFor(R, id, p) {
+  const t = R.table; if (!['preflop', 'flop', 'turn', 'river'].includes(t.stage) || p.folded || p.out || !p.hole || p.hole.length !== 2) return null;
+  const opps = t.players.filter(o => o.id !== id && !o.folded && !o.out && o.hole && o.hole.length === 2).length; if (!opps) return null;
+  const d = Stats.describe(p.hole, t.board), key = `${t.handNo}|${p.hole.join('')}|${t.board.join('')}|${opps}`;
+  const out = { hand: d.hand, draw: d.draw, opps, street: t.stage, eq: null };
+  const c = (R.statsCache || (R.statsCache = {}))[id];
+  if (c && c.key === key) { if (c.eq != null) { out.eq = Math.round(c.eq * 1000) / 10; out.hint = Stats.hint(c.eq, opps); } return out; }
+  R.statsCache[id] = { key, eq: null }; const t0 = Date.now();
+  Stats.equityJob(p.hole, t.board, opps).then(r => {
+    const cur = R.statsCache && R.statsCache[id]; if (!cur || cur.key !== key || rooms[R.pin] !== R) return;
+    cur.eq = r.eq; R.statsMs = Date.now() - t0; R.statsN = r.n;
+    const st = R.seats[id], pp = R.table.get(id); if (st && st.sid && pp && R.settings.stats) io.to(st.sid).emit('state', { ...publicView(R), me: meView(R, id, pp) });
+  }).catch(e => console.error(`[${R.pin}] equity failed:`, e && e.stack || e));
+  return out;
 }
 function voicePeers(R, id) { return Object.keys(R.seats).filter(k => k !== id && R.seats[k].sid); }
 function voiceUpdate(R, id) { const st = R.seats[id]; if (!st) return; const v = { id, mic: !!(st.sid && st.mic), speaking: !!(st.sid && st.mic && st.speaking) };
@@ -130,7 +153,7 @@ function watchdog(R) {
   if (needsTimer && a && Date.now() > a.due + 5000) { log(`timer for ${p.name} overdue - re-arming`); return after(R); }
   // human turn with no timer: make sure the phone has the latest state (in case an update was missed)
   if (!needsTimer && s.sid && Date.now() - (R.lastChange || 0) > 20000 && Date.now() - (R.lastResend || 0) > 20000) {
-    R.lastResend = Date.now(); const L = t.legal(p.id); io.to(s.sid).emit('state', { ...publicView(R), me: { id: p.id, hole: p.hole, legal: L, sittingOut: !!s.sittingOut } });
+    R.lastResend = Date.now(); const L = t.legal(p.id); io.to(s.sid).emit('state', { ...publicView(R), me: meView(R, p.id, p) });
   }
 }
 // blind clock + watchdog
@@ -153,7 +176,7 @@ function clampSettings(o) {
   const b = o.buyIn || {}, on = !!b.on, cents = Math.round(Number(String(b.amount ?? 5).replace(/[$,\s]/g, '')) * 100), email = String(b.email || '').trim().slice(0, 254);
   if (on && !(cents >= 100 && cents <= 100000)) throw new Error('Buy-in amount must be between $1 and $1,000');
   if (on && !EMAIL.test(email)) throw new Error('Enter a valid e-Transfer email for the buy-in');
-  return { levelMin: Math.min(120, Math.max(1, Math.round(+o.levelMin || 10))), turnSec: [0, 15, 20, 30, 45, 60, 90].includes(+o.turnSec) ? +o.turnSec : 0,
+  return { stats: !!o.stats, levelMin: Math.min(120, Math.max(1, Math.round(+o.levelMin || 10))), turnSec: [0, 15, 20, 30, 45, 60, 90].includes(+o.turnSec) ? +o.turnSec : 0,
     buyIn: on ? { on: true, cents, email } : { on: false, cents: Number.isFinite(cents) && cents >= 100 ? cents : 500, email: EMAIL.test(email) ? email : '' } };
 }
 // Who collects the buy-in pot: the best-placed human under the same ranking as the standings. Bots never pay in and never collect.
@@ -189,6 +212,7 @@ io.on('connection', s => {
   });
   const H = (ev, fn) => s.on(ev, (o = {}, cb) => { const R = hostRoom(); if (!R) return err(cb, 'Not host'); try { fn(R, o || {}); ok(cb); } catch (e) { err(cb, e.message); } after(R); });
   H('host:settings', (R, o) => { if (R.table.stage !== 'lobby') throw new Error('Game already started'); R.settings = clampSettings(o); R.levelLeft = levelMs(R); });
+  H('host:stats', (R, o) => { R.settings.stats = o.on != null ? !!o.on : !R.settings.stats; });
   H('host:start', R => {
     const t = R.table; if (t.stage !== 'lobby') throw new Error('Already started');
     const bi = buyInInfo(R); if (bi.on && bi.unpaid > 0) throw new Error(`${bi.unpaid} player${bi.unpaid > 1 ? 's have' : ' has'} not been confirmed for the buy-in - confirm or remove them first`);
@@ -262,7 +286,7 @@ io.on('connection', s => {
   }
   s.on('seat:check', (o = {}, cb) => {
     const R = rooms[s.data.pin], id = s.data.pid, st = R && R.seats[id], bound = !!(st && st.sid === s.id); ok(cb, { bound, game: !!R });
-    if (bound && R.table.get(id)) { const p = R.table.get(id); s.emit('state', { ...publicView(R), me: { id, hole: p.hole, legal: R.table.legal(id), sittingOut: !!st.sittingOut } }); } // heartbeat also resyncs a phone that missed an update
+    if (bound && R.table.get(id)) { const p = R.table.get(id); s.emit('state', { ...publicView(R), me: meView(R, id, p) }); } // heartbeat also resyncs a phone that missed an update
   });
   const P = (ev, fn) => s.on(ev, (o = {}, cb) => { const R = rooms[s.data.pin], id = s.data.pid; if (!R || !R.seats[id] || R.seats[id].sid !== s.id) return err(cb, 'Not in a game', 'rebind'); try { fn(R, id, o || {}); ok(cb); } catch (e) { err(cb, e.message); } after(R); });
   P('act', (R, id, o) => { R.table.act(id, String(o.action), o.amount); });
