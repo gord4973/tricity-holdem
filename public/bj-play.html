@@ -6,7 +6,7 @@ section{min-height:100vh;min-height:100dvh;padding:10px 10px 90px;display:flex;f
 .felt{background:radial-gradient(ellipse at 50% 0%,#1f7a3f,#0d4a24 80%);border:5px solid #5a2b12;border-radius:0 0 50% 50%/0 0 90px 90px;padding:8px 8px 16px;text-align:center;margin-top:8px;box-shadow:inset 0 0 25px #000a;position:relative}
 .felt .rule{font-size:.68em;font-weight:900;letter-spacing:.08em;color:#ffd600cc;margin-top:4px}.felt .rule2{font-size:.62em;font-weight:700;letter-spacing:.06em;color:#ffffffaa}
 #dealer{font-size:8.5vw;min-height:1.9em}@media(min-width:560px){#dealer{font-size:46px}}#dlbl{font-weight:900;font-size:.9em}
-#ann{font-weight:900;font-size:1.05em;color:#ffd600;min-height:1.3em;margin-top:4px}
+#ann{font-weight:900;font-size:1.05em;color:#ffd600;min-height:1.3em;margin-top:4px}#ann.paused{background:#000c;border:2px solid #ffd600;border-radius:12px;padding:.35em .6em;font-size:1.3em}.frozen{opacity:.45;pointer-events:none}
 #spot{position:relative;display:flex;justify-content:center;gap:10px;flex-wrap:wrap;font-size:11vw;margin-top:10px;min-height:1.6em}@media(min-width:560px){#spot{font-size:60px}}#spot .hand .lbl{font-size:.32em}#spot .lams{font-size:.42em}#spot .res{font-size:.3em}#spot .hcash{font-size:.3em}
 #status{margin-top:8px;text-align:center;font-weight:900;font-size:1.1em;padding:9px;border-radius:12px;background:#ffffff14}#status.turn{background:#ffd600;color:#111;animation:pulse 1.2s infinite}@keyframes pulse{50%{box-shadow:0 0 0 6px #ffd60055}}
 #betbox .spots{display:flex;justify-content:center;gap:22px;margin-top:10px;align-items:center}
@@ -112,7 +112,8 @@ function sit(){send('sitout',{on:!(st&&st.me&&st.me.sittingOut)},()=>{})}
 function pickSpot(k){if(k==='pog'&&!st.settings.pog)return;spot=k;render()}
 function bet(v){send('bet:add',{spot,chip:v},ackErr)}
 function ready(){const me=st.players.find(p=>p.id===st.me.id);send('bet:ready',{on:!me.bet.ready},ackErr)}
-function act(a){send('act',{action:a},ackErr)}
+function act(a){if(actLock===st.tseq)return;actLock=st.tseq;['bHit','bStand','bDbl','bSpl'].forEach(i=>$(i).disabled=true);send('act',{action:a,seq:st.tseq},(r)=>{if(r&&r.error){actLock=null;if(!/moved on/.test(r.error))ackErr(r)}})}
+let actLock=null;
 s.on('state',x=>{offset=Date.now()-x.serverNow;st=x;render()});
 function floatNet(n){const e=document.createElement('div');e.className='float'+(n<0?' neg':'');e.textContent=netTxt(n);e.style.fontSize='.45em';$('spot').appendChild(e);setTimeout(()=>e.remove(),2500)}
 function render(){const x=st;if(!x||!x.me)return;const me=x.players.find(p=>p.id===x.me.id);if(!me)return;$('rulesBody').innerHTML=rulesHTML(x);
@@ -121,15 +122,18 @@ function render(){const x=st;if(!x||!x.me)return;const me=x.players.find(p=>p.id
  show('g');const S=x.settings;$('lim').textContent=`${money(S.minBet)}–${money(S.maxBet)}`;$('rnd').textContent='Round '+x.round;
  // dealer
  $('dealer').innerHTML=x.dealer.cards.length?cardsHTML(x.dealer.cards.map((c,i)=>c),'d'+x.round):'<span style="opacity:.3">🂠</span>';$('dlbl').textContent=x.dealer.label?('Dealer: '+x.dealer.label):'';
- $('ann').textContent=x.stage==='settled'?announce(x):x.stage==='insurance'?'Dealer shows an Ace — insurance?':x.paused?'⏸ Paused by the host':'';
+ $('ann').textContent=x.paused?'⏸ PAUSED by the host':x.stage==='settled'?announce(x):x.stage==='insurance'?'Dealer shows an Ace — insurance?':'';$('ann').classList.toggle('paused',!!x.paused);
  // my hands
  const b=me.box,myTurn=x.turn&&x.turn.id===me.id;
- $('spot').innerHTML=b?b.hands.map((h,i)=>handHTML(h,'m'+x.round+':'+i,{active:myTurn&&x.turn.hand===i,unit:b.unit})).join(''):'';
+ $('spot').innerHTML=b?b.hands.map((h,i)=>handHTML(h,'m'+x.round+':'+i,{active:myTurn&&x.turn.hand===i,unit:b.unit,idx:i,count:b.hands.length,dim:myTurn&&b.hands.length>1&&x.turn.hand!==i})).join(''):'';
  if(x.stage==='settled'&&b&&lastRound!==x.round){lastRound=x.round;floatNet(b.net)}
  // status
- const L=x.me.legal,cur=x.turn&&x.players.find(p=>p.id===x.turn.id);let msg='',turn=false;
- if(x.stage==='betting'){msg=me.out?'You are out of chips':me.bet.ready?'Bet locked in — waiting for the deal':`Place your bet (${money(S.minBet)} min)`}
+ const L=x.paused?null:x.me.legal,cur=x.turn&&x.players.find(p=>p.id===x.turn.id);let msg='',turn=false;
+ if(x.paused&&x.stage!=='settled'){msg='⏸ Game paused by the host — hang tight'}
+ else if(x.stage==='betting'){msg=me.out?'You are out of chips':me.bet.ready?'Bet locked in — waiting for the deal':`Place your bet (${money(S.minBet)} min)`}
  else if(x.stage==='insurance')msg=x.me.canInsure?`Insurance? Costs ${money(Math.floor(b.unit/2))}, pays 2 to 1`:'Waiting for insurance decisions…';
+ else if(x.paused)msg='⏸ Game paused by the host — hang tight';
+ else if(myTurn&&x.turn.pending)msg=`Dealing your hand ${x.turn.hand+1} of ${x.turn.of}…`;
  else if(L){turn=true;msg=b.hands.length>1?`YOUR TURN — hand ${x.turn.hand+1} of ${b.hands.length}`:'YOUR TURN'}
  else if(x.stage==='playing')msg=cur?`${cur.name} is playing…`:'';
  else if(x.stage==='dealer')msg='Dealer is playing…';
@@ -138,18 +142,18 @@ function render(){const x=st;if(!x||!x.me)return;const me=x.players.find(p=>p.id
  $('status').innerHTML=esc(msg)+'<span id=tl></span>';$('status').className=turn?'turn':'';
  const key=x.round+':'+(x.turn?x.turn.id+x.turn.hand:'')+':'+x.stage;if(turn&&key!==lastTurnKey&&navigator.vibrate)navigator.vibrate([120,60,120]);lastTurnKey=key;
  // betting
- const betting=x.stage==='betting'&&!me.out;$('betbox').classList.toggle('hidden',!betting);
+ const betting=x.stage==='betting'&&!me.out;$('betbox').classList.toggle('frozen',!!x.paused);$('betbox').classList.toggle('hidden',!betting);
  if(betting){const avail=me.chips-me.bet.main-me.bet.pog,lock=me.bet.ready;$('cPog').style.display=S.pog?'':'none';if(!S.pog)spot='main';
   $('cMain').classList.toggle('sel',spot==='main');$('cPog').classList.toggle('sel',spot==='pog');$('sMain').innerHTML=stackHTML(me.bet.main,6);$('sPog').innerHTML=stackHTML(me.bet.pog,5);
   $('aMain').textContent=me.bet.main?money(me.bet.main):'';$('aPog').textContent=me.bet.pog?money(me.bet.pog):'';
   $('tray').innerHTML=DEN.slice(0,3).slice().reverse().map(d=>`<span class="chip ${d.c}${lock||d.v>avail?' dis':''}" onclick="${lock||d.v>avail?'':'bet('+d.v+')'}"><span>$${d.l}</span></span>`).join('');
   $('bRebet').disabled=lock||!x.me.last;$('bRebet2').disabled=lock||!x.me.last;$('bReady').textContent=lock?'Change my bet':(me.bet.main?`Deal me in ✓ (${money(me.bet.main+me.bet.pog)})`:'Deal me in ✓');$('bReady').className=lock?'dark':'green';$('bReady').disabled=!lock&&me.bet.main<S.minBet}
  // insurance + actions
- $('insbox').classList.toggle('hidden',!x.me.canInsure);
- $('actbox').classList.toggle('hidden',!L);if(L){$('bHit').disabled=!L.canHit;$('bDbl').disabled=!L.canDouble;$('bSpl').disabled=!L.canSplit;
+ $('insbox').classList.toggle('hidden',!x.me.canInsure||!!x.paused);
+ $('actbox').classList.toggle('hidden',!L);if(L){const lk=actLock===x.tseq;$('bStand').disabled=lk;$('bHit').disabled=lk||!L.canHit;$('bDbl').disabled=lk||!L.canDouble;$('bSpl').disabled=lk||!L.canSplit;
   $('bDbl').innerHTML='Double'+(L.canDouble&&L.doubleFree?'<span class=fr>FREE</span>':L.canDouble?` <small>${money(L.unit)}</small>`:'');$('bSpl').innerHTML='Split'+(L.canSplit&&L.splitFree?'<span class=fr>FREE</span>':L.canSplit?` <small>${money(L.unit)}</small>`:'')}
  // stats
- const T=x.me.stats;$('stats').innerHTML=T?[T.hands.length?`📊 My hand${T.hands.length>1?'s':''}: <b>${T.hands.map(esc).join(' · ')}</b>`:'',T.rec?`🎯 Recommended: <b class=rec>${esc(T.rec)}</b>${T.freeHand?' <small>(free-bet hand)</small>':''}`:'',T.bust!=null?`💥 Bust chance if you hit: <b>${Math.round(T.bust)}%</b>`:'',`🃏 Dealer (${esc(T.up[0]==='T'?'10':T.up[0])} up) busts: <b>${Math.round(T.dealerBust)}%</b> · makes 22 (push): <b>${Math.round(T.dealer22)}%</b>`].filter(Boolean).join('<br>'):'';
+ const T=x.me.stats;$('stats').innerHTML=T?[T.hands.length?`📊 My hand${T.hands.length>1?'s':''}: <b>${T.hands.map((h,i)=>T.hands.length>1?(myTurn&&x.turn.hand===i?`<u>▶ Hand ${i+1}: ${esc(h)}</u>`:`<span style="opacity:.6">Hand ${i+1}: ${esc(h)}</span>`):esc(h)).join(' · ')}</b>`:'',T.rec?`🎯 Recommended: <b class=rec>${esc(T.rec)}</b>${T.freeHand?' <small>(free-bet hand)</small>':''}`:'',T.bust!=null?`💥 Bust chance if you hit: <b>${Math.round(T.bust)}%</b>`:'',`🃏 Dealer (${esc(T.up[0]==='T'?'10':T.up[0])} up) busts: <b>${Math.round(T.dealerBust)}%</b> · makes 22 (push): <b>${Math.round(T.dealer22)}%</b>`].filter(Boolean).join('<br>'):'';
  // bank
  const inPlay=me.bet.main+me.bet.pog;$('bal').textContent=money(x.stage==='betting'?me.chips-inPlay:me.chips);$('mystack').innerHTML=stackHTML(x.stage==='betting'?me.chips-inPlay:me.chips,10);
  $('plist').innerHTML=x.players.map(p=>{const pb=p.box,on=x.turn&&x.turn.id===p.id;return `<div class="${on?'on':''} ${p.out?'ot':''}"><span>${esc(p.name)}${botTag(p)}${p.id===me.id?' (you)':''}${!p.connected||p.sittingOut?' 💤':''}${p.mic?` <span>${p.speaking?'🗣️':'🎤'}</span>`:''}</span><span>${pb?pb.hands.map(h=>esc(h.label)+(h.result?' '+RES[h.result]:'')).join(' / ')+' · ':x.stage==='betting'&&p.bet.main?(p.bet.ready?'✓ ':'')+money(p.bet.main)+' · ':''}${money(p.chips)}</span></div>`}).join('');
@@ -157,6 +161,6 @@ function render(){const x=st;if(!x||!x.me)return;const me=x.players.find(p=>p.id
 function standingsHTMLbj(x,meId){if(!x.standings)return'';const md=['🥇','🥈','🥉'];return `<div class=stand>${x.standings.map(r=>`<div class="${r.id===meId?'me':''} ${r.rank===1?'top':''}"><span>${md[r.rank-1]||r.rank+'.'} ${esc(r.name)}</span><span>${r.out?'out round '+r.outHand:money(r.chips)}</span></div>`).join('')}</div>`}
 function tick(){if(!st||!['betting','insurance','playing','settled'].includes(st.stage))return $('clk').textContent='';const now=Date.now()-offset,x=st;let d=null;
  if(x.stage==='betting'&&x.betDeadline)d=x.betDeadline;else if((x.stage==='playing'||x.stage==='insurance')&&x.turnDeadline)d=x.turnDeadline;else if(x.stage==='settled'&&x.nextRoundAt)d=x.nextRoundAt;
- $('clk').textContent=x.paused?'⏸ Paused':d?`⏱ ${Math.max(0,Math.ceil((d-now)/1000))}s`:`Shoe ${x.shoe.remaining}`;const tl=$('tl');if(tl)tl.textContent=''}
+ $('clk').textContent=x.paused?(x.pausedLeft!=null?`⏸ Paused · ${Math.ceil(x.pausedLeft/1000)}s left`:'⏸ Paused'):d?`⏱ ${Math.max(0,Math.ceil((d-now)/1000))}s`:`Shoe ${x.shoe.remaining}`;const tl=$('tl');if(tl)tl.textContent=''}
 setInterval(tick,500);
 </script><script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}))</script></body></html>

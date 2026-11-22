@@ -11,9 +11,9 @@ const resHTML=r=>r?`<span class="res ${r}">${RES[r]||r}</span>`:'';
 // remember which cards have already been shown so only new ones animate in
 const _seenCards=new Set();
 function cardsHTML(cards,key){return cards.map((c,i)=>{const k=key+':'+i+':'+c;const isNew=!_seenCards.has(k);_seenCards.add(k);return cardHTML(c,isNew?'deal':'')}).join('')}
-function handHTML(h,key,{active=false,unit=0}={}){
- const lams=(h.freeSplit?1:0)+(h.freeDouble?1:0);
- return `<div class="hand${active?' act':''}"><div class=cards>${cardsHTML(h.cards,key)}</div><div class=lbl>${esc(h.label)}</div><div class=lams>${h.freeSplit?lammerHTML(unit):''}${h.freeDouble?lammerHTML(unit):''}</div>${h.cash?`<div class=hcash>${stackHTML(h.cash,5)}</div>`:''}${resHTML(h.result)}</div>`}
+function handHTML(h,key,{active=false,unit=0,idx=0,count=1,dim=false}={}){
+ const bet=count>1?`<div class=hbet>${[h.cash?money(h.cash):'',h.free?`<span style="color:#f3c432">🪙${money(h.free)} free</span>`:''].filter(Boolean).join(' + ')}</div>`:'';
+ return `<div class="hand${active?' act':''}${dim?' dim':''}">${count>1?`<div class=htag>${active?'▶ ':''}HAND ${idx+1} of ${count}</div>`:''}<div class=cards>${cardsHTML(h.cards,key)}</div><div class=lbl>${esc(h.label)}</div><div class=lams>${h.freeSplit?lammerHTML(unit):''}${h.freeDouble?lammerHTML(unit):''}</div>${h.cash?`<div class=hcash>${stackHTML(h.cash,5)}</div>`:''}${bet}${resHTML(h.result)}</div>`}
 const lamCount=b=>b?b.lammers:0;
 function payTableHTML(){return `<table class=paytab><tr><td colspan=2 style="color:#f3c432;text-align:center">🪙 POT OF GOLD</td></tr>${POG.map(([n,p])=>`<tr><td>${n}${n===7?'+':''} lammer${n>1?'s':''}</td><td>${p}:1</td></tr>`).join('')}</table>`}
 function rulesHTML(st){const s=st.settings;return `<ul class=rules style="text-align:left;padding-left:1.1em;margin:.4em 0">

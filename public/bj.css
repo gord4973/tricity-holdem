@@ -21,3 +21,7 @@
 @keyframes flt{0%{opacity:0;transform:translate(-50%,.5em) scale(.7)}15%{opacity:1;transform:translate(-50%,0) scale(1.15)}100%{opacity:0;transform:translate(-50%,-2.5em) scale(1)}}
 .paytab{border-collapse:collapse;font-weight:700}.paytab td{padding:.1em .6em;border-bottom:1px solid #ffffff22}.paytab td:last-child{text-align:right;color:#ffd600}
 .rules li{margin:.25em 0}
+
+.hand .htag{font-size:.42em;font-weight:900;letter-spacing:.04em;color:#fff;background:#0009;border-radius:6px;padding:.1em .45em;white-space:nowrap}.hand.act .htag{background:#ffd600;color:#111}
+.hand.dim{opacity:.45;filter:saturate(.6)}.hand.dim .cards{filter:none}.hand .hbet{font-size:.42em;font-weight:800;white-space:nowrap}
+.hand.act{outline:.12em solid #ffd600;outline-offset:.15em;border-radius:.3em}

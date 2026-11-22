@@ -62,12 +62,12 @@ test('dealer hits soft 17', () => { const t = setup(['Ts', 'As', '9d', '6c', '2h
 test('cut card triggers a reshuffle before the next round', () => { const t = setup(['Ts', '7h', '9d', 'Tc']); t.shoe.pos = t.shoe.cutAt + 1; t.act('p0', 'stand'); finish(t); const before = t.shoe.shuffles; t.next(); assert.equal(t.shoe.shuffles, before + 1); assert.ok(t.shoe.remaining > 300); });
 test('out of chips -> out, ranked by when they went out', () => { const t = setup(['Ts', '9h', '6d', 'Tc', 'Th'], { main: START_CHIPS }); t.act('p0', 'hit'); finish(t); assert.equal(t.get('p0').out, true); t.next(); assert.equal(t.stage, 'gameover'); });
 test('host end mid-round refunds the bets on the table', () => { const t = setup(['5s', '6h', '6d', 'Tc'], { pog: 500 }); t.endGame(); assert.equal(chips(t), START_CHIPS); assert.equal(t.stage, 'gameover'); });
-test('chips conserve: player + house is constant over many random rounds', () => {
-  const t = new Table(); ['a', 'b', 'c'].forEach(n => t.addPlayer(n, n)); t.startGame(); const start = t.players.reduce((a, p) => a + p.chips, 0);
+for (const step of [false, true]) test(`chips conserve: player + house is constant over many random rounds${step ? ' (split hands dealt step by step)' : ''}`, () => {
+  const t = new Table({ stepSplits: step }); ['a', 'b', 'c'].forEach(n => t.addPlayer(n, n)); t.startGame(); const start = t.players.reduce((a, p) => a + p.chips, 0);
   for (let r = 0; r < 400 && t.stage !== 'gameover'; r++) {
     for (const p of t.players) if (!p.out) { try { t.setBet(p.id, Math.min(p.chips - (p.chips % 500), 500 * (1 + (r % 4))), p.chips > 5000 ? 500 : 0); } catch (e) { } }
     if (!t.bettors().length) break; t.deal(); if (t.stage === 'insurance') for (const b of t.boxes) t.insure(b.id, Math.random() < 0.3 && t.get(b.id).chips >= b.unit / 2);
-    let g = 0; while (t.stage === 'playing' && g++ < 200) { const c = t.cur(), L = t.legal(c.b.id); t.act(c.b.id, S.recommend(c.h.cards, t.dealer.cards[0], L, c.h.cash === 0).action === 'split' && L.canSplit ? 'split' : (L.canDouble && Math.random() < .3 ? 'double' : (L.canHit && total(c.h.cards).total < 15 ? 'hit' : 'stand'))); }
+    let g = 0; while (t.stage === 'playing' && g++ < 200) { if (t.pendingCard) { t.dealPending(); continue; } const c = t.cur(), L = t.legal(c.b.id); t.act(c.b.id, S.recommend(c.h.cards, t.dealer.cards[0], L, c.h.cash === 0).action === 'split' && L.canSplit ? 'split' : (L.canDouble && Math.random() < .3 ? 'double' : (L.canHit && total(c.h.cards).total < 15 ? 'hit' : 'stand'))); }
     finish(t); assert.equal(t.stage, 'settled'); t.next();
   }
   assert.equal(t.players.reduce((a, p) => a + p.chips, 0) + t.house, start);
@@ -88,4 +88,33 @@ test('dealer odds: 6 up busts ~44% (incl. 22), ace up (peeked) ~20%', () => {
   const w = [0, 24, 24, 24, 24, 24, 24, 24, 24, 24, 96]; const six = S.dealerOdds('6s', w), ace = S.dealerOdds('As', w);
   assert.ok(Math.abs(six.bust + six.d22 - 0.44) < 0.02, six.bust + six.d22); assert.ok(Math.abs(ace.bust + ace.d22 - 0.20) < 0.02);
   assert.ok(Math.abs(S.bustIfHit(['Ts', '6d'], w) - 8 / 13) < 0.001); assert.equal(S.bustIfHit(['As', '6d'], w), 0);
+});
+// ---- split hands play one at a time (server mode: stepSplits) ----
+function setupStep(cards, players = 1) { const t = new Table({ stepSplits: true }); for (let i = 0; i < players; i++) t.addPlayer('p' + i, 'P' + i); t.startGame(); for (let i = 0; i < players; i++) t.setBet('p' + i, 1000, 0); t.shoe.rig(cards); t.deal(); return t; }
+const cardsOf = t => t.boxes[0].hands.map(h => h.cards.join(','));
+test('split: hand 1 plays to completion while hand 2 waits with one card; hits never touch the other hand', () => {
+  const t = setupStep(['8s', '6h', '8d', 'Tc', /*h1*/ '2c', '3d', '4h', '5s', /*h2*/ '3h', '2s', '9c', /*dealer*/ 'Th']);
+  t.act('p0', 'split'); assert.deepEqual(cardsOf(t), ['8s,2c', '8d']); assert.equal(t.turn.hi, 0);
+  assert.notStrictEqual(t.boxes[0].hands[0].cards, t.boxes[0].hands[1].cards);
+  t.act('p0', 'hit'); assert.deepEqual(cardsOf(t), ['8s,2c,3d', '8d']);
+  t.act('p0', 'hit'); assert.deepEqual(cardsOf(t), ['8s,2c,3d,4h', '8d']); assert.equal(t.turn.hi, 0);
+  t.act('p0', 'stand'); assert.equal(t.turn.hi, 1); assert.equal(t.pendingCard, true); assert.equal(t.legal('p0'), null, 'no decisions until hand 2 has its second card');
+  assert.throws(() => t.act('p0', 'hit'), /Not your turn/); assert.deepEqual(cardsOf(t), ['8s,2c,3d,4h', '8d']);
+  t.dealPending(); assert.deepEqual(cardsOf(t), ['8s,2c,3d,4h', '8d,5s']); assert.equal(t.legal('p0').hand, 1);
+  t.act('p0', 'hit'); assert.deepEqual(cardsOf(t), ['8s,2c,3d,4h', '8d,5s,3h']);
+  t.act('p0', 'hit'); assert.deepEqual(cardsOf(t), ['8s,2c,3d,4h', '8d,5s,3h,2s']);
+  t.act('p0', 'stand'); assert.equal(t.stage, 'dealer');
+});
+test('split: a bust or a double on hand 1 does not deal hand 2 in the same move', () => {
+  const t = setupStep(['8s', '6h', '8d', 'Tc', /*h1*/ '3c', /*dbl*/ 'Td', /*h2*/ '9h', 'Kc', /*dealer*/ 'Th']);
+  t.act('p0', 'split'); t.act('p0', 'double'); assert.deepEqual(cardsOf(t), ['8s,3c,Td', '8d']); assert.ok(t.pendingCard);
+  t.dealPending(); assert.deepEqual(cardsOf(t), ['8s,3c,Td', '8d,9h']); t.act('p0', 'hit'); assert.ok(t.boxes[0].hands[1].bust); assert.equal(t.stage, 'dealer');
+});
+test('split aces (step mode): one card each, dealt one hand at a time; resplit 4 hands in order', () => {
+  const a = setupStep(['As', '6h', 'Ad', 'Tc', '5c', '9d', 'Th']); a.act('p0', 'split'); assert.deepEqual(cardsOf(a), ['As,5c', 'Ad']); assert.equal(a.legal('p0'), null);
+  a.dealPending(); assert.deepEqual(cardsOf(a), ['As,5c', 'Ad,9d']); assert.equal(a.stage, 'dealer');
+  const r = setupStep(['8s', '6h', '8d', 'Tc', /*h1*/ '8c', /*h1 again*/ '8h', /*h1*/ 'Tc', /*h2*/ '9c', /*h3*/ 'Tc', /*h4*/ '7c', /*dealer*/ 'Td']);
+  r.act('p0', 'split'); r.act('p0', 'split'); r.act('p0', 'split'); assert.equal(r.boxes[0].hands.length, 4); assert.deepEqual(cardsOf(r), ['8s,Tc', '8h', '8c', '8d']);
+  for (let i = 0; i < 4; i++) { if (r.pendingCard) r.dealPending(); assert.equal(r.legal('p0').hand, i); r.act('p0', 'stand'); }
+  assert.deepEqual(cardsOf(r), ['8s,Tc', '8h,9c', '8c,Tc', '8d,7c']); assert.equal(r.stage, 'dealer'); assert.equal(r.boxes[0].lammers, 3);
 });

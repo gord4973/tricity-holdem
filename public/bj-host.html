@@ -111,13 +111,13 @@ function render(){const x=st;if(!x)return;$('rulesBody').innerHTML=rulesHTML(x);
  show(x.stage==='gameover'?'over':'tbl');if(x.stage==='gameover'){$('wname').textContent=x.winner||'';$('ended').classList.toggle('hidden',!x.endedByHost);$('wverb').textContent=x.endedByHost?(/ & /.test(x.winner)?'tie for the chip lead!':'is the chip leader!'):'wins!';$('bipot').innerHTML=potLine(x);
   const md=['🥇','🥈','🥉'];$('stand').innerHTML=`<div class=stand>${x.standings.map(r=>`<div class="${r.rank===1?'top':''}"><span>${md[r.rank-1]||r.rank+'.'} ${esc(r.name)}</span><span>${r.out?'out round '+r.outHand:money(r.chips)}</span></div>`).join('')}</div>`}
  $('lim').textContent=`${money(S.minBet)} – ${money(S.maxBet)}`;$('rnd').textContent='Round '+x.round;$('pin2').textContent=x.pin;$('bipot2').textContent=x.buyIn.on?'💵 Pot '+money(x.buyIn.pot):'';
- $('pauseBtn').textContent=x.paused?'▶ Resume':'⏸ Pause';$('pauseBtn').className=x.paused?'green':'gold';$('dealBtn').disabled=!(x.stage==='betting'&&x.players.some(p=>p.bet.main>=S.minBet))&&x.stage!=='settled';$('dealBtn').textContent=x.stage==='settled'?'⏭ Next round':'🂠 Deal now';
+ $('pauseBtn').textContent=x.paused?'▶ Resume':'⏸ Pause';$('pauseBtn').className=x.paused?'green':'gold';$('dealBtn').disabled=x.paused||!(x.stage==='betting'&&x.players.some(p=>p.bet.main>=S.minBet))&&x.stage!=='settled';$('dealBtn').textContent=x.stage==='settled'?'⏭ Next round':'🂠 Deal now';
  $('shoen').textContent=x.shoe.remaining+' cards';$('discard').style.setProperty('--h',Math.round((x.shoe.total-x.shoe.remaining)/x.shoe.total*100)+'%');
  $('pogcard').innerHTML=S.pog?payTableHTML():'';
  $('dcards').innerHTML=x.dealer.cards.length?cardsHTML(x.dealer.cards,'d'+x.round):'';$('dlbl').textContent=x.dealer.label?'DEALER '+x.dealer.label.toUpperCase():'';$('dlbl').style.visibility=x.dealer.label?'':'hidden';
  // announcements (and dealer voice)
  let ann='',sub='';
- if(x.paused)ann='⏸ PAUSED';
+ if(x.paused){ann='⏸ PAUSED';sub='The host paused the game'+(x.pausedLeft!=null?` · ${Math.ceil(x.pausedLeft/1000)}s left on the clock`:'')}
  else if(x.stage==='betting'){ann='Place your bets!';sub='Tap chips on your phone to bet'}
  else if(x.stage==='insurance'){ann='Insurance?';sub='Dealer shows an Ace'}
  else if(x.stage==='settled'){ann=announce(x);const w=x.result.lines.filter(l=>l.net>0).map(l=>l.name);sub=w.length?'Winners: '+w.join(', '):'House wins this round'}
@@ -130,7 +130,7 @@ function spots(x){const f=$('felt');f.querySelectorAll('.spot').forEach(e=>e.rem
   if(!p){d.className='spot empty';d.innerHTML=`<div class=circles><div class="circle main"></div></div><div class=plate><div class=nm style="opacity:.6">Seat ${k+1}</div></div>`;f.appendChild(d);continue}
   const b=p.box,acting=x.turn&&x.turn.id===p.id;d.className='spot'+(acting?' acting':'')+(p.out?' out':'')+(b&&b.hands.length>2?' many':'');
   const betAmt=b?b.unit:p.bet.main,pogAmt=b?b.pog:p.bet.pog;
-  const hands=b?b.hands.map((h,i)=>handHTML(h,'s'+x.round+p.id+':'+i,{active:acting&&x.turn.hand===i,unit:b.unit})).join(''):'';
+  const hands=b?b.hands.map((h,i)=>handHTML(h,'s'+x.round+p.id+':'+i,{active:acting&&x.turn.hand===i,unit:b.unit,idx:i,count:b.hands.length,dim:acting&&b.hands.length>1&&x.turn.hand!==i})).join(''):'';
   const tag=p.out?'<span class=tag style="background:#444">OUT</span>':(!p.connected||p.sittingOut)?'<span class=tag>AWAY · tap</span>':x.stage==='betting'&&p.bet.ready?'<span class="tag rdy">✓ BET</span>':b&&b.insurance>0?'<span class=tag style="background:#2a6fdb">INSURED</span>':'';
   d.innerHTML=`<div class=hands>${hands}</div><div class=circles><div class="circle main">${stackHTML(betAmt,5)}${betAmt?`<span class=amt>${money(betAmt)}</span>`:''}</div>${x.settings.pog?`<div class="circle pog">${pogAmt?stackHTML(pogAmt,3):''}${b&&b.lammers?`<span class=amt style="color:#f3c432">🪙×${b.lammers}</span>`:''}</div>`:''}</div>
    <div class=plate>${tag}${p.mic?`<span class="vmic${p.speaking?' talk':''}">🎤</span>`:''}<div class=nm>${esc(p.name)}${botTag(p)}</div><div class=ch>${money(x.stage==='betting'?p.chips-p.bet.main-p.bet.pog:p.chips)}</div>${acting&&x.turnDeadline?'<div class=tbar><i id=tb></i></div>':''}</div>`;

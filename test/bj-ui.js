@@ -31,8 +31,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));let fails=0;const ok=(c,m)=>{co
   await m.screenshot({path:'screens/bj-phone-turn'+(process.env.SHOT||'')+'.png'});await h.screenshot({path:'screens/bj-host-play'+(process.env.SHOT||'')+'.png'});
   await m.click('#bDbl');await sleep(500);ok(await m.$$eval('#spot .lammer',e=>e.length)===1,'gold lammer coin appears on the hand');
  }else ok(false,'did not get a turn (rig mismatch)');
- await m.waitForFunction(()=>st.stage==='settled',{timeout:30000});await sleep(700);
- const res=await m.evaluate(()=>{const b=st.players.find(p=>p.id===st.me.id).box;return{net:b.net,res:b.hands[0].result,lam:b.lammers,d:st.result.dealer}});
+ const res=await (await m.waitForFunction(()=>{if(st.stage!=='settled')return false;const b=st.players.find(p=>p.id===st.me.id).box;return b&&{net:b.net,res:b.hands[0].result,lam:b.lammers,d:st.result.dealer}},{timeout:30000,polling:20})).jsonValue();
  ok(res.res&&(LIVE||res.lam===1),'round settled: '+JSON.stringify(res));
  const status=await m.$eval('#status',e=>e.innerText);ok(/win|lose|Push/i.test(status),'phone result line: '+status);
  await m.screenshot({path:'screens/bj-phone-result'+(process.env.SHOT||'')+'.png'});await h.screenshot({path:'screens/bj-host-result'+(process.env.SHOT||'')+'.png'});

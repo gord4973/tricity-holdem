@@ -32,7 +32,7 @@ class Shoe {
 
 class Table {
   constructor(opts = {}) {
-    this.shoe = opts.shoe || new Shoe(6, opts.rand); this.players = []; this.stage = 'lobby'; this.round = 0; this.log = []; this.seq = 0; this.turnSeq = 0;
+    this.shoe = opts.shoe || new Shoe(6, opts.rand); this.players = []; this.stage = 'lobby'; this.round = 0; this.log = []; this.seq = 0; this.turnSeq = 0; this.stepSplits = !!opts.stepSplits; this.pendingCard = false;
     this.minBet = opts.minBet || 500; this.maxBet = opts.maxBet || 50000; this.pog = opts.pog !== false; this.pogMin = 500; this.pogMax = 2500;
     this.seen = new Array(11).fill(0); // face-up cards seen since the last shuffle, index by value (1 = ace .. 10)
     this.dealer = { cards: [], revealed: false }; this.boxes = []; this.turn = null; this.result = null; this.house = 0;
@@ -75,7 +75,7 @@ class Table {
   // ---- deal ----
   deal() {
     if (this.stage !== 'betting') throw new Error('Not taking bets');
-    const ps = this.bettors(); if (!ps.length) throw new Error('No bets on the table');
+    const ps = this.bettors(); if (!ps.length) throw new Error('No bets on the table'); this.pendingCard = false;
     this.boxes = ps.map(p => { const pog = p.bet.pog >= this.pogMin ? p.bet.pog : 0; p.chips -= p.bet.main + pog; p.last = { main: p.bet.main, pog }; return { id: p.id, name: p.name, unit: p.bet.main, pog, lammers: 0, insurance: null, hands: [{ cards: [], cash: p.bet.main, free: 0, split: false, aces: false, done: false, doubled: false }] }; });
     for (const p of this.players) if (!this.boxes.some(b => b.id === p.id)) { p.bet.main = 0; p.bet.pog = 0; }
     const up = (c) => { this.see(c); return c; };
@@ -109,15 +109,24 @@ class Table {
     while (this.turn && this.turn.bi < this.boxes.length) {
       const b = this.boxes[this.turn.bi], h = b.hands[this.turn.hi];
       if (!h) { this.turn = { bi: this.turn.bi + 1, hi: 0 }; continue; }
-      if (h.cards.length === 1) { const c = this.shoe.draw(); this.see(c); h.cards.push(c); if (h.aces && !(c[0] === 'A' && b.hands.length < MAX_HANDS)) h.done = true; if (total(h.cards).total === 21) h.done = true; }
+      if (h.cards.length === 1) { // a split hand coming up: the dealer gives it its second card now
+        if (this.stepSplits) { this.pendingCard = true; this.turnSeq++; return; } // server deals it a beat later so each hand plays visibly on its own
+        this.splitCard(b, h);
+      }
       if (!h.done) { this.turnSeq++; return; }
       this.turn = { bi: this.turn.bi, hi: this.turn.hi + 1 };
     }
     this.turn = null; this.turnSeq++; this.stage = 'dealer'; this.dealer.revealed = true; this.see(this.dealer.cards[1]);
     this.addLog(`Dealer turns over ${this.dealer.cards[1][0] === 'T' ? '10' : this.dealer.cards[1][0]} - ${handLabel(this.dealer.cards)}`);
   }
+  splitCard(b, h) { const c = this.shoe.draw(); this.see(c); h.cards.push(c); if (h.aces && !(c[0] === 'A' && b.hands.length < MAX_HANDS)) h.done = true; if (total(h.cards).total === 21) h.done = true;
+    this.addLog(`${b.name} (hand ${b.hands.indexOf(h) + 1}) gets ${c[0] === 'T' ? '10' : c[0]} - ${handLabel(h.cards)}`); }
+  dealPending() { // second card for the split hand whose turn it now is (stepSplits mode)
+    if (!this.pendingCard) return false; const c = this.cur(); this.pendingCard = false; if (!c) return false;
+    this.splitCard(c.b, c.h); if (c.h.done) { this.turn = { bi: this.turn.bi, hi: this.turn.hi + 1 }; this.findTurn(); } else this.turnSeq++; return true;
+  }
   legal(id) {
-    const c = this.cur(); if (!c || c.b.id !== id) return null; const { b, h } = c, p = this.get(id), t = total(h.cards);
+    const c = this.cur(); if (!c || c.b.id !== id || this.pendingCard) return null; const { b, h } = c, p = this.get(id), t = total(h.cards);
     const two = h.cards.length === 2, pair = two && (h.cards[0][0] === h.cards[1][0] || (tenVal(h.cards[0]) && tenVal(h.cards[1])));
     const freeD = two && !t.soft && t.total >= 9 && t.total <= 11, freeS = pair && !tenVal(h.cards[0]);
     const canSplit = pair && b.hands.length < MAX_HANDS && (freeS || p.chips >= b.unit);

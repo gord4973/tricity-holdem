@@ -8,7 +8,7 @@ const { rankPlayers } = require('../engine');
 module.exports = function attach({ io, pwOk }) {
   const nsp = io.of('/bj'), rooms = {};
   const E = process.env, BOT_MIN = E.BJ_BOT_MS != null ? +E.BJ_BOT_MS : null;
-  const DEALER_MS = +E.BJ_DEALER_MS || 900, RESULT_MS = +E.BJ_RESULT_MS || 7000, AWAY_MS = +E.BJ_AWAY_MS || 10000, SITOUT_MS = 1500, READY_MS = +E.BJ_READY_MS || 900, INS_MS = +E.BJ_INS_MS || 12000;
+  const DEALER_MS = +E.BJ_DEALER_MS || 900, SPLIT_MS = +E.BJ_SPLIT_MS || 900, RESULT_MS = +E.BJ_RESULT_MS || 7000, AWAY_MS = +E.BJ_AWAY_MS || 10000, SITOUT_MS = 1500, READY_MS = +E.BJ_READY_MS || 900, INS_MS = +E.BJ_INS_MS || 12000;
   const tok = () => crypto.randomBytes(16).toString('hex');
   function newPin() { let p; do p = String(crypto.randomInt(1000, 9999)); while (rooms[p]); return p; }
   const sockAlive = sid => { const k = sid && nsp.sockets.get(sid); return !!(k && k.connected); };
@@ -24,7 +24,7 @@ module.exports = function attach({ io, pwOk }) {
     return { stats: !!o.stats, minBet, maxBet, pog: o.pog !== false && o.pog !== 'false', turnSec: pick(o.turnSec, [0, 15, 20, 30, 45, 60], 30), betSec: pick(o.betSec, [0, 15, 20, 30, 45, 60], 20),
       buyIn: on ? { on: true, cents, email } : { on: false, cents: Number.isFinite(cents) && cents >= 100 ? cents : 500, email: EMAIL.test(email) ? email : '' } };
   }
-  function createRoom(settings) { const pin = newPin(); const R = { pin, game: 'bj', hostSid: null, settings, seats: {}, paused: false, timers: {}, created: Date.now(), lastActive: Date.now() }; R.table = new Table({ minBet: settings.minBet, maxBet: settings.maxBet, pog: settings.pog }); rooms[pin] = R; return R; }
+  function createRoom(settings) { const pin = newPin(); const R = { pin, game: 'bj', hostSid: null, settings, seats: {}, paused: false, timers: {}, created: Date.now(), lastActive: Date.now() }; R.table = new Table({ stepSplits: true, minBet: settings.minBet, maxBet: settings.maxBet, pog: settings.pog }); rooms[pin] = R; return R; }
   const applySettings = R => { const t = R.table; t.minBet = R.settings.minBet; t.maxBet = R.settings.maxBet; t.pog = R.settings.pog; };
   const isBot = (R, id) => !!(R.seats[id] || {}).bot;
   const payOf = st => (st && st.pay) || 'none';
@@ -49,10 +49,10 @@ module.exports = function attach({ io, pwOk }) {
   function publicView(R) {
     const t = R.table, cur = t.cur();
     return {
-      game: 'bj', pin: R.pin, stage: t.stage, round: t.round, paused: R.paused, serverNow: Date.now(), buyIn: buyInInfo(R),
+      game: 'bj', pin: R.pin, stage: t.stage, round: t.round, tseq: t.turnSeq, paused: R.paused, pausedLeft: R.paused && R.frozen ? (R.frozen.turn != null ? R.frozen.turn : R.frozen.bet) : null, serverNow: Date.now(), buyIn: buyInInfo(R),
       settings: { stats: !!R.settings.stats, minBet: R.settings.minBet, maxBet: R.settings.maxBet, pog: R.settings.pog, turnSec: R.settings.turnSec, betSec: R.settings.betSec, pogMin: t.pogMin, pogMax: t.pogMax },
       shoe: { remaining: t.shoe.remaining, total: t.shoe.cards.length, cut: t.shoe.cards.length - t.shoe.cutAt, shuffles: t.shoe.shuffles },
-      dealer: dealerView(t), turn: cur ? { id: cur.b.id, hand: t.turn.hi } : null, turnDeadline: R.turnDeadline || null, turnMs: R.turnMs || 0, betDeadline: R.betDeadline || null, nextRoundAt: R.nextRoundAt || null,
+      dealer: dealerView(t), turn: cur ? { id: cur.b.id, hand: t.turn.hi, of: cur.b.hands.length, pending: !!t.pendingCard } : null, turnDeadline: R.turnDeadline || null, turnMs: R.turnMs || 0, betDeadline: R.betDeadline || null, nextRoundAt: R.nextRoundAt || null,
       players: t.players.map((p, i) => { const s = R.seats[p.id] || {}, b = t.boxes.find(x => x.id === p.id);
         return { id: p.id, name: p.name, seat: i, chips: p.chips, out: p.out, outHand: p.outHand, bet: { main: p.bet.main, pog: p.bet.pog, ready: p.bet.ready }, sittingOut: !!s.sittingOut, connected: !!(s.sid || s.bot), bot: s.bot || null, pay: s.bot ? 'bot' : payOf(s), mic: !!(s.sid && s.mic), speaking: !!(s.sid && s.mic && s.speaking),
           box: b ? { unit: b.unit, pog: b.pog, lammers: b.lammers, insurance: b.insurance, net: t.stage === 'settled' ? b.net : null, pogPaid: b.pogPaid || 0,
@@ -94,7 +94,7 @@ module.exports = function attach({ io, pwOk }) {
     const key = tkey(t), c0 = t.cur(), s0 = c0 ? R.seats[c0.b.id] || {} : {}, sig = `${key}|${s0.sid ? 1 : 0}${s0.sittingOut ? 1 : 0}${s0.missed || 0}|${R.settings.turnSec}`;
     if (t.stage !== 'betting' && R.arm && R.arm.sig === sig && R.arm.live()) return; // already scheduled for exactly this moment (don't restart the clock)
     clear(R, 'turn'); clear(R, 'bet'); clear(R, 'step'); R.turnDeadline = null; R.nextRoundAt = null;
-    const set = (k, ms, fn, what) => { const due = Date.now() + ms; R.timers[k] = setTimeout(() => safe(R, what, () => { delete R.timers[k]; if (R.paused || tkey(t) !== key) return; fn(); after(R); }), ms); R.arm = { key, sig, due, live: () => !!R.timers[k] }; };
+    const set = (k, ms, fn, what) => { if (R.resume) { if (R.resume.key === key && R.resume.ms != null) { ms = Math.max(400, Math.min(ms, R.resume.ms)); if (k === 'turn' && R.turnDeadline) R.turnDeadline = Date.now() + ms; } R.resume = null; } const due = Date.now() + ms; R.timers[k] = setTimeout(() => safe(R, what, () => { delete R.timers[k]; if (R.paused || tkey(t) !== key) return; fn(); after(R); }), ms); R.arm = { key, sig, due, live: () => !!R.timers[k] }; };
     if (t.stage === 'betting') {
       botBets(R);
       const humans = t.players.filter(p => activeHuman(R, p)), bettors = t.bettors();
@@ -114,6 +114,7 @@ module.exports = function attach({ io, pwOk }) {
     }
     if (t.stage === 'playing') {
       const c = t.cur(); if (!c) return; const s = R.seats[c.b.id] || {}, p = t.get(c.b.id);
+      if (t.pendingCard) return set('step', SPLIT_MS, () => t.dealPending(), 'split card'); // next split hand gets its 2nd card a beat after the last one finished
       if (s.bot) return set('turn', BOT_MIN != null ? BOT_MIN : Bots.delayMs(), () => { const L = t.legal(p.id); if (!L) return; let a; try { a = Bots.decide(s.bot, c.h, t.dealer.cards[0], L); t.act(p.id, a); } catch (e) { R.botErrors = (R.botErrors || 0) + 1; console.warn('bj bot fallback', p.name, e.message, a); if (t.legal(p.id)) t.act(p.id, 'stand'); } }, 'bot turn');
       let ms = 0; if (s.sittingOut) ms = SITOUT_MS; else if (!s.sid) ms = (s.missed || 0) >= 2 ? Math.min(3000, AWAY_MS) : AWAY_MS; else if (R.settings.turnSec > 0) ms = R.settings.turnSec * 1000;
       if (!ms) { R.arm = { key, sig, due: Infinity, live: () => true }; return; }
@@ -145,8 +146,13 @@ module.exports = function attach({ io, pwOk }) {
     H('host:start', R => { const t = R.table; if (t.stage !== 'lobby') throw new Error('Already started'); if (!t.players.some(p => !isBot(R, p.id))) throw new Error('Need at least one player');
       const bi = buyInInfo(R); if (bi.on && bi.unpaid > 0) throw new Error(`${bi.unpaid} player${bi.unpaid > 1 ? 's have' : ' has'} not been confirmed for the buy-in - confirm or remove them first`);
       R.buyInCount = bi.on ? bi.confirmed : 0; applySettings(R); t.startGame(); R.paused = false; R.betDeadline = null; });
-    H('host:pause', (R, o) => { const want = o.paused != null ? !!o.paused : !R.paused; if (want === R.paused) return; R.paused = want; if (want) { clearAll(R); R.arm = null; R.turnDeadline = null; R.table.addLog('⏸ Game paused by host'); } else { R.betDeadline = null; R.arm = null; R.table.addLog('▶ Game resumed'); } });
-    H('host:deal', R => { const t = R.table; if (t.stage === 'settled') { clear(R, 'step'); t.next(); return; } if (t.stage !== 'betting') throw new Error('Round in play'); t.deal(); });
+    H('host:pause', (R, o) => { const want = o.paused != null ? !!o.paused : !R.paused; if (want === R.paused) return; R.paused = want; if (want) { const now = Date.now(), a = R.arm, t = R.table; // freeze: remember how much time was left on whatever clock was running
+        R.frozen = { key: tkey(t), ms: a && a.key === tkey(t) && a.due !== Infinity && a.live() ? Math.max(0, a.due - now) : null, bet: t.stage === 'betting' && R.betDeadline ? Math.max(0, R.betDeadline - now) : null, turn: R.turnDeadline ? Math.max(0, R.turnDeadline - now) : null };
+        clearAll(R); R.arm = null; R.turnDeadline = null; t.addLog('⏸ Game paused by host'); }
+      else { const f = R.frozen || {}, t = R.table; R.frozen = null; R.arm = null; R.resume = f.key === tkey(t) ? { key: f.key, ms: f.ms } : null;
+        if (t.stage === 'betting' && f.key === tkey(t) && f.bet != null) R.betDeadline = Date.now() + Math.max(1000, f.bet); else R.betDeadline = null;
+        t.addLog('▶ Game resumed'); } });
+    H('host:deal', R => { const t = R.table; if (R.paused) throw new Error('Game is paused - press Resume first'); if (t.stage === 'settled') { clear(R, 'step'); t.next(); return; } if (t.stage !== 'betting') throw new Error('Round in play'); t.deal(); });
     H('host:kick', (R, o) => { if (R.table.stage !== 'lobby') throw new Error('Only in the lobby'); const st = R.seats[o.id]; if (st && st.sid) nsp.to(st.sid).emit('kicked'); delete R.seats[o.id]; R.table.removePlayer(o.id); });
     H('host:end', R => { clearAll(R); R.arm = null; R.turnDeadline = null; R.paused = false; if (R.table.stage === 'lobby') throw new Error('Game not started'); if (R.table.stage !== 'gameover') R.table.endGame(); });
     H('host:addBot', (R, o) => { const t = R.table; if (t.stage !== 'lobby') throw new Error('Only in the lobby'); const lv = String(o.level || '').toLowerCase(); if (!Bots.LEVELS.includes(lv)) throw new Error('Pick Easy, Medium or Hard');
@@ -157,7 +163,7 @@ module.exports = function attach({ io, pwOk }) {
     s.on('host:rejoin', (o = {}, cb) => { const R = hostRoom(); if (!R) return err(cb, 'Not host'); const st = R.seats[o.id], p = R.table.get(o.id); if (!st || !p || st.bot) return err(cb, 'No such player');
       const code = crypto.randomBytes(6).toString('hex'), exp = Date.now() + 15 * 60000; st.rejoin = { code, exp }; st.rejoinOpenUntil = exp; ok(cb, { path: `/blackjack/j/${R.pin}?r=${code}`, name: p.name, connected: sockAlive(st.sid) }); });
     if (E.TEST_HOOKS === '1') s.on('test:loseTimers', (o, cb) => { const R = hostRoom(); if (R) { clearAll(R); } cb && cb({ ok: 1 }); });
-    if (E.TEST_HOOKS === '1') s.on('test:rig', (o = {}, cb) => { const R = hostRoom(); if (R && Array.isArray(o.cards)) R.table.shoe.rig(o.cards.map(String)); cb && cb({ ok: 1 }); });
+    if (E.TEST_HOOKS === '1') s.on('test:rig', (o = {}, cb) => { const R = hostRoom(); if (R && Array.isArray(o.cards)) R.table.shoe.rigged = o.cards.map(String); cb && cb({ ok: 1 }); });
     // ---- players ----
     s.on('join', (o = {}, cb) => {
       const R = rooms[String(o.pin || '').trim()]; if (!R) return err(cb, 'Game not found - check the PIN'); const t = R.table;
@@ -184,13 +190,14 @@ module.exports = function attach({ io, pwOk }) {
       voiceUpdate(R, id); ok(cb, { token: st.token, id, name: p.name, pin: R.pin }); after(R);
     }
     s.on('seat:check', (o = {}, cb) => { const R = rooms[s.data.pin], id = s.data.pid, st = R && R.seats[id], bound = !!(st && st.sid === s.id); ok(cb, { bound, game: !!R }); if (bound && R.table.get(id)) s.emit('state', { ...publicView(R), me: meView(R, id) }); });
-    const P = (ev, fn) => s.on(ev, (o = {}, cb) => { const R = rooms[s.data.pin], id = s.data.pid; if (!R || !R.seats[id] || R.seats[id].sid !== s.id) return err(cb, 'Not in a game', 'rebind'); try { fn(R, id, o || {}); ok(cb); } catch (e) { err(cb, e.message); } after(R); });
+    const FROZEN = new Set(['bet:add', 'bet:clear', 'bet:rebet', 'bet:ready', 'insure', 'act']); // blocked while the host has the game paused
+    const P = (ev, fn) => s.on(ev, (o = {}, cb) => { const R = rooms[s.data.pin], id = s.data.pid; if (!R || !R.seats[id] || R.seats[id].sid !== s.id) return err(cb, 'Not in a game', 'rebind'); if (R.paused && FROZEN.has(ev)) { err(cb, 'Paused by the host'); return broadcast(R); } try { fn(R, id, o || {}); ok(cb); } catch (e) { err(cb, e.message); } after(R); });
     P('bet:add', (R, id, o) => R.table.betAdd(id, o.spot === 'pog' ? 'pog' : 'main', o.chip));
     P('bet:clear', (R, id) => R.table.betClear(id));
     P('bet:rebet', (R, id, o) => R.table.rebet(id, o.x2 ? 2 : 1));
     P('bet:ready', (R, id, o) => R.table.betReady(id, o.on !== false));
     P('insure', (R, id, o) => R.table.insure(id, !!o.yes));
-    P('act', (R, id, o) => R.table.act(id, String(o.action)));
+    P('act', (R, id, o) => { if (o.seq != null && +o.seq !== R.table.turnSeq) throw new Error('That hand already moved on'); R.table.act(id, String(o.action)); }); // seq = the exact decision the phone saw, so a double tap or a network retry can't spill onto the next split hand
     P('buyin:sent', (R, id, o) => { const st = R.seats[id]; if (!(R.settings.buyIn || {}).on) throw new Error('No buy-in for this game'); if (R.table.stage !== 'lobby') throw new Error('Game already started'); if (st.pay === 'confirmed') throw new Error('Already confirmed by the host'); st.pay = o.on ? 'pending' : 'none'; });
     P('sitout', (R, id, o) => { const st = R.seats[id]; st.sittingOut = !!o.on; R.table.addLog(`${R.table.get(id).name} ${st.sittingOut ? 'is sitting out' : 'is back'}`); });
     P('leave', (R, id) => { const t = R.table, p = t.get(id); if (t.stage === 'lobby') { delete R.seats[id]; t.removePlayer(id); t.addLog(`${p.name} left`); s.data.pin = null; return; }
