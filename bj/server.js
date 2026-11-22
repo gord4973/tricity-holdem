@@ -54,7 +54,7 @@ module.exports = function attach({ io, pwOk }) {
       shoe: { remaining: t.shoe.remaining, total: t.shoe.cards.length, cut: t.shoe.cards.length - t.shoe.cutAt, shuffles: t.shoe.shuffles },
       dealer: dealerView(t), turn: cur ? { id: cur.b.id, hand: t.turn.hi, of: cur.b.hands.length, pending: !!t.pendingCard } : null, turnDeadline: R.turnDeadline || null, turnMs: R.turnMs || 0, betDeadline: R.betDeadline || null, nextRoundAt: R.nextRoundAt || null,
       players: t.players.map((p, i) => { const s = R.seats[p.id] || {}, b = t.boxes.find(x => x.id === p.id);
-        return { id: p.id, name: p.name, seat: i, chips: p.chips, out: p.out, outHand: p.outHand, bet: { main: p.bet.main, pog: p.bet.pog, ready: p.bet.ready }, sittingOut: !!s.sittingOut, connected: !!(s.sid || s.bot), bot: s.bot || null, pay: s.bot ? 'bot' : payOf(s), mic: !!(s.sid && s.mic), speaking: !!(s.sid && s.mic && s.speaking),
+        return { id: p.id, name: p.name, seat: i, chips: p.chips, out: p.out, outHand: p.outHand, bet: { main: p.bet.main, pog: p.bet.pog, ready: p.bet.ready, mc: p.bet.mc || null, pc: p.bet.pc || null }, rack: p.rack, changing: p.changed && Date.now() - p.changed.at < 3000 ? p.changed : null, sittingOut: !!s.sittingOut, connected: !!(s.sid || s.bot), bot: s.bot || null, pay: s.bot ? 'bot' : payOf(s), mic: !!(s.sid && s.mic), speaking: !!(s.sid && s.mic && s.speaking),
           box: b ? { unit: b.unit, pog: b.pog, lammers: b.lammers, insurance: b.insurance, net: t.stage === 'settled' ? b.net : null, pogPaid: b.pogPaid || 0,
             hands: b.hands.map(h => ({ cards: h.cards, cash: h.cash, free: h.free, label: h.bj ? 'Blackjack' : handLabel(h.cards), total: total(h.cards).total, bust: !!h.bust, bj: !!h.bj, done: h.done, doubled: h.doubled, freeDouble: !!h.freeDouble, freeSplit: !!h.freeSplit, result: h.result || null, paid: h.paid || 0 })) } : null }; }),
       log: t.log.slice(-12), seq: t.seq, result: t.stage === 'settled' || t.stage === 'gameover' ? t.result : null,
@@ -124,7 +124,11 @@ module.exports = function attach({ io, pwOk }) {
     if (t.stage === 'dealer') return set('step', DEALER_MS, () => t.dealerStep(), 'dealer');
     if (t.stage === 'settled') { R.nextRoundAt = Date.now() + RESULT_MS; return set('step', RESULT_MS, () => { if (!t.players.some(p => !p.out && !isBot(R, p.id))) t.finish(false); else t.next(); }, 'next round'); }
   }
-  function after(R) { R.lastActive = Date.now(); R.lastChange = Date.now(); arm(R); broadcast(R); }
+  function after(R) { R.lastActive = Date.now(); R.lastChange = Date.now(); arm(R); broadcast(R);
+    flash(R); }
+  function flash(R) { // re-broadcast once a 'Changing $100' tag has expired so the TV clears it
+    const last = Math.max(0, ...R.table.players.map(p => p.changed && Date.now() - p.changed.at < 3000 ? p.changed.at : 0)); if (!last || R.flashT) return;
+    R.flashT = setTimeout(() => { R.flashT = null; if (!rooms[R.pin]) return; broadcast(R); flash(R); }, last + 3050 - Date.now()); }
   function watchdog(R) {
     const t = R.table; if (R.paused || ['lobby', 'gameover'].includes(t.stage)) return;
     const a = R.arm, log = why => { R.watchdog = (R.watchdog || 0) + 1; console.warn(`[bj ${R.pin}] watchdog: ${why} (round ${t.round} ${t.stage})`); };
@@ -190,9 +194,10 @@ module.exports = function attach({ io, pwOk }) {
       voiceUpdate(R, id); ok(cb, { token: st.token, id, name: p.name, pin: R.pin }); after(R);
     }
     s.on('seat:check', (o = {}, cb) => { const R = rooms[s.data.pin], id = s.data.pid, st = R && R.seats[id], bound = !!(st && st.sid === s.id); ok(cb, { bound, game: !!R }); if (bound && R.table.get(id)) s.emit('state', { ...publicView(R), me: meView(R, id) }); });
-    const FROZEN = new Set(['bet:add', 'bet:clear', 'bet:rebet', 'bet:ready', 'insure', 'act']); // blocked while the host has the game paused
+    const FROZEN = new Set(['chips:change', 'bet:add', 'bet:clear', 'bet:rebet', 'bet:ready', 'insure', 'act']); // blocked while the host has the game paused
     const P = (ev, fn) => s.on(ev, (o = {}, cb) => { const R = rooms[s.data.pin], id = s.data.pid; if (!R || !R.seats[id] || R.seats[id].sid !== s.id) return err(cb, 'Not in a game', 'rebind'); if (R.paused && FROZEN.has(ev)) { err(cb, 'Paused by the host'); return broadcast(R); } try { fn(R, id, o || {}); ok(cb); } catch (e) { err(cb, e.message); } after(R); });
     P('bet:add', (R, id, o) => R.table.betAdd(id, o.spot === 'pog' ? 'pog' : 'main', o.chip));
+    P('chips:change', (R, id, o) => { R.table.change(id, String(o.op)); });
     P('bet:clear', (R, id) => R.table.betClear(id));
     P('bet:rebet', (R, id, o) => R.table.rebet(id, o.x2 ? 2 : 1));
     P('bet:ready', (R, id, o) => R.table.betReady(id, o.on !== false));

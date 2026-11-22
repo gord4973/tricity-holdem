@@ -1,6 +1,6 @@
 // Free Bet Blackjack rules engine tests.
 const test = require('node:test'), assert = require('node:assert');
-const { Table, total, pogMult, START_CHIPS } = require('../bj/engine');
+const { Table, total, pogMult, START_CHIPS, rackSum, takeChips } = require('../bj/engine');
 const S = require('../bj/strategy');
 // one player, rigged deal: [p1, dUp, p2, dHole, ...draws]
 function setup(cards, { main = 1000, pog = 0, players = 1 } = {}) {
@@ -68,7 +68,7 @@ for (const step of [false, true]) test(`chips conserve: player + house is consta
     for (const p of t.players) if (!p.out) { try { t.setBet(p.id, Math.min(p.chips - (p.chips % 500), 500 * (1 + (r % 4))), p.chips > 5000 ? 500 : 0); } catch (e) { } }
     if (!t.bettors().length) break; t.deal(); if (t.stage === 'insurance') for (const b of t.boxes) t.insure(b.id, Math.random() < 0.3 && t.get(b.id).chips >= b.unit / 2);
     let g = 0; while (t.stage === 'playing' && g++ < 200) { if (t.pendingCard) { t.dealPending(); continue; } const c = t.cur(), L = t.legal(c.b.id); t.act(c.b.id, S.recommend(c.h.cards, t.dealer.cards[0], L, c.h.cash === 0).action === 'split' && L.canSplit ? 'split' : (L.canDouble && Math.random() < .3 ? 'double' : (L.canHit && total(c.h.cards).total < 15 ? 'hit' : 'stand'))); }
-    finish(t); assert.equal(t.stage, 'settled'); t.next();
+    finish(t); assert.equal(t.stage, 'settled'); for (const p of t.players) assert.equal(rackSum(p.rack), p.chips, `rack = balance for ${p.id} round ${r}`); t.next();
   }
   assert.equal(t.players.reduce((a, p) => a + p.chips, 0) + t.house, start);
 });
@@ -118,3 +118,43 @@ test('split aces (step mode): one card each, dealt one hand at a time; resplit 4
   for (let i = 0; i < 4; i++) { if (r.pendingCard) r.dealPending(); assert.equal(r.legal('p0').hand, i); r.act('p0', 'stand'); }
   assert.deepEqual(cardsOf(r), ['8s,Tc', '8h,9c', '8c,Tc', '8d,7c']); assert.equal(r.stage, 'dealer'); assert.equal(r.boxes[0].lammers, 3);
 });
+
+// ---- real chips & making change ----
+const R0 = () => { const t = new Table(); t.addPlayer('p0', 'P0'); t.startGame(); return t; };
+test('chips: start rack is 1x$100 + 4x$25 + 40x$5', () => { const t = R0(); assert.deepEqual(t.get('p0').rack, { 10000: 1, 2500: 4, 500: 40, 250: 0 }); });
+test('change: break $100 -> 4x$25, $25 -> 5x$5, color up, value conserved', () => {
+  const t = R0(), p = t.get('p0'); t.change('p0', 'break100'); assert.deepEqual(p.rack, { 10000: 0, 2500: 8, 500: 40, 250: 0 });
+  t.change('p0', 'break25'); assert.deepEqual(p.rack, { 10000: 0, 2500: 7, 500: 45, 250: 0 }); assert.equal(rackSum(p.rack), START_CHIPS);
+  t.change('p0', 'up5'); assert.deepEqual(p.rack, { 10000: 0, 2500: 8, 500: 40, 250: 0 }); t.change('p0', 'up25'); assert.deepEqual(p.rack, { 10000: 1, 2500: 4, 500: 40, 250: 0 }); assert.equal(p.chips, START_CHIPS);
+});
+test("change: can't break what you don't have; bad ops and locked bets rejected", () => {
+  const t = R0(); t.change('p0', 'break100'); assert.throws(() => t.change('p0', 'break100'), /no \$100/); assert.throws(() => t.change('p0', 'up250'), /2 × \$2.50/); assert.throws(() => t.change('p0', 'steal'), /Unknown/);
+  t.betAdd('p0', 'main', 2500); t.betReady('p0'); assert.throws(() => t.change('p0', 'break25'), /locked/);
+  const u = new Table(); u.addPlayer('x', 'X'); assert.throws(() => u.change('x', 'break100'), /not started/);
+});
+test('betting uses real chips: no $100 left -> tap Change; chips in the circle are not spendable', () => {
+  const t = R0(), p = t.get('p0'); t.betAdd('p0', 'main', 10000); assert.throws(() => t.betAdd('p0', 'main', 10000), /Change/);
+  assert.throws(() => t.change('p0', 'break100'), /no \$100/, 'the $100 in the betting circle cannot be broken');
+  for (let i = 0; i < 4; i++) t.betAdd('p0', 'main', 2500); assert.throws(() => t.betAdd('p0', 'main', 2500), /Change/); assert.equal(p.bet.main, 20000);
+});
+test('deal debits the exact chips bet; a losing hand keeps the rest of the rack untouched', () => {
+  const t = R0(), p = t.get('p0'); t.betAdd('p0', 'main', 2500); t.shoe.rigged = ['Ts', '9h', '6d', 'Tc', 'Th']; t.deal();
+  assert.deepEqual(p.rack, { 10000: 1, 2500: 3, 500: 40, 250: 0 }); t.act('p0', 'hit'); finish(t); assert.equal(t.stage, 'settled'); assert.deepEqual(p.rack, { 10000: 1, 2500: 3, 500: 40, 250: 0 });
+});
+test('payouts: winner gets the same chips back plus winnings in the biggest chips; blackjack pays a pink $2.50', () => {
+  const t = R0(), p = t.get('p0'); t.betAdd('p0', 'main', 500); t.shoe.rigged = ['As', '9h', 'Kd', '7c']; t.deal(); let n = 0; while (t.stage === 'dealer' && n++ < 9) t.dealerStep();
+  assert.equal(p.chips, START_CHIPS + 750); assert.deepEqual(p.rack, { 10000: 1, 2500: 4, 500: 41, 250: 1 });
+  t.next(); t.change('p0', 'up25'); t.betAdd('p0', 'main', 10000); t.shoe.rigged = ['Ts', '6h', '9d', '7c', 'Tc']; t.deal(); t.act('p0', 'stand'); n = 0; while (t.stage === 'dealer' && n++ < 9) t.dealerStep();
+  assert.equal(p.rack[10000], 3, 'won $100 -> the $100 back + a $100 chip (plus the one kept)'); assert.equal(rackSum(p.rack), p.chips);
+});
+test('rebet / computer bets: dealer makes change when the right chips are missing', () => {
+  const t = R0(), p = t.get('p0'); for (let i = 0; i < 40; i++) t.betAdd('p0', 'main', 500); t.betClear('p0');
+  p.rack = { 10000: 2, 2500: 0, 500: 0, 250: 0 }; p.chips = 20000; t.setBet('p0', 3000, 0);
+  assert.equal(p.bet.main, 3000); assert.equal(rackSum(p.bet.mc), 3000); assert.equal(rackSum(p.rack), 20000); assert.ok(t.log.some(l => /made change/.test(l)));
+});
+test('paid doubles / insurance take chips (making change), host end refunds the same chips', () => {
+  const t = R0(), p = t.get('p0'); t.change('p0', 'break25'); t.betAdd('p0', 'main', 2500); t.shoe.rigged = ['As', '6h', '7d', 'Tc', '2h']; t.deal(); t.act('p0', 'double');
+  assert.equal(rackSum(p.rack), p.chips); const before = { ...p.rack };
+  const u = R0(), q = u.get('p0'); u.betAdd('p0', 'main', 10000); u.shoe.rigged = ['5s', '6h', '6d', 'Tc']; u.deal(); u.endGame(); assert.deepEqual(q.rack, { 10000: 1, 2500: 4, 500: 40, 250: 0 }); assert.ok(before);
+});
+test('takeChips breaks the next size down and conserves value', () => { const r = { 10000: 1, 2500: 0, 500: 0, 250: 0 }, x = takeChips(r, 750); assert.equal(rackSum(r), 10000); assert.equal(rackSum(x.used), 750); assert.equal(x.broke, 10000); });

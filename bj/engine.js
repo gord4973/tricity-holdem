@@ -9,6 +9,30 @@ const RANKS = '23456789TJQKA', SUITS = 'shdc';
 const START_CHIPS = 40000; // $400: 1 x $100, 4 x $25, 40 x $5
 const POG_PAY = { 1: 3, 2: 12, 3: 30, 4: 60, 5: 100, 6: 250, 7: 1000 }; // x:1 by lammer count (7+ = 1000)
 const MAX_HANDS = 4;
+// ---- real chips: every player holds actual $100 / $25 / $5 / $2.50 chips (cents -> count) ----
+const DENS = [10000, 2500, 500, 250];
+const START_RACK = () => ({ 10000: 1, 2500: 4, 500: 40, 250: 0 });
+const emptyRack = () => ({ 10000: 0, 2500: 0, 500: 0, 250: 0 });
+const rackSum = r => DENS.reduce((a, d) => a + d * (r[d] || 0), 0);
+const rackAdd = (r, x, k = 1) => { for (const d of DENS) r[d] = (r[d] || 0) + k * (x[d] || 0); return r; };
+const credit = (r, amt) => { for (const d of DENS) { const n = Math.floor(amt / d); r[d] += n; amt -= n * d; } return amt; }; // dealer pays with the biggest chips that fit
+// take exactly amt out of rack r (only from `avail` counts); breaks a bigger chip if needed. returns { used, broke } or throws
+function takeChips(r, amt, avail = r) {
+  const used = emptyRack(); let rem = amt, broke = 0;
+  for (const d of DENS) { const n = Math.min(avail[d] || 0, Math.floor(rem / d)); used[d] += n; rem -= n * d; }
+  if (rem > 0) { const d = [...DENS].reverse().find(x => x > rem && (avail[x] || 0) - used[x] > 0); if (!d) throw new Error('Not enough chips');
+    // break one chip d: it goes to the dealer, change comes back to the rack (and the remainder gets used)
+    const nx = DENS[DENS.indexOf(d) + 1]; r[d]--; r[nx] += d / nx; if (avail !== r) { avail[d]--; avail[nx] += d / nx; } broke = d; // one chip into the next size down ($100 -> 4x$25, $25 -> 5x$5, $5 -> 2x$2.50)
+    const t = takeChips(r, amt, avail); return { used: t.used, broke: Math.max(t.broke, broke) }; }
+  return { used, broke };
+}
+const CHANGE_OPS = { // Vegas-style change at the table
+  'break100': { from: 10000, n: 1, to: 2500, m: 4, label: 'Break $100 → 4 × $25' },
+  'break25': { from: 2500, n: 1, to: 500, m: 5, label: 'Break $25 → 5 × $5' },
+  'up5': { from: 500, n: 5, to: 2500, m: 1, label: 'Color up 5 × $5 → $25' },
+  'up25': { from: 2500, n: 4, to: 10000, m: 1, label: 'Color up 4 × $25 → $100' },
+  'up250': { from: 250, n: 2, to: 500, m: 1, label: 'Trade 2 × $2.50 → $5' },
+};
 const val = c => c[0] === 'A' ? 11 : 'TJQK'.includes(c[0]) ? 10 : +c[0];
 const tenVal = c => val(c) === 10;
 function total(cards) { let t = 0, a = 0; for (const c of cards) { t += val(c); if (c[0] === 'A') a++; } while (t > 21 && a) { t -= 10; a--; } return { total: t, soft: a > 0 }; }
@@ -39,13 +63,13 @@ class Table {
   }
   addLog(m) { this.log.push(m); if (this.log.length > 60) this.log.shift(); this.seq++; }
   get(id) { return this.players.find(p => p.id === id); }
-  addPlayer(id, name) { if (this.players.length >= 7) throw new Error('Table is full (7 seats)'); this.players.push({ id, name, chips: START_CHIPS, startChips: START_CHIPS, out: false, outHand: 0, bet: { main: 0, pog: 0, ready: false }, last: null }); }
+  addPlayer(id, name) { if (this.players.length >= 7) throw new Error('Table is full (7 seats)'); this.players.push({ id, name, chips: START_CHIPS, rack: START_RACK(), startChips: START_CHIPS, out: false, outHand: 0, bet: { main: 0, pog: 0, ready: false }, last: null }); }
   removePlayer(id) { this.players = this.players.filter(p => p.id !== id); }
-  startGame() { if (this.players.length < 1) throw new Error('Need at least one player'); for (const p of this.players) Object.assign(p, { chips: START_CHIPS, startChips: START_CHIPS, out: false, outHand: 0, bet: { main: 0, pog: 0, ready: false }, last: null }); this.round = 0; this.house = 0; this.addLog('🃏 Shuffling a fresh 6-deck shoe'); this.shoe.shuffle(); this.seen.fill(0); this.openBetting(); }
-  resetForNewGame() { this.stage = 'lobby'; this.round = 0; this.result = null; this.boxes = []; this.turn = null; this.dealer = { cards: [], revealed: false }; this.winner = null; this.endedByHost = false; for (const p of this.players) Object.assign(p, { chips: START_CHIPS, startChips: START_CHIPS, out: false, outHand: 0, bet: { main: 0, pog: 0, ready: false }, last: null }); this.addLog('New game - everyone back to $400'); }
+  startGame() { if (this.players.length < 1) throw new Error('Need at least one player'); for (const p of this.players) Object.assign(p, { chips: START_CHIPS, rack: START_RACK(), startChips: START_CHIPS, out: false, outHand: 0, bet: { main: 0, pog: 0, ready: false }, last: null }); this.round = 0; this.house = 0; this.addLog('🃏 Shuffling a fresh 6-deck shoe'); this.shoe.shuffle(); this.seen.fill(0); this.openBetting(); }
+  resetForNewGame() { this.stage = 'lobby'; this.round = 0; this.result = null; this.boxes = []; this.turn = null; this.dealer = { cards: [], revealed: false }; this.winner = null; this.endedByHost = false; for (const p of this.players) Object.assign(p, { chips: START_CHIPS, rack: START_RACK(), startChips: START_CHIPS, out: false, outHand: 0, bet: { main: 0, pog: 0, ready: false }, last: null }); this.addLog('New game - everyone back to $400'); }
   openBetting() {
     this.round++; this.stage = 'betting'; this.boxes = []; this.turn = null; this.dealer = { cards: [], revealed: false }; this.result = null;
-    for (const p of this.players) { p.bet = { main: 0, pog: 0, ready: false }; p.startChips = p.chips; }
+    for (const p of this.players) { p.bet = { main: 0, pog: 0, ready: false, mc: emptyRack(), pc: emptyRack() }; p.startChips = p.chips; this.syncRack(p); }
     if (this.shoe.pastCut) { this.shoe.shuffle(); this.seen.fill(0); this.addLog('✂ Cut card reached - shuffling a new shoe'); }
     this.addLog(`Round ${this.round}: place your bets`);
   }
@@ -54,18 +78,39 @@ class Table {
   betAdd(id, spot, cents) {
     const p = this.get(id); if (!this.canBet(p)) throw new Error('Betting is closed'); if (p.bet.ready) throw new Error('Your bet is locked in');
     cents = Math.round(+cents); if (![500, 2500, 10000].includes(cents)) throw new Error('Pick a $5, $25 or $100 chip');
-    const avail = p.chips - p.bet.main - p.bet.pog; if (cents > avail) throw new Error('Not enough chips');
-    if (spot === 'pog') { if (!this.pog) throw new Error('No Pot of Gold at this table'); if (p.bet.pog + cents > this.pogMax) throw new Error(`Pot of Gold max is ${fmt(this.pogMax)}`); p.bet.pog += cents; }
-    else { if (p.bet.main + cents > this.maxBet) throw new Error(`Table max is ${fmt(this.maxBet)}`); p.bet.main += cents; }
+    this.betChips(p); if (this.avail(p)[cents] < 1) throw new Error(`No ${fmt(cents)} chips left - tap 💱 Change to break a larger chip`);
+    if (spot === 'pog') { if (!this.pog) throw new Error('No Pot of Gold at this table'); if (p.bet.pog + cents > this.pogMax) throw new Error(`Pot of Gold max is ${fmt(this.pogMax)}`); p.bet.pog += cents; p.bet.pc[cents]++; }
+    else { if (p.bet.main + cents > this.maxBet) throw new Error(`Table max is ${fmt(this.maxBet)}`); p.bet.main += cents; p.bet.mc[cents]++; }
   }
-  betClear(id) { const p = this.get(id); if (!this.canBet(p)) throw new Error('Betting is closed'); if (p.bet.ready) throw new Error('Your bet is locked in'); p.bet.main = 0; p.bet.pog = 0; }
+  betClear(id) { const p = this.get(id); if (!this.canBet(p)) throw new Error('Betting is closed'); if (p.bet.ready) throw new Error('Your bet is locked in'); p.bet.main = 0; p.bet.pog = 0; p.bet.mc = emptyRack(); p.bet.pc = emptyRack(); }
   rebet(id, mult = 1) {
     const p = this.get(id); if (!this.canBet(p)) throw new Error('Betting is closed'); if (p.bet.ready) throw new Error('Your bet is locked in'); if (!p.last) throw new Error('No previous bet');
     let main = Math.min(this.maxBet, p.last.main * mult), pog = this.pog ? Math.min(this.pogMax, p.last.pog * mult) : 0;
     if (main + pog > p.chips) { pog = 0; } if (main > p.chips) main = Math.floor(p.chips / 500) * 500;
-    if (main < this.minBet) throw new Error('Not enough chips for that bet'); p.bet.main = main; p.bet.pog = pog;
+    if (main < this.minBet) throw new Error('Not enough chips for that bet'); this.placeBet(p, main, pog);
   }
-  setBet(id, main, pog) { const p = this.get(id); if (!this.canBet(p)) throw new Error('Betting is closed'); main = Math.round(main / 500) * 500; pog = this.pog ? Math.round(pog / 500) * 500 : 0; if (main + pog > p.chips) throw new Error('Not enough chips'); p.bet.main = Math.min(main, this.maxBet); p.bet.pog = Math.min(pog, this.pogMax); }
+  setBet(id, main, pog) { const p = this.get(id); if (!this.canBet(p)) throw new Error('Betting is closed'); main = Math.round(main / 500) * 500; pog = this.pog ? Math.round(pog / 500) * 500 : 0; if (main + pog > p.chips) throw new Error('Not enough chips'); this.placeBet(p, Math.min(main, this.maxBet), Math.min(pog, this.pogMax)); }
+  // ---- chips ----
+  syncRack(p) { // safety net: the chips in the rack always add up to the balance
+    if (!p.rack) p.rack = emptyRack(); let diff = p.chips - rackSum(p.rack);
+    if (diff > 0) credit(p.rack, diff); else if (diff < 0) { try { takeChips(p.rack, -diff); } catch (e) { p.rack = emptyRack(); credit(p.rack, p.chips); } }
+  }
+  betChips(p) { if (!p.bet.mc) p.bet.mc = emptyRack(); if (!p.bet.pc) p.bet.pc = emptyRack(); this.syncRack(p);
+    if (rackSum(p.bet.mc) !== p.bet.main || rackSum(p.bet.pc) !== p.bet.pog) { const m = p.bet.main, g = p.bet.pog; p.bet.mc = emptyRack(); p.bet.pc = emptyRack(); p.bet.main = 0; p.bet.pog = 0; this.placeBet(p, m, g); } }
+  avail(p) { const a = {}; for (const d of DENS) a[d] = (p.rack[d] || 0) - (p.bet.mc ? p.bet.mc[d] || 0 : 0) - (p.bet.pc ? p.bet.pc[d] || 0 : 0); return a; }
+  placeBet(p, main, pog) { // rebet / computer players: pick the chips, and have the dealer make change if the right ones aren't there
+    p.bet.mc = emptyRack(); p.bet.pc = emptyRack(); p.bet.main = 0; p.bet.pog = 0; this.syncRack(p); let broke = 0;
+    const a = this.avail(p), m = takeChips(p.rack, main, a); rackAdd(a, m.used, -1); const g = takeChips(p.rack, pog, a); broke = m.broke || g.broke;
+    p.bet.mc = m.used; p.bet.pc = g.used; p.bet.main = main; p.bet.pog = pog;
+    if (broke) { p.changed = { op: 'auto', from: broke, at: Date.now() }; this.addLog(`Dealer made change for ${p.name} (${fmt(broke)})`); }
+  }
+  change(id, op) {
+    const p = this.get(id), o = CHANGE_OPS[op]; if (!o) throw new Error('Unknown change'); if (!p || p.out) throw new Error('Not in the game');
+    if (['lobby', 'gameover'].includes(this.stage)) throw new Error('The game has not started'); if (this.stage === 'betting' && p.bet.ready) throw new Error('Your bet is locked in - tap Change my bet first');
+    this.betChips(p); const a = this.avail(p); if (a[o.from] < o.n) throw new Error(o.n > 1 ? `You need ${o.n} × ${fmt(o.from)} chips` : `You have no ${fmt(o.from)} chips to break`);
+    p.rack[o.from] -= o.n; p.rack[o.to] += o.m; p.changed = { op, from: o.from, at: Date.now() };
+    this.addLog(`${p.name}: ${o.label.replace('→', 'for')}`); return o;
+  }
   betReady(id, on = true) {
     const p = this.get(id); if (!this.canBet(p)) throw new Error('Betting is closed');
     if (on) { if (p.bet.main < this.minBet) throw new Error(`Minimum bet is ${fmt(this.minBet)}`); if (p.bet.pog && p.bet.pog < this.pogMin) throw new Error(`Pot of Gold minimum is ${fmt(this.pogMin)}`); }
@@ -76,7 +121,7 @@ class Table {
   deal() {
     if (this.stage !== 'betting') throw new Error('Not taking bets');
     const ps = this.bettors(); if (!ps.length) throw new Error('No bets on the table'); this.pendingCard = false;
-    this.boxes = ps.map(p => { const pog = p.bet.pog >= this.pogMin ? p.bet.pog : 0; p.chips -= p.bet.main + pog; p.last = { main: p.bet.main, pog }; return { id: p.id, name: p.name, unit: p.bet.main, pog, lammers: 0, insurance: null, hands: [{ cards: [], cash: p.bet.main, free: 0, split: false, aces: false, done: false, doubled: false }] }; });
+    this.boxes = ps.map(p => { const pog = p.bet.pog >= this.pogMin ? p.bet.pog : 0; this.betChips(p); if (!pog) p.bet.pc = emptyRack(); rackAdd(p.rack, p.bet.mc, -1); rackAdd(p.rack, p.bet.pc, -1); p.chips -= p.bet.main + pog; p.boxChips = { mc: { ...p.bet.mc }, pc: { ...p.bet.pc } }; p.last = { main: p.bet.main, pog }; return { id: p.id, name: p.name, unit: p.bet.main, pog, lammers: 0, insurance: null, hands: [{ cards: [], cash: p.bet.main, free: 0, split: false, aces: false, done: false, doubled: false }] }; });
     for (const p of this.players) if (!this.boxes.some(b => b.id === p.id)) { p.bet.main = 0; p.bet.pog = 0; }
     const up = (c) => { this.see(c); return c; };
     for (let r = 0; r < 2; r++) { for (const b of this.boxes) b.hands[0].cards.push(up(this.shoe.draw())); this.dealer.cards.push(r === 0 ? up(this.shoe.draw()) : this.shoe.draw()); }
@@ -91,7 +136,7 @@ class Table {
   insure(id, yes) {
     if (this.stage !== 'insurance') throw new Error('No insurance now');
     const b = this.boxes.find(x => x.id === id), p = this.get(id); if (!b) throw new Error('You are not in this round'); if (b.insurance !== null) return;
-    if (yes) { const cost = Math.floor(b.unit / 2); if (cost > p.chips) throw new Error('Not enough chips for insurance'); p.chips -= cost; b.insurance = cost; this.addLog(`${b.name} takes insurance (${fmt(cost)})`); }
+    if (yes) { const cost = Math.floor(b.unit / 2); if (cost > p.chips) throw new Error('Not enough chips for insurance'); this.pay(p, cost); b.insurance = cost; this.addLog(`${b.name} takes insurance (${fmt(cost)})`); }
     else b.insurance = 0;
     if (this.boxes.every(x => x.insurance !== null)) this.afterInsurance();
   }
@@ -103,6 +148,9 @@ class Table {
     for (const b of this.boxes) if (b.insurance > 0) { this.addLog(`${b.name} loses insurance`); b.insLost = b.insurance; }
     this.stage = 'playing'; this.turn = { bi: 0, hi: 0 }; this.findTurn();
   }
+  pay(p, amt) { this.syncRack(p); const r = takeChips(p.rack, amt); rackAdd(p.rack, r.used, -1); p.chips -= amt; if (r.broke) { p.changed = { op: 'auto', from: r.broke, at: Date.now() }; } }
+  giveBack(p, amt, chips) { // return the exact chips that were bet when possible, pay the rest largest-first
+    p.chips += amt; for (const c of chips) if (c && rackSum(c) <= amt) { rackAdd(p.rack, c); amt -= rackSum(c); } credit(p.rack, amt); this.syncRack(p); }
   // ---- playing ----
   cur() { if (this.stage !== 'playing' || !this.turn) return null; const b = this.boxes[this.turn.bi]; return b ? { b, h: b.hands[this.turn.hi] } : null; }
   findTurn() { // move to the next hand that needs a decision; deal second cards to split hands as they come up
@@ -142,13 +190,13 @@ class Table {
     else if (action === 'stand') { h.done = true; this.addLog(`${nm} stands on ${handLabel(h.cards)}`); }
     else if (action === 'double') {
       if (!L.canDouble) throw new Error("Can't double");
-      if (L.doubleFree) { h.free += b.unit; b.lammers++; h.freeDouble = true; } else { p.chips -= b.unit; h.cash += b.unit; }
+      if (L.doubleFree) { h.free += b.unit; b.lammers++; h.freeDouble = true; } else { this.pay(p, b.unit); h.cash += b.unit; }
       h.doubled = true; draw(); const t = total(h.cards).total; h.done = true; if (t > 21) h.bust = true;
       this.addLog(`${nm} ${L.doubleFree ? 'FREE doubles 🪙' : 'doubles'} - ${handLabel(h.cards)}`);
     } else if (action === 'split') {
       if (!L.canSplit) throw new Error("Can't split");
       const aces = h.cards[0][0] === 'A', moved = h.cards.pop(), nh = { cards: [moved], cash: L.splitFree ? 0 : b.unit, free: L.splitFree ? b.unit : 0, split: true, aces, done: false, doubled: false, freeSplit: L.splitFree };
-      if (L.splitFree) b.lammers++; else p.chips -= b.unit;
+      if (L.splitFree) b.lammers++; else this.pay(p, b.unit);
       h.split = true; h.aces = aces; b.hands.splice(this.turn.hi + 1, 0, nh);
       this.addLog(`${b.name} ${L.splitFree ? 'FREE splits 🪙' : 'splits'} ${moved[0] === 'T' ? '10' : moved[0]}s`);
       draw(); if (aces && !(h.cards[1][0] === 'A' && b.hands.length < MAX_HANDS)) h.done = true; if (total(h.cards).total === 21) h.done = true;
@@ -182,7 +230,8 @@ class Table {
         h.result = res; h.paid = pay; back += pay; hr.push({ kind: 'hand', res, pay, cash: h.cash, free: h.free });
       }
       if (b.pog) { staked += b.pog; const m = pogMult(b.lammers); b.pogPaid = m ? b.pog * (m + 1) : 0; back += b.pogPaid; hr.push({ kind: 'pog', text: m ? `Pot of Gold ${b.lammers} 🪙 pays ${m}:1 = ${fmt(b.pog * m)}` : 'Pot of Gold loses (no lammers)' }); }
-      p.chips += back; b.net = back - staked; this.house -= b.net; lines.push({ id: b.id, name: b.name, net: b.net, hands: b.hands.map(h => h.result), lammers: b.lammers, extra: hr.filter(x => x.kind !== 'hand').map(x => x.text) });
+      const bc = p.boxChips || {}, h0 = b.hands[0], keepMain = b.hands.length === 1 && h0.result && !['lose', 'bust'].includes(h0.result) && bc.mc, keepPog = b.pog && b.pogPaid && bc.pc;
+      this.giveBack(p, back, [keepMain ? bc.mc : null, keepPog ? bc.pc : null]); b.net = back - staked; this.house -= b.net; lines.push({ id: b.id, name: b.name, net: b.net, hands: b.hands.map(h => h.result), lammers: b.lammers, extra: hr.filter(x => x.kind !== 'hand').map(x => x.text) });
     }
     this.result = { dealer: d, dealerBJ: dBJ, d22, dBust, lines, round: this.round };
     this.addLog(dBJ ? 'Dealer blackjack' : d22 ? 'Dealer 22 - all live hands PUSH' : dBust ? `Dealer busts with ${d}` : `Dealer has ${d}`);
@@ -198,10 +247,10 @@ class Table {
   }
   finish(byHost) { this.stage = 'gameover'; this.endedByHost = !!byHost; const s = this.standings(); this.winner = s.filter(r => r.rank === 1).map(r => r.name).join(' & '); this.addLog(`🏁 Game over - ${this.winner}`); }
   endGame() { // host: void anything on the table (refund the round), then rank
-    if (['insurance', 'playing', 'dealer'].includes(this.stage)) for (const b of this.boxes) { const p = this.get(b.id); p.chips += b.hands.reduce((a, h) => a + h.cash, 0) + b.pog + (b.insurance > 0 && !b.insLost ? b.insurance : 0); }
-    for (const p of this.players) p.bet = { main: 0, pog: 0, ready: false };
+    if (['insurance', 'playing', 'dealer'].includes(this.stage)) for (const b of this.boxes) { const p = this.get(b.id), bc = p.boxChips || {}; this.giveBack(p, b.hands.reduce((a, h) => a + h.cash, 0) + b.pog + (b.insurance > 0 && !b.insLost ? b.insurance : 0), [bc.mc, b.pog ? bc.pc : null]); }
+    for (const p of this.players) { p.bet = { main: 0, pog: 0, ready: false, mc: emptyRack(), pc: emptyRack() }; this.syncRack(p); }
     this.boxes = []; this.turn = null; this.addLog('⏹ Game ended by host'); this.finish(true);
   }
   standings() { return require('../engine').rankPlayers(this.players); }
 }
-module.exports = { Table, Shoe, total, isBJ, val, handLabel, fmt, pogMult, POG_PAY, START_CHIPS, MAX_HANDS };
+module.exports = { DENS, CHANGE_OPS, rackSum, takeChips, Table, Shoe, total, isBJ, val, handLabel, fmt, pogMult, POG_PAY, START_CHIPS, MAX_HANDS };

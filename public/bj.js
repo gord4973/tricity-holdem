@@ -5,6 +5,11 @@ const POG=[[1,3],[2,12],[3,30],[4,60],[5,100],[6,250],[7,1000]];
 function breakChips(c){const out=[];for(const d of DEN){const n=Math.floor(c/d.v);out.push({...d,n});c-=n*d.v}return out}
 const chipHTML=(d,cls='')=>`<span class="chip ${d.c} ${cls}"><span>${d.l}</span></span>`;
 function stackHTML(c,max=8){if(!c)return'';return `<span class=stk>${breakChips(c).filter(d=>d.n).map(d=>`<span class=col>${Array.from({length:Math.min(d.n,max)},()=>chipHTML(d)).join('')}${d.n>max?`<span class=cnt>×${d.n}</span>`:''}</span>`).join('')}</span>`}
+// real chip rack: {10000:n,2500:n,500:n,250:n}
+const rackAvail=(p)=>{const r=p.rack||{},m=(p.bet&&p.bet.mc)||{},g=(p.bet&&p.bet.pc)||{},a={};for(const d of DEN)a[d.v]=(r[d.v]||0)-(m[d.v]||0)-(g[d.v]||0);return a};
+function rackHTML(r,max=8){const cols=DEN.filter(d=>r[d.v]>0);if(!cols.length)return'';return `<span class=stk>${cols.map(d=>`<span class=col>${Array.from({length:Math.min(r[d.v],max)},()=>chipHTML(d)).join('')}${r[d.v]>max?`<span class=cnt>×${r[d.v]}</span>`:''}</span>`).join('')}</span>`}
+const rackTxt=r=>DEN.filter(d=>r[d.v]>0).map(d=>`${r[d.v]} × $${d.v===250?'2.50':d.v/100}`).join(' · ');
+const CHG=[['break100','Break $100 → 4 × $25',10000,1],['break25','Break $25 → 5 × $5',2500,1],['up5','Color up 5 × $5 → $25',500,5],['up25','Color up 4 × $25 → $100',2500,4],['up250','Trade 2 × $2.50 → $5',250,2]];
 const lammerHTML=c=>`<span class=lammer title="Free bet ${money(c)}"><b>${money(c).replace('$','$')}</b></span>`;
 const RES={win:'WIN',blackjack:'BLACKJACK 3:2',push:'PUSH',push22:'PUSH 22',lose:'LOSE',bust:'BUST'};
 const resHTML=r=>r?`<span class="res ${r}">${RES[r]||r}</span>`:'';

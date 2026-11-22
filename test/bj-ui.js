@@ -13,7 +13,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));let fails=0;const ok=(c,m)=>{co
  for(const lv of['hard','easy'])await h.evaluate(lv=>new Promise(r=>s.emit('host:addBot',{level:lv},r)),lv);
 
  await h.evaluate(()=>new Promise(r=>s.emit('host:start',{},r)));await m.waitForFunction(()=>st&&st.stage==='betting');await sleep(300);
- const tray=await m.$$eval('#tray .chip',e=>e.map(x=>x.innerText));ok(tray.join(',')==='$5,$25,$100','chip tray: $5 red, $25 green, $100 black ('+tray.join(',')+')');
+ const tray=await m.$$eval('#tray .chip',e=>e.map(x=>x.querySelector('span').innerText));ok(tray.join(',')==='$5,$25,$100','chip tray: $5 red, $25 green, $100 black ('+tray.join(',')+')');
  const bal0=await m.$eval('#bal',e=>e.textContent);ok(bal0==='$400','starting balance $400 ('+bal0+')');
  const stack=await m.$$eval('#mystack .chip',e=>e.length);ok(stack>=3,'balance drawn as chip stacks');
  await m.click('#tray .chip.k25');await sleep(250);await m.click('#tray .chip.k5');await sleep(250);await m.click('#cPog');await sleep(150);await m.click('#tray .chip.k5');await sleep(300);

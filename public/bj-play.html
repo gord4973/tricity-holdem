@@ -17,7 +17,7 @@ section{min-height:100vh;min-height:100dvh;padding:10px 10px 90px;display:flex;f
 #bReady{width:100%;margin-top:8px;font-size:1.2em;padding:15px}
 .acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.acts button{font-size:1.2em;padding:17px 6px;position:relative}.acts button .fr{position:absolute;top:-8px;right:-4px;background:#f3c432;color:#5a3a00;border-radius:12px;padding:1px 8px;font-size:.6em;font-weight:900;box-shadow:0 2px 4px #0008}
 #stats{margin-top:10px;background:#0d2f4a;border:1px solid #3f8fd0;border-radius:12px;padding:8px 12px;font-size:.95em;line-height:1.5}#stats:empty{display:none}#stats b{color:#fff}#stats .rec{color:#ffd600}
-.bank{display:flex;justify-content:space-between;align-items:center;margin-top:12px;background:#0007;border-radius:12px;padding:8px 12px}.bank .big{font-size:1.7em;font-weight:900}.bank .stack{font-size:15px}
+.bank{display:flex;justify-content:space-between;align-items:center;margin-top:12px;background:#0007;border-radius:12px;padding:8px 12px}.bank .big{font-size:1.7em;font-weight:900}.bank .stack{font-size:15px}.bank .rtxt{font-size:.68em;color:#ffffffbb;margin-top:2px}#bChg{margin-top:6px;padding:.35em .8em;font-size:.85em;width:auto}.tray .chip{position:relative}.tray .chip .n{position:absolute;right:-8px;top:-8px;background:#111;color:#fff;border:2px solid #fff;border-radius:12px;font-size:12px;padding:0 5px;font-family:Montserrat,Arial,sans-serif}#trayhint{text-align:center;font-size:.8em;color:#ffd600;margin-top:6px;min-height:1em}#chgList button{display:block;width:100%;margin:6px 0}#chgList button small{opacity:.75}
 .plist{margin-top:10px;font-size:.86em;background:#0007;border-radius:12px;padding:6px 10px}.plist div{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #ffffff12}.plist div:last-child{border:0}.plist .on{color:#ffd600;font-weight:900}.plist .ot{opacity:.35;text-decoration:line-through}
 #log{margin-top:8px;font-size:.78em;color:#ffffffbb;line-height:1.5;background:#0006;border-radius:12px;padding:8px 10px}
 .foot{display:flex;gap:8px;margin-top:12px}.foot button{flex:1;font-size:.85em;padding:10px}
@@ -43,13 +43,13 @@ section{min-height:100vh;min-height:100dvh;padding:10px 10px 90px;display:flex;f
 <div id=spot></div>
 <div id=status></div>
 <div id=betbox class=hidden><div class=spots><div class="circle sel" id=cMain onclick="pickSpot('main')"><span class=amt id=aMain></span><div id=sMain></div><small>BET</small></div><div class="circle pog" id=cPog onclick="pickSpot('pog')"><span class=amt id=aPog></span><div id=sPog></div><small>🪙 POT OF GOLD</small></div></div>
-<div class=tray id=tray></div>
+<div class=tray id=tray></div><div id=trayhint></div>
 <div class=brow><button class=dark onclick="send('bet:clear',{},ackErr)">Clear</button><button class=blue id=bRebet onclick="send('bet:rebet',{},ackErr)">Rebet</button><button class=blue id=bRebet2 onclick="send('bet:rebet',{x2:true},ackErr)">Rebet ×2</button></div>
 <button class=green id=bReady onclick=ready()>Deal me in ✓</button></div>
 <div id=insbox class=hidden><div class=acts><button class=green onclick="send('insure',{yes:true},ackErr)" id=bInsY>Insurance</button><button class=red onclick="send('insure',{yes:false},ackErr)">No insurance</button></div></div>
 <div id=actbox class=hidden><div class=acts><button class=green id=bHit onclick="act('hit')">Hit</button><button class=red id=bStand onclick="act('stand')">Stand</button><button class=blue id=bDbl onclick="act('double')">Double</button><button class=gold id=bSpl onclick="act('split')">Split</button></div></div>
 <div id=stats></div>
-<div class=bank><div><div style="font-size:.8em;color:#ffffffaa">MY CHIPS</div><div class=big id=bal></div></div><div class=stack id=mystack></div></div>
+<div class=bank><div><div style="font-size:.8em;color:#ffffffaa">MY CHIPS</div><div class=big id=bal></div><div class=rtxt id=rtxt></div><button class=gold id=bChg onclick=openChange()>💱 Change chips</button></div><div class=stack id=mystack></div></div>
 <div class=plist id=plist></div><div id=log></div>
 <div class=foot><button class=ghost onclick="$('rules').classList.remove('hidden')">📜 Rules</button><button class=ghost id=bSit onclick=sit()>Sit out</button><button class=ghost onclick=leave()>Leave</button></div></section>
 <section id=over class="center hidden"><div class="big pop">🏁 Game over</div><div id=ostand style="width:100%"></div><div id=opot></div><p>Thanks for playing Tricity Blackjack!</p></section>
@@ -60,6 +60,7 @@ section{min-height:100vh;min-height:100dvh;padding:10px 10px 90px;display:flex;f
 <p style="font-size:.8em;color:#666;margin:10px 0 0">Your chips and seat are kept while you're away. If your seat still shows as connected, ask the host to tap your seat and choose "Let (your name) rejoin".</p></div>
 <button class=ghost style="margin-top:14px" onclick="show('j')">Join as a new player instead</button></section>
 <section id=out class="center hidden"><div class="big pop">Thanks for playing!</div><p id=outmsg></p><button class=red onclick="location.href='/blackjack'">Join another game</button></section>
+<div id=chg class="modal hidden" onclick="if(event.target===this)this.classList.add('hidden')"><div class="card pop" style="max-width:420px;background:#0d4a24;color:#fff"><div style="font-size:1.3em;font-weight:900">💱 Change chips</div><div style="font-size:.85em;opacity:.8">The dealer breaks or colors up your chips. Value stays the same.</div><div id=chgRack style="margin:8px 0"></div><div id=chgList></div><button class=dark id=chgDone style="margin-top:8px" onclick="$('chg').classList.add('hidden')">Done</button></div></div>
 <div id=rules class="modal hidden" onclick="if(event.target===this)this.classList.add('hidden')"><div class="card pop" style="max-width:460px;background:#0d4a24;color:#fff;max-height:88vh;overflow:auto"><div style="font-size:1.4em;font-weight:900">Free Bet Blackjack</div><div id=rulesBody></div><button class=dark style="margin-top:10px" onclick="$('rules').classList.add('hidden')">Close</button></div></div>
 <div id=vbar class=hidden><button id=bSpk onclick="Voice.setSpeakers(!Voice.speakersOn)">🔊</button><button id=bMic class=off onclick=micTap()>🎤 Mic off</button></div>
 <div id=vhint class=hidden onclick="this.classList.add('hidden')">🔈 Tap here to hear other players</div>
@@ -110,7 +111,12 @@ function leave(){if(!confirm('Leave the table? Any hand in play will stand.'))re
 function sit(){send('sitout',{on:!(st&&st.me&&st.me.sittingOut)},()=>{})}
 // ---- table ----
 function pickSpot(k){if(k==='pog'&&!st.settings.pog)return;spot=k;render()}
-function bet(v){send('bet:add',{spot,chip:v},ackErr)}
+function bet(v){const me=st.players.find(p=>p.id===st.me.id);if(rackAvail(me)[v]<1)return toast(`No $${v/100} chips left - tap 💱 Change chips to break a larger chip`);send('bet:add',{spot,chip:v},ackErr)}
+function openChange(){$('chg').classList.remove('hidden');renderChange()}
+function renderChange(){if(!st||!st.me)return;const me=st.players.find(p=>p.id===st.me.id);if(!me)return;const a=rackAvail(me),lock=st.paused||(st.stage==='betting'&&me.bet.ready)||me.out||['lobby','gameover'].includes(st.stage);
+ $('chgRack').innerHTML=`<div class=stack style="font-size:15px">${rackHTML(a,10)}</div><div style="font-size:.85em">${esc(rackTxt(a))||'No chips'}</div>${st.paused?'<div style="color:#ffd600">⏸ Paused by the host</div>':st.stage==='betting'&&me.bet.ready?'<div style="color:#ffd600">Tap “Change my bet” first</div>':''}`;
+ $('chgList').innerHTML=CHG.filter(c=>c[0]!=='up250'||a[250]>0).map(([op,l,from,n])=>`<button class="${op.startsWith('break')?'blue':'dark'}" ${lock||a[from]<n?'disabled':''} onclick="doChange('${op}')">${l}${a[from]<n?` <small>(need ${n} × $${from===250?'2.50':from/100})</small>`:''}</button>`).join('')}
+function doChange(op){send('chips:change',{op},r=>{if(r&&r.error)return toast(r.error);const c=CHG.find(x=>x[0]===op);toast('Dealer: '+c[1].replace(/^(Break|Color up|Trade) /,'')+' ✓')})}
 function ready(){const me=st.players.find(p=>p.id===st.me.id);send('bet:ready',{on:!me.bet.ready},ackErr)}
 function act(a){if(actLock===st.tseq)return;actLock=st.tseq;['bHit','bStand','bDbl','bSpl'].forEach(i=>$(i).disabled=true);send('act',{action:a,seq:st.tseq},(r)=>{if(r&&r.error){actLock=null;if(!/moved on/.test(r.error))ackErr(r)}})}
 let actLock=null;
@@ -146,7 +152,8 @@ function render(){const x=st;if(!x||!x.me)return;const me=x.players.find(p=>p.id
  if(betting){const avail=me.chips-me.bet.main-me.bet.pog,lock=me.bet.ready;$('cPog').style.display=S.pog?'':'none';if(!S.pog)spot='main';
   $('cMain').classList.toggle('sel',spot==='main');$('cPog').classList.toggle('sel',spot==='pog');$('sMain').innerHTML=stackHTML(me.bet.main,6);$('sPog').innerHTML=stackHTML(me.bet.pog,5);
   $('aMain').textContent=me.bet.main?money(me.bet.main):'';$('aPog').textContent=me.bet.pog?money(me.bet.pog):'';
-  $('tray').innerHTML=DEN.slice(0,3).slice().reverse().map(d=>`<span class="chip ${d.c}${lock||d.v>avail?' dis':''}" onclick="${lock||d.v>avail?'':'bet('+d.v+')'}"><span>$${d.l}</span></span>`).join('');
+  const ra=rackAvail(me);$('tray').innerHTML=DEN.slice(0,3).slice().reverse().map(d=>`<span class="chip ${d.c}${lock||ra[d.v]<1||x.paused?' dis':''}" onclick="${lock?'':'bet('+d.v+')'}"><span>$${d.l}</span><span class=n>${ra[d.v]}</span></span>`).join('');
+  $('trayhint').textContent=lock?'':DEN.slice(0,3).some(d=>ra[d.v]<1&&avail>=d.v)?'Out of a chip size? Tap 💱 Change chips to break a larger chip':'';
   $('bRebet').disabled=lock||!x.me.last;$('bRebet2').disabled=lock||!x.me.last;$('bReady').textContent=lock?'Change my bet':(me.bet.main?`Deal me in ✓ (${money(me.bet.main+me.bet.pog)})`:'Deal me in ✓');$('bReady').className=lock?'dark':'green';$('bReady').disabled=!lock&&me.bet.main<S.minBet}
  // insurance + actions
  $('insbox').classList.toggle('hidden',!x.me.canInsure||!!x.paused);
@@ -155,7 +162,7 @@ function render(){const x=st;if(!x||!x.me)return;const me=x.players.find(p=>p.id
  // stats
  const T=x.me.stats;$('stats').innerHTML=T?[T.hands.length?`📊 My hand${T.hands.length>1?'s':''}: <b>${T.hands.map((h,i)=>T.hands.length>1?(myTurn&&x.turn.hand===i?`<u>▶ Hand ${i+1}: ${esc(h)}</u>`:`<span style="opacity:.6">Hand ${i+1}: ${esc(h)}</span>`):esc(h)).join(' · ')}</b>`:'',T.rec?`🎯 Recommended: <b class=rec>${esc(T.rec)}</b>${T.freeHand?' <small>(free-bet hand)</small>':''}`:'',T.bust!=null?`💥 Bust chance if you hit: <b>${Math.round(T.bust)}%</b>`:'',`🃏 Dealer (${esc(T.up[0]==='T'?'10':T.up[0])} up) busts: <b>${Math.round(T.dealerBust)}%</b> · makes 22 (push): <b>${Math.round(T.dealer22)}%</b>`].filter(Boolean).join('<br>'):'';
  // bank
- const inPlay=me.bet.main+me.bet.pog;$('bal').textContent=money(x.stage==='betting'?me.chips-inPlay:me.chips);$('mystack').innerHTML=stackHTML(x.stage==='betting'?me.chips-inPlay:me.chips,10);
+ const inPlay=me.bet.main+me.bet.pog;$('bal').textContent=money(x.stage==='betting'?me.chips-inPlay:me.chips);{const ra=me.rack?(x.stage==='betting'?rackAvail(me):me.rack):null;$('mystack').innerHTML=ra?rackHTML(ra,10):stackHTML(me.chips,10);$('rtxt').textContent=ra?rackTxt(ra):'';$('bChg').disabled=!!x.paused||me.out;if(!$('chg').classList.contains('hidden'))renderChange()}
  $('plist').innerHTML=x.players.map(p=>{const pb=p.box,on=x.turn&&x.turn.id===p.id;return `<div class="${on?'on':''} ${p.out?'ot':''}"><span>${esc(p.name)}${botTag(p)}${p.id===me.id?' (you)':''}${!p.connected||p.sittingOut?' 💤':''}${p.mic?` <span>${p.speaking?'🗣️':'🎤'}</span>`:''}</span><span>${pb?pb.hands.map(h=>esc(h.label)+(h.result?' '+RES[h.result]:'')).join(' / ')+' · ':x.stage==='betting'&&p.bet.main?(p.bet.ready?'✓ ':'')+money(p.bet.main)+' · ':''}${money(p.chips)}</span></div>`}).join('');
  $('log').innerHTML=x.log.slice(-5).map(esc).join('<br>');$('bSit').textContent=x.me.sittingOut?"I'm back":'Sit out';tick()}
 function standingsHTMLbj(x,meId){if(!x.standings)return'';const md=['🥇','🥈','🥉'];return `<div class=stand>${x.standings.map(r=>`<div class="${r.id===meId?'me':''} ${r.rank===1?'top':''}"><span>${md[r.rank-1]||r.rank+'.'} ${esc(r.name)}</span><span>${r.out?'out round '+r.outHand:money(r.chips)}</span></div>`).join('')}</div>`}
