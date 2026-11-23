@@ -24,7 +24,10 @@ app.get(['/gorilla', '/gorilla/'], html('gorilla/index.html'));
 app.use('/gorilla/vendor/three', express.static(path.join(__dirname, 'node_modules/three/build'), { maxAge: '7d' }));
 app.get(['/bj', '/bj/'], (q, r) => r.redirect('/blackjack')); app.get('/bj/host', (q, r) => r.redirect('/blackjack/host')); app.get('/bj/j/:pin', (q, r) => r.redirect('/blackjack/j/' + encodeURIComponent(q.params.pin)));
 app.use(express.static(path.join(__dirname, 'public'), { index: false, setHeaders: (r, f) => { r.set('Cache-Control', f.endsWith('.html') ? 'no-store' : 'no-cache'); if (/manifest[^/]*\.json$/.test(f)) r.type('application/manifest+json'); if (f.endsWith('sw.js')) r.set('Service-Worker-Allowed', '/'); } }));
-app.get('/healthz', (q, r) => r.json({ ok: 1, rooms: Object.keys(rooms).length, botErrors: Object.values(rooms).reduce((a, R) => a + (R.botErrors || 0), 0), watchdog: Object.values(rooms).reduce((a, R) => a + (R.watchdog || 0), 0), blackjack: BJ.health() }));
+const gorillaLog = []; let gorillaLogN = 0; // client video diagnostics from /gorilla (memory only, last 100)
+app.post('/gorilla/log', express.json({ limit: '4kb', type: () => true }), (q, r) => { const b = q.body && typeof q.body === 'object' ? q.body : {}; const e = { at: new Date().toISOString() }; for (const [k, v] of Object.entries(b).slice(0, 24)) e[k] = typeof v === 'string' ? v.slice(0, 300) : (typeof v === 'number' || typeof v === 'boolean') ? v : undefined; gorillaLog.push(e); gorillaLogN++; if (gorillaLog.length > 100) gorillaLog.shift(); r.status(204).end(); });
+app.get('/gorilla/log', (q, r) => { r.set('Cache-Control', 'no-store'); r.json({ total: gorillaLogN, entries: gorillaLog }); });
+app.get('/healthz', (q, r) => r.json({ ok: 1, rooms: Object.keys(rooms).length, botErrors: Object.values(rooms).reduce((a, R) => a + (R.botErrors || 0), 0), watchdog: Object.values(rooms).reduce((a, R) => a + (R.watchdog || 0), 0), blackjack: BJ.health(), gorillaLog: { total: gorillaLogN, recent: gorillaLog.slice(-10) } }));
 app.post('/api/login', (q, r) => r.json({ ok: pwOk(q.body && q.body.pw) }));
 app.get('/api/qr', async (q, r) => r.type('svg').send(await QR.toString(String(q.query.u || ''), { type: 'svg', margin: 1 })));
 

@@ -45,5 +45,20 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   for (const q of ['low', 'high']) { await p.goto(BASE + '/gorilla?q=' + q, { waitUntil: 'load' }); await p.evaluate(() => ape.ready); await wait(4000);
     const r = await p.evaluate(() => { const v = document.querySelector('.vIdle'), q = v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality() : {}; return { fps: ape.fps, src: v.currentSrc.split('/').pop(), w: v.videoWidth, dropped: q.droppedVideoFrames, total: q.totalVideoFrames }; });
     console.log(`✔ perf ${q}: ${r.src} ${r.w}px · page ${r.fps.toFixed(0)} fps · video frames ${r.total} dropped ${r.dropped}`); }
+  // autoplay blocked (battery/data saver, Android installed app): photoreal poster stays, video starts on first tap, never the 3D gorilla;
+  // a clip that fails to load is skipped but its effects still fire and the gorilla returns to idle
+  { const q = await b.newPage(); q.on('pageerror', e => errs.push(e.message));
+    await q.emulate({ viewport: { width: 384, height: 854, deviceScaleFactor: 2, isMobile: true, hasTouch: true }, userAgent: 'Mozilla/5.0 (Linux; Android 14; SM-G998W) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36' });
+    await q.evaluateOnNewDocument(() => { let act = false; for (const ev of ['pointerdown', 'touchstart']) addEventListener(ev, () => act = true, true); const o = HTMLMediaElement.prototype.play; HTMLMediaElement.prototype.play = function () { return act ? o.call(this) : Promise.reject(new DOMException('blocked', 'NotAllowedError')); }; });
+    await q.goto(BASE + '/gorilla', { waitUntil: 'load' }); await wait(3000);
+    const s1 = await q.evaluate(() => ({ kind: window.ape && ape.kind, paused: document.querySelector('.vIdle').paused, c3d: !document.getElementById('ape').classList.contains('hidden'), poster: getComputedStyle(document.querySelector('#scene .stage')).backgroundImage }));
+    assert.ok(s1.kind === 'video' && s1.paused && !s1.c3d && /poster\.jpg/.test(s1.poster), 'blocked autoplay keeps the photoreal poster: ' + JSON.stringify(s1));
+    await q.touchscreen.tap(190, 300); await q.waitForFunction(() => !document.querySelector('.vIdle').paused && document.querySelector('.vIdle').currentTime > .3, { timeout: 8000 });
+    assert.ok(await q.evaluate(() => document.getElementById('ape').classList.contains('hidden')), 'no 3D gorilla'); console.log('✔ autoplay blocked: poster, then video after first tap, no 3D fallback');
+    await q.evaluate(() => { window.__ev = []; ape.on = { ...ape.on, slam: i => __ev.push('slam' + i) }; const s = ape.src; ape.src = n => n === 'slam' ? '/gorilla/media/missing.mp4' : s(n); ape.slam(); });
+    await q.waitForFunction(() => __ev.includes('slam1') && document.getElementById('scene').dataset.clip === 'idle', { timeout: 10000 });
+    assert.ok(await q.evaluate(() => !document.querySelector('.vIdle').paused && document.getElementById('ape').classList.contains('hidden')), 'idle still playing after a failed clip'); console.log('✔ failed clip skipped: impacts still fired, back to idle, no 3D fallback');
+    const lg = await (await fetch(BASE + '/gorilla/log')).json(); assert.ok(lg.entries.some(e => e.kind === 'clip-skip'), 'error beacon recorded'); console.log('✔ error beacon: ' + lg.total + ' entries on /gorilla/log');
+    await q.close(); }
   assert.deepStrictEqual(errs, [], 'no page errors'); console.log('GORILLA UI: all checks passed'); await b.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });

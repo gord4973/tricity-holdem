@@ -23,8 +23,11 @@ async function use3D() { // emergency fallback only (video unsupported / failed)
 function wireApe() { window.ape = ape;
   ape.on = ape.kind === 'video' ? { slam: () => shakeDom(), thunder: () => A.play('thunder') } : { beat: () => A.play('beat'), roar: () => A.play('roar'), slam: () => { A.play('slam'); shakeDom(); }, thunder: () => A.play('thunder') };
   ape.onShake = sk => { $('machine').style.transform = sk > .002 ? `translate(${(Math.random() - .5) * sk * 30}px,${(Math.random() - .5) * sk * 24}px)` : ''; }; }
+// the photoreal video gorilla is always used; the old 3D gorilla only with ?ape=3d (never as an automatic fallback)
 if (qs.get('ape') === '3d') await use3D();
-else { try { const { VideoApe } = await import('/gorilla/video.js'); ape = new VideoApe($('scene'), { quality: Q, frameFrac: .66 }); wireApe(); ape.ready.catch(e => { console.warn('video gorilla failed, using 3D fallback', e); use3D(); }); } catch (e) { console.warn(e); await use3D(); } }
+else { try { const { VideoApe, glog } = await import('/gorilla/video.js?v=' + (new URL(import.meta.url).searchParams.get('v') || '3')); window.glog = glog; ape = new VideoApe($('scene'), { quality: qs.get('q') || localStorage.getItem('gorillaVQ') || undefined, frameFrac: .66 }); wireApe(); }
+  catch (e) { console.warn(e); ape = stub; wireApe(); $('scene').style.background = 'url(/gorilla/media/poster.jpg) center top/auto 121% no-repeat #050101';
+    fetch('/gorilla/log', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'video-module-failed', msg: String(e && e.message || e), ua: navigator.userAgent }) }).catch(() => {}); } }
 function shakeDom() { const m = $('machine'); m.classList.remove('shakeX'); void m.offsetWidth; m.classList.add('shakeX'); }
 function frameSync() { const r = $('frame').getBoundingClientRect(); if (ape.resize) { ape.frameFrac = Math.min(.8, Math.max(.4, (r.top + 4) / innerHeight)); ape.resize(); } layoutReels(); }
 addEventListener('resize', () => setTimeout(frameSync, 50));

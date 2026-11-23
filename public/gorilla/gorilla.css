@@ -114,3 +114,4 @@ html,body{margin:0;height:100%;background:#050101;color:#fff;font-family:"Segoe 
 #scene .stage.lean{animation:lean 1.4s ease-in-out}@keyframes lean{0%,100%{scale:1}40%{scale:1.035}}
 #scene .stage{transform-origin:50% 80%}
 #scene .embers{position:absolute;left:0;top:0;width:100%;pointer-events:none}
+#scene .stage{background:#050101 url(/gorilla/media/poster.jpg) center/100% 100% no-repeat}#scene .stage video{background:transparent}
