@@ -55,7 +55,7 @@ export class VideoApe {
       if (v.duration && v.currentTime >= v.duration - .32) { this.vIdle.currentTime = 0; this.vIdle.play().catch(() => {}); finish(); } };
     v.onended = finish; v.onerror = () => { onCue && onCue('impact', 0); finish(); };
     v.src = this.src(name); v.playbackRate = rate; v.currentTime = 0;
-    v.onplaying = () => { if (started) return; started = true; v.classList.add('on'); snd = A.sample(c.snd, { offset: v.currentTime }); if (snd && rate !== 1) snd.stop(); this.emit(name === 'roar' ? 'roar' : name, 0);
+    v.onplaying = () => { if (started) return; started = true; v.classList.add('on'); snd = A.sample(c.snd, { offset: v.currentTime }); if (snd && rate !== 1) snd.stop(); this.emit('clip', name);
       setTimeout(() => { if (!done) { this.vIdle.pause(); this.vIdle.currentTime = 0; } }, 320); };
     step(); v.play().catch(() => { onCue && onCue('impact', 0); finish(); });
     setTimeout(finish, 12000);
