@@ -15,11 +15,16 @@ let busy = false, rng = M.cryptoRng(), forceNext = null, quick = false;
 const Q = qs.get('q') || localStorage.getItem('gorillaQ') || undefined;
 let ape = null;
 const stub = { chestBeat: () => sleep(800), roar: () => sleep(1500), slam: () => sleep(900), reactBill: () => 0, nod: () => 0, lookAt: () => 0, lightning: () => 0, busy: () => false, on: {}, fps: 60, setQuality: q => { localStorage.setItem('gorillaQ', q); location.reload(); } };
-try { const { Ape } = await import('/gorilla/ape.js'); ape = new Ape($('ape'), { quality: Q, frameFrac: .66 }); }
-catch (e) { console.warn('3D gorilla unavailable', e); ape = stub; $('ape').classList.add('hidden'); $('fallbackBg').classList.remove('hidden'); }
-window.ape = ape;
-ape.on = { beat: () => A.play('beat'), roar: () => A.play('roar'), slam: () => { A.play('slam'); shakeDom(); }, thunder: () => A.play('thunder') };
-ape.onShake = sk => { $('machine').style.transform = sk > .002 ? `translate(${(Math.random() - .5) * sk * 30}px,${(Math.random() - .5) * sk * 24}px)` : ''; };
+async function use3D() { // emergency fallback only (video unsupported / failed)
+  try { const { Ape } = await import('/gorilla/ape.js'); $('scene').classList.add('hidden'); $('ape').classList.remove('hidden'); ape = new Ape($('ape'), { quality: Q === 'low' ? 'low' : 'med', frameFrac: .66 }); }
+  catch (e) { console.warn('3D gorilla unavailable', e); ape = stub; $('ape').classList.add('hidden'); $('fallbackBg').classList.remove('hidden'); }
+  wireApe(); requestAnimationFrame(() => frameSync());
+}
+function wireApe() { window.ape = ape;
+  ape.on = ape.kind === 'video' ? { slam: () => shakeDom(), thunder: () => A.play('thunder') } : { beat: () => A.play('beat'), roar: () => A.play('roar'), slam: () => { A.play('slam'); shakeDom(); }, thunder: () => A.play('thunder') };
+  ape.onShake = sk => { $('machine').style.transform = sk > .002 ? `translate(${(Math.random() - .5) * sk * 30}px,${(Math.random() - .5) * sk * 24}px)` : ''; }; }
+if (qs.get('ape') === '3d') await use3D();
+else { try { const { VideoApe } = await import('/gorilla/video.js'); ape = new VideoApe($('scene'), { quality: Q, frameFrac: .66 }); wireApe(); ape.ready.catch(e => { console.warn('video gorilla failed, using 3D fallback', e); use3D(); }); } catch (e) { console.warn(e); await use3D(); } }
 function shakeDom() { const m = $('machine'); m.classList.remove('shakeX'); void m.offsetWidth; m.classList.add('shakeX'); }
 function frameSync() { const r = $('frame').getBoundingClientRect(); if (ape.resize) { ape.frameFrac = Math.min(.8, Math.max(.4, (r.top + 4) / innerHeight)); ape.resize(); } layoutReels(); }
 addEventListener('resize', () => setTimeout(frameSync, 50));
@@ -130,7 +135,7 @@ function drawWheel(ang) { const c = $('wheel'), g = c.getContext('2d'), W = c.wi
   for (let i = 0; i < n; i++) { const a = -Math.PI / 2 + (i - .5) * 2 * Math.PI / n; g.fillStyle = '#ffe9a0'; g.beginPath(); g.arc(Math.cos(a) * (R - 14), Math.sin(a) * (R - 14), 7, 0, 7); g.fill(); } g.restore(); }
 async function bonus(fk) {
   A.play('drum', 0); await sleep(250); A.play('drum', 1); await sleep(250); A.play('drum', 2); ape.lookAt('player');
-  const clip = await playMedia('bonus-roar.mp4'); if (!clip) { ape.lightning(); await ape.roar(2); }
+  const clip = await playMedia('bonus-roar.mp4'); if (!clip) { ape.lightning(); await Promise.race([ape.roar(2), sleep(3200)]); }
   const box = $('wheelBox'); box.classList.remove('hidden'); $('wheelMsg').textContent = 'Tap SPIN'; let ang = 0; drawWheel(0);
   const forceIdx = fk === 'thunder' ? 1 : fk === 'jackpot' ? 3 : undefined, w = M.spinWheel(bet(), rng, forceIdx);
   await new Promise(res => { const hub = $('wheelHub'); const go = () => { hub.onclick = null; clearTimeout(auto); res(); }; hub.onclick = go; const auto = setTimeout(go, quick ? 300 : 3500); });
@@ -147,7 +152,7 @@ async function thunderSpins(n) {
   const hud = $('fsHud'); hud.classList.remove('hidden'); let left = n, played = 0, total = 0; const upd = () => { $('fsCount').textContent = `${played} of ${played + left}`; $('fsWin').textContent = money(total * st.denom); }; upd();
   document.body.classList.add('thunder');
   while (left > 0 && played < 40) { left--; played++; upd(); await sleep(quick ? 150 : 600); if (Math.random() < .35) ape.lightning(); ape.lookAt('reels');
-    const res = M.spin(bet(), rng, { free: true }); await animateReels(res, true); const w = await resolve(res, true); total += w; if (res.bonus) { left += 4; A.play('thunder'); ape.lightning(); toast('⚡ +4 THUNDER SPINS', 1500); await ape.roar(1.4); } upd(); await sleep(quick ? 200 : 700); }
+    const res = M.spin(bet(), rng, { free: true }); await animateReels(res, true); const w = await resolve(res, true); total += w; if (res.bonus) { left += 4; A.play('thunder'); ape.lightning(); toast('⚡ +4 THUNDER SPINS', 1500); await Promise.race([ape.roar(1.4), sleep(2500)]); } upd(); await sleep(quick ? 200 : 700); }
   hud.classList.add('hidden'); document.body.classList.remove('thunder');
   $('wheelBox').classList.remove('hidden'); $('wheelMsg').textContent = `THUNDER SPINS WON ${money(total * st.denom)}`; await sleep(2200); $('wheelBox').classList.add('hidden');
   const t = M.tier(total, bet()); if (t.match(/big|mega|epic/)) { disp.win = 0; await bigWin(t, total); } return total;
@@ -168,15 +173,15 @@ $('muteBtn').onclick = () => { A.init(); A.setMuted(!A.muted); muteIcon(); };
 $('fsBtn').onclick = () => { const d = document.documentElement; if (!document.fullscreenElement) (d.requestFullscreen || d.webkitRequestFullscreen || (() => {})).call(d); else document.exitFullscreen(); };
 $('menuBtn').onclick = () => { $('menu').classList.remove('hidden'); $('qBtn').textContent = 'Graphics: ' + (ape.q || 'off'); showPay(); };
 $('qBtn').onclick = () => { const order = ['high', 'med', 'low'], n = order[(order.indexOf(ape.q) + 1) % 3]; ape.setQuality(n); };
-$('payBtn').onclick = showPay; $('aboutBtn').onclick = () => { $('menuBody').innerHTML = `<p><b>GORILLA</b> is an original play-money slot made for Tricity game nights. It is not a real-money game: bills, credits and tickets have no cash value.</p><p>The gorilla is built and animated in code (three.js) — no third-party model, sounds are synthesized live. Math: 27 ways, target return about 95.5%.</p><p>Played ${st.played.toLocaleString()} spins · inserted ${money(st.inserted)} play money on this device.</p>`; };
+$('payBtn').onclick = showPay; $('aboutBtn').onclick = () => { $('menuBody').innerHTML = `<p><b>GORILLA</b> is an original play-money slot made for Tricity game nights. It is not a real-money game: bills, credits and tickets have no cash value.</p><p>The gorilla is photoreal AI-generated video made for this game (original character, no film likeness). Gorilla sounds are real recordings: “Gorillaschrei” (alpha male roar, zoo in Germany) by J0ck0 on Freesound, CC0 / public domain — freesound.org/s/397054 — layered with the clips’ own synced roar, chest-beat and slam audio. Other effects are synthesized live. Math: 27 ways, target return about 95.5%.</p><p>Played ${st.played.toLocaleString()} spins · inserted ${money(st.inserted)} play money on this device.</p>`; };
 function showPay() { const b = betCents(), u = b / 27; const row = s => `<div><img src="${SY.get(s)}"><b>${M.SYM[s].name}</b><span>3 = ${money(M.PAY[s] * u)}/way</span></div>`;
   $('menuBody').innerHTML = `<p>Bet ${bet()} credits (${money(b)}). 27 ways: 3 matching symbols on adjacent reels from left to right, any row. Pays shown per way at this bet.</p><div class=pt>${['SB', 'MK', 'TC', 'ID', 'BN', 'RB', 'EM', 'SP'].map(row).join('')}</div>
   <div class=pt><div><img src="${SY.get('WD')}"><b>Wild ×2–×25</b><span>reel 2 only, multiplies</span></div><div><img src="${SY.get('CN')}"><b>Prize Coins</b><span>3+ anywhere pay their values</span></div><div><img src="${SY.get('CN')}"><b>🔒 Locked</b><span>pay only if the gorilla smashes them</span></div><div><img src="${SY.get('DR')}"><b>Jungle Drums</b><span>3 = Drum Wheel bonus</span></div></div>
   <p>Drum Wheel: credit prizes, BRONZE ${money(25 * b)}, SILVER ${money(75 * b)}, GOLD ${money(250 * b)}, TITAN ${money(1000 * b)} or ⚡ 10 THUNDER SPINS (extra wilds with bigger multipliers; 3 drums add +4 spins, up to 40).</p>`; }
 // idle personality
-setInterval(() => { if (busy || document.hidden || ape.busy()) return; const r = Math.random(); if (r < .25) ape.chestBeat(3); else if (r < .5) ape.nod(); else if (r < .6) ape.lookAt('player'); }, 14000);
+setInterval(() => { if (busy || document.hidden || ape.busy()) return; const r = Math.random() * (ape.kind === 'video' ? 2.2 : 1); if (r < .25) ape.chestBeat(3); else if (r < .5) ape.nod(); else if (r < .6) ape.lookAt('player'); }, 14000);
 // auto quality: drop pixel ratio if the device struggles (first visit only)
-if (ape.renderer && !localStorage.getItem('gorillaQ')) setTimeout(() => { if (ape.fps && ape.fps < 26) { ape.renderer.setPixelRatio(1); localStorage.setItem('gorillaQ', ape.fps < 18 ? 'low' : 'med'); } }, 9000);
+if (ape && ape.renderer && !localStorage.getItem('gorillaQ')) setTimeout(() => { if (ape.fps && ape.fps < 26) { ape.renderer.setPixelRatio(1); localStorage.setItem('gorillaQ', ape.fps < 18 ? 'low' : 'med'); } }, 9000);
 // debug / test hooks
 window.G = { st, spin, insertBill, cashOut, get busy() { return busy; }, setDenom: d => { st.denom = d; save(); meters(); }, setBet: i => { st.bet = i; save(); meters(); }, M };
 if (DEBUG) { window.G.force = k => { forceNext = k; }; window.__gorillaSpeed = +(qs.get('speed') || 1); const d = $('dbg'); d.classList.remove('hidden'); d.innerHTML = ['win', 'big', 'mega', 'epic', 'smash', 'bonus', 'thunder', 'jackpot'].map(k => `<button data-k=${k}>${k}</button>`).join(''); d.onclick = e => { if (e.target.dataset.k) { forceNext = e.target.dataset.k; toast('next spin: ' + forceNext, 900); } }; }

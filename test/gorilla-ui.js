@@ -9,6 +9,14 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   await p.goto(BASE + '/gorilla?debug=1&speed=0.35', { waitUntil: 'load' }); await p.evaluate(() => localStorage.clear()); await p.reload({ waitUntil: 'load' });
   const idle = () => p.waitForFunction(() => window.G && !G.busy, { timeout: 180000 }), cents = () => p.evaluate(() => G.st.cents);
   await idle(); assert.strictEqual(await cents(), 0);
+  // photoreal video gorilla: idle loop playing, action clips crossfade in and return to idle, real-gorilla samples load
+  await p.waitForFunction(() => window.ape && ape.kind === 'video', { timeout: 15000 }); await p.evaluate(() => ape.ready);
+  assert.ok(await p.evaluate(() => { const v = document.querySelector('.vIdle'); return !v.paused && v.readyState >= 2 && /idle-(hd|sd)\.mp4/.test(v.currentSrc); }), 'idle clip playing');
+  await p.mouse.click(200, 200); // unlock audio
+  for (const n of ['roar', 'chestbeat', 'slam']) { await p.evaluate(n => { window.__done = false; (n === 'roar' ? ape.roar() : n === 'slam' ? ape.slam() : ape.chestBeat()).then(() => window.__done = true); }, n);
+    await p.waitForFunction(n => document.getElementById('scene').dataset.clip === n && +getComputedStyle(document.querySelector('.vAct')).opacity > .9, { timeout: 8000 }, n);
+    await p.waitForFunction(() => document.getElementById('scene').dataset.clip === 'idle' && window.__done, { timeout: 15000 }); console.log(`✔ ${n} clip played and returned to idle`); }
+  await p.waitForFunction(() => ['roar', 'chestbeat', 'slam', 'grunt', 'roarReal', 'idle'].every(k => GorillaAudio.loaded(k)), { timeout: 15000 }); console.log('✔ real gorilla sound samples decoded');
   await p.click('#spinBtn'); await wait(300); assert.ok(await p.$eval('#toast', e => !e.classList.contains('hidden') && /Insert/.test(e.textContent)), 'spin with no cash asks for a bill');
   await p.click('#billBtn'); await p.waitForFunction(() => document.getElementById('bill').classList.contains('go'), { timeout: 5000 }); await idle();
   assert.strictEqual(await cents(), 10000); assert.strictEqual(await p.$eval('#mCash', e => e.textContent), '$100.00'); console.log('✔ bill inserted, CASH rolled to $100.00');
@@ -34,6 +42,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   }
   // perf: mobile viewport on low/med quality (headless SwiftShader is CPU rendering, so this is a floor, not a device number)
   await p.setViewport({ width: 390, height: 844, isMobile: true });
-  for (const q of ['low', 'med']) { await p.goto(BASE + '/gorilla?q=' + q, { waitUntil: 'load' }); await wait(5000); const fps = await p.evaluate(() => ape.fps); const fr = await p.evaluate(() => ape.renderer.info.render); console.log(`✔ perf ${q}: ${fps.toFixed(1)} fps (software GL) · ${fr.triangles} tris · ${fr.calls} draw calls`); }
+  for (const q of ['low', 'high']) { await p.goto(BASE + '/gorilla?q=' + q, { waitUntil: 'load' }); await p.evaluate(() => ape.ready); await wait(4000);
+    const r = await p.evaluate(() => { const v = document.querySelector('.vIdle'), q = v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality() : {}; return { fps: ape.fps, src: v.currentSrc.split('/').pop(), w: v.videoWidth, dropped: q.droppedVideoFrames, total: q.totalVideoFrames }; });
+    console.log(`✔ perf ${q}: ${r.src} ${r.w}px · page ${r.fps.toFixed(0)} fps · video frames ${r.total} dropped ${r.dropped}`); }
   assert.deepStrictEqual(errs, [], 'no page errors'); console.log('GORILLA UI: all checks passed'); await b.close();
 })().catch(e => { console.error('FAIL', e); process.exit(1); });

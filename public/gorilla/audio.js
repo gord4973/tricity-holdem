@@ -30,6 +30,12 @@
     jackpot() { const t = now(); for (let i = 0; i < 16; i++) osc('triangle', 784 * Math.pow(2, (i % 8) / 12), 0, t + i * .1, .25, .15); S.thunder(); },
     deny() { const t = now(); osc('square', 220, 150, t, .25, .12); },
   };
-  window.GorillaAudio = { init, play(name, ...a) { if (!ctx || muted) return; try { S[name](...a); } catch (e) { console.warn(e); } }, get muted() { return muted; },
-    setMuted(m) { muted = m; localStorage.setItem('gorillaMute', m ? '1' : '0'); if (master) master.gain.value = m ? 0 : .8; } };
+  // ---- real recorded samples (gorilla roars, chest beats, slams) ----
+  const raw = {}, buf = {}, decoding = {}; let ambient = null;
+  function fetchSamples(map) { for (const k in map) if (!raw[k]) raw[k] = fetch(map[k]).then(r => { if (!r.ok) throw new Error(map[k] + ' ' + r.status); return r.arrayBuffer(); }).catch(e => { console.warn('sample', e); return null; }); }
+  function decode(k) { if (buf[k]) return Promise.resolve(buf[k]); if (!ctx || !raw[k]) return Promise.resolve(null); return decoding[k] || (decoding[k] = raw[k].then(ab => ab ? new Promise((res) => ctx.decodeAudioData(ab.slice(0), b => { buf[k] = b; res(b); }, () => res(null))) : null)); }
+  function sample(k, o = {}) { if (!ctx || muted) return null; const b = buf[k]; if (!b) { decode(k); return null; } const s = ctx.createBufferSource(), g = ctx.createGain(); s.buffer = b; s.loop = !!o.loop; g.gain.value = o.gain != null ? o.gain : 1; s.connect(g); g.connect(master); s.start(now() + (o.delay || 0), Math.max(0, o.offset || 0)); return { stop: () => { try { s.stop(); } catch (e) {} }, g }; }
+  window.GorillaAudio = { init: () => { const ok = init(); if (ok) { for (const k in raw) decode(k); if (window.__gorillaAmbient && !ambient && !muted) GorillaAudio.ambient(true); } return ok; }, fetchSamples, decode, sample, loaded: k => !!buf[k], rawLoaded: () => Promise.all(Object.values(raw)).then(a => a.filter(Boolean).length),
+    ambient(on) { window.__gorillaAmbient = on; if (ambient) { ambient.stop(); ambient = null; } if (on && ctx && !muted) { if (!buf.idle) { decode('idle').then(() => { if (window.__gorillaAmbient && !ambient && !muted) ambient = sample('idle', { loop: true, gain: .55 }); }); } else ambient = sample('idle', { loop: true, gain: .55 }); } }, play(name, ...a) { if (!ctx || muted) return; try { S[name](...a); } catch (e) { console.warn(e); } }, get muted() { return muted; },
+    setMuted(m) { muted = m; localStorage.setItem('gorillaMute', m ? '1' : '0'); if (master) master.gain.value = m ? 0 : .8; if (!m && window.__gorillaAmbient) GorillaAudio.ambient(true); } };
 })();
