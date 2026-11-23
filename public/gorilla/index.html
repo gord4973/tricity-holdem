@@ -1,49 +1,53 @@
 <!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name=theme-color content="#120302"><link rel=manifest href=/manifest-gorilla.json><link rel=icon type=image/png href=/favicon-gorilla.png><link rel=apple-touch-icon href=/apple-touch-icon-gorilla.png>
 <meta name=apple-mobile-web-app-capable content=yes><meta name=mobile-web-app-capable content=yes><meta name=apple-mobile-web-app-status-bar-style content=black-translucent><meta name=apple-mobile-web-app-title content="Gorilla">
+<link rel=preload as=image href="/gorilla/media/v3/poster.jpg?v=4">
 <title>GORILLA · play-money slot</title><link rel=stylesheet href=/gorilla/gorilla.css></head><body>
+<div id=app>
 <div id=scene data-clip=idle></div><canvas id=ape class=hidden></canvas><div id=fallbackBg class=hidden></div>
 <video id=cine class=hidden playsinline></video>
 <header id=top>
   <div id=plaques>
-    <div class="plq bronze"><b>BRONZE</b><span id=jpB>$0</span></div>
-    <div class="plq silver"><b>SILVER</b><span id=jpS>$0</span></div>
     <div class="plq titan"><b>TITAN</b><span id=jpT>$0</span></div>
     <div class="plq gold"><b>GOLD</b><span id=jpG>$0</span></div>
+    <div class="plq silver"><b>SILVER</b><span id=jpS>$0</span></div>
+    <div class="plq bronze"><b>BRONZE</b><span id=jpB>$0</span></div>
   </div>
-  <div id=topBtns><button id=muteBtn class=icon title="Sound">🔊</button><button id=fsBtn class=icon title="Full screen">⛶</button><button id=menuBtn class=icon title="Menu">☰</button></div>
+  <div id=topBtns><button id=muteBtn class=icon title="Sound" aria-label="Sound">🔊</button><button id=fsBtn class=icon title="Full screen" aria-label="Full screen">⛶</button><button id=menuBtn class=icon title="Menu" aria-label="Menu">☰</button></div>
 </header>
 <div id=fsHud class=hidden><b>⚡ THUNDER SPINS</b> <span id=fsCount>1 of 10</span> · WIN <span id=fsWin>$0.00</span></div>
 <main id=machine>
-  <div id=logo><span>GORILLA</span></div>
-  <div id=frame><div class=flames></div><div id=reels><div class=reel data-r=0><div class=strip></div></div><div class=reel data-r=1><div class=strip></div></div><div class=reel data-r=2><div class=strip></div></div></div><div id=winBanner class=hidden></div></div>
+  <div id=frame><div class=flames></div><div id=logo><span>GORILLA</span></div><div id=reels><canvas id=reelCv></canvas></div><div id=winBanner class=hidden></div></div>
   <div id=bar>
     <div id=meters>
       <div class=meter><small>CASH</small><b id=mCash>$0.00</b></div>
       <div class=meter><small>CREDITS</small><b id=mCred>0</b></div>
       <div class=meter><small>BET</small><b id=mBet>50</b><i id=mBetD>$0.50</i></div>
       <div class=meter><small>WIN</small><b id=mWin>0</b></div>
+      <div id=cashWrap><button id=cashBtn class=btn>CASH<br>OUT</button><div id=ticket class=hidden></div></div>
     </div>
     <div id=controls>
       <div id=slotWrap><button id=billBtn class=btn title="Insert a play-money $100 bill"><span class=slot></span>INSERT<br>$100</button><div id=bill class=hidden><div class=billIn><b>100</b><span>GORILLA PLAY MONEY</span><b>100</b></div></div></div>
       <button id=denomBtn class=btn><small>DENOM</small><span id=denomTxt>1¢</span></button>
-      <div class=betGrp><button id=betDn class="btn sm">−</button><button id=betUp class="btn sm">+</button></div>
+      <button id=betDn class="btn sm" aria-label="Bet down">−</button><button id=betUp class="btn sm" aria-label="Bet up">+</button>
       <button id=maxBtn class=btn>MAX<br>BET</button>
       <button id=spinBtn class=spin>SPIN</button>
-      <div id=cashWrap><button id=cashBtn class=btn>CASH<br>OUT</button><div id=ticket class=hidden></div></div>
     </div>
   </div>
 </main>
-<div id=big class=hidden><div class=burst></div><div id=bigTitle>BIG WIN</div><div id=bigAmt>$0.00</div><small>tap to continue</small></div>
+<div id=big class=hidden><div class=burst></div><canvas id=coinRain></canvas><div id=bigTitle>BIG WIN</div><div id=bigAmt>$0.00</div><small>tap to continue</small></div>
 <div id=wheelBox class=hidden><div id=wheelTitle>JUNGLE DRUM WHEEL</div><div id=wheelWrap><canvas id=wheel width=720 height=720></canvas><div id=pointer></div><button id=wheelHub>SPIN</button></div><div id=wheelMsg></div></div>
 <div id=denomModal class="modal hidden"><div class=card><h2>Choose your denomination</h2><p>Each credit is worth:</p><div id=denoms></div><button class=close data-close=denomModal>Done</button></div></div>
 <div id=menu class="modal hidden"><div class="card wide"><h2>GORILLA</h2>
-  <div class=row><button id=qBtn class=btn2>Graphics: high</button><button id=payBtn class=btn2>Paytable &amp; rules</button><button id=aboutBtn class=btn2>About</button></div>
+  <div class=row><button id=qBtn class=btn2>Video: high</button><button id=payBtn class=btn2>Paytable &amp; rules</button><button id=aboutBtn class=btn2>About</button></div>
   <div id=menuBody></div>
   <p class=links><a href=/host>Hold'em host</a> · <a href=/blackjack/host>Blackjack host</a></p>
   <button class=close data-close=menu>Close</button></div></div>
 <div id=toast class=hidden></div>
 <div id=dbg class=hidden></div>
-<script src=/gorilla/math.js></script><script src=/gorilla/audio.js></script><script src=/gorilla/symbols.js></script>
+</div>
+<div id=rotate><div><div class=phoneIco></div><b>Turn your device upright</b><span>GORILLA is designed for portrait</span></div></div>
+<i id=safeProbe></i>
+<script src=/gorilla/math.js></script><script src=/gorilla/audio.js></script><script src=/gorilla/symbols.js></script><script src=/gorilla/reels.js></script>
 <script type=module src=/gorilla/game.js></script><script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}))</script>
 </body></html>

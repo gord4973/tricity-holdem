@@ -28,14 +28,33 @@
     fanfare(lv = 1) { const t = now(); const seq = [392, 523, 659, 784, 659, 784, 1047]; seq.forEach((f, i) => { osc('sawtooth', f, 0, t + i * .14, .3, .12); osc('triangle', f / 2, 0, t + i * .14, .4, .15); }); for (let k = 0; k < lv * 4; k++) S.drum(k % 3); },
     wheelTick() { const t = now(); osc('square', 2600, 1800, t, .02, .07); },
     jackpot() { const t = now(); for (let i = 0; i < 16; i++) osc('triangle', 784 * Math.pow(2, (i % 8) / 12), 0, t + i * .1, .25, .15); S.thunder(); },
+    whoosh() { const t = now(); const n = noise(t, .55, .3, 'bandpass', 300, 1.6); n.f.frequency.exponentialRampToValueAtTime(1800, t + .35); n.f.frequency.exponentialRampToValueAtTime(600, t + .55); osc('sine', 70, 40, t, .25, .35); },
+    reelStop(i = 0) { const t = now(); osc('sine', 120 - i * 12, 38, t, .2, .85); noise(t, .05, .45, 'lowpass', 2600); noise(t + .01, .16, .18, 'bandpass', 900 - i * 120, 4); osc('triangle', 420 - i * 40, 210, t, .05, .1); },
+    tease(dur = 1.8) { const t = now(); const o = ctx.createOscillator(), g = ctx.createGain(), l = ctx.createOscillator(), lg = ctx.createGain(); o.type = 'sawtooth'; o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(440, t + dur);
+      l.frequency.setValueAtTime(6, t); l.frequency.linearRampToValueAtTime(18, t + dur); lg.gain.value = .5; const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(400, t); f.frequency.exponentialRampToValueAtTime(2400, t + dur);
+      g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.16, t + .2); g.gain.setValueAtTime(.16, t + dur - .1); g.gain.exponentialRampToValueAtTime(.0001, t + dur + .15); l.connect(lg); const am = ctx.createGain(); am.gain.value = .5; lg.connect(am.gain);
+      o.connect(f); f.connect(am); am.connect(g); g.connect(master); o.start(t); l.start(t); o.stop(t + dur + .2); l.stop(t + dur + .2); for (let i = 0; i < dur / .25; i++) S.drumSoft(t + i * .25 * Math.pow(.92, i), .25 + i * .04); },
+    drumSoft(t, v = .3) { osc('sine', 140, 50, t, .25, v); noise(t, .06, v * .4, 'bandpass', 200, 2); },
+    rattle() { const t = now(); for (let i = 0; i < 7; i++) { noise(t + i * .045, .03, .25 - i * .025, 'bandpass', 3200 + (i % 2) * 900, 6); osc('square', 900 + (i % 3) * 140, 0, t + i * .045, .02, .05); } },
+    glint(i = 0) { const t = now(); const f = 2093 * Math.pow(1.06, i % 7); osc('sine', f, 0, t, .4, .08); osc('sine', f * 2.01, 0, t + .03, .3, .04); },
+    sparkle() { const t = now(); for (let i = 0; i < 5; i++) osc('sine', 2600 + Math.random() * 2400, 0, t + i * .05, .18, .035); },
     deny() { const t = now(); osc('square', 220, 150, t, .25, .12); },
   };
   // ---- real recorded samples (gorilla roars, chest beats, slams) ----
   const raw = {}, buf = {}, decoding = {}; let ambient = null;
   function fetchSamples(map) { for (const k in map) if (!raw[k]) raw[k] = fetch(map[k]).then(r => { if (!r.ok) throw new Error(map[k] + ' ' + r.status); return r.arrayBuffer(); }).catch(e => { console.warn('sample', e); return null; }); }
   function decode(k) { if (buf[k]) return Promise.resolve(buf[k]); if (!ctx || !raw[k]) return Promise.resolve(null); return decoding[k] || (decoding[k] = raw[k].then(ab => ab ? new Promise((res) => ctx.decodeAudioData(ab.slice(0), b => { buf[k] = b; res(b); }, () => res(null))) : null)); }
-  function sample(k, o = {}) { if (!ctx || muted) return null; const b = buf[k]; if (!b) { decode(k); return null; } const s = ctx.createBufferSource(), g = ctx.createGain(); s.buffer = b; s.loop = !!o.loop; g.gain.value = o.gain != null ? o.gain : 1; s.connect(g); g.connect(master); s.start(now() + (o.delay || 0), Math.max(0, o.offset || 0)); return { stop: () => { try { s.stop(); } catch (e) {} }, g }; }
+  function sample(k, o = {}) { if (!ctx || muted) return null; const b = buf[k]; if (!b) { decode(k); return null; } const s = ctx.createBufferSource(), g = ctx.createGain(); s.buffer = b; s.loop = !!o.loop; g.gain.value = o.gain != null ? o.gain : 1; s.connect(g); g.connect(master); s.start(now() + (o.delay || 0), Math.max(0, o.offset || 0)); return { stop: (fade = 0) => { try { if (fade) { g.gain.setTargetAtTime(0, now(), fade / 3); s.stop(now() + fade); } else s.stop(); } catch (e) {} }, g, dur: b.duration / (o.rate || 1) }; }
+  let breathT = 0, duckUntil = 0, lastB = '';
+  const BREATHS = [['br1', 3], ['br2', 3], ['br3', 2], ['br4', 2], ['br5', 2], ['br6', 3], ['huff1', .7], ['huff2', .6], ['huff3', .6], ['grunt1', .25], ['grunt2', .3]];
+  function pickBreath() { const av = BREATHS.filter(([k]) => buf[k] && k !== lastB); if (!av.length) { BREATHS.forEach(([k]) => raw[k] && decode(k)); return null; } let r = Math.random() * av.reduce((a, b) => a + b[1], 0); for (const [k, w] of av) if ((r -= w) <= 0) return k; return av[0][0]; }
+  function breathe(ms) { clearTimeout(breathT); breathT = setTimeout(() => { if (!window.__gorillaAmbient || muted || !ctx) return; if (document.hidden || performance.now() < duckUntil) return breathe(900 + Math.random() * 900);
+      const k = pickBreath(); if (k) { lastB = k; const grunt = /grunt|huff/.test(k); sample(k, { gain: (grunt ? .35 : .45) + Math.random() * (grunt ? .25 : .4), rate: .86 + Math.random() * .2 });
+        if (!grunt && Math.random() < .35) setTimeout(() => { const k2 = pickBreath(); if (k2 && !/grunt/.test(k2) && performance.now() > duckUntil) sample(k2, { gain: .25 + Math.random() * .25, rate: .9 + Math.random() * .15 }); }, 700 + Math.random() * 600); }
+      breathe(1700 + Math.random() * 3800 + (Math.random() < .2 ? 2500 + Math.random() * 3000 : 0)); }, ms); }
   window.GorillaAudio = { init: () => { const ok = init(); if (ok) { for (const k in raw) decode(k); if (window.__gorillaAmbient && !ambient && !muted) GorillaAudio.ambient(true); } return ok; }, fetchSamples, decode, sample, loaded: k => !!buf[k], rawLoaded: () => Promise.all(Object.values(raw)).then(a => a.filter(Boolean).length),
-    ambient(on) { window.__gorillaAmbient = on; if (ambient) { ambient.stop(); ambient = null; } if (on && ctx && !muted) { if (!buf.idle) { decode('idle').then(() => { if (window.__gorillaAmbient && !ambient && !muted) ambient = sample('idle', { loop: true, gain: .55 }); }); } else ambient = sample('idle', { loop: true, gain: .55 }); } }, play(name, ...a) { if (!ctx || muted) return; try { S[name](...a); } catch (e) { console.warn(e); } }, get muted() { return muted; },
-    setMuted(m) { muted = m; localStorage.setItem('gorillaMute', m ? '1' : '0'); if (master) master.gain.value = m ? 0 : .8; if (!m && window.__gorillaAmbient) GorillaAudio.ambient(true); } };
+    // randomized breathing: one-shot breaths / huffs / grunts with random gaps, pitch and level (no loop), ducked while the gorilla's clips speak
+    ambient(on) { window.__gorillaAmbient = on; clearTimeout(breathT); if (on && ctx && !muted) breathe(600); },
+    duck(sec) { duckUntil = Math.max(duckUntil, performance.now() + sec * 1000); }, play(name, ...a) { if (!ctx || muted) return; try { S[name](...a); } catch (e) { console.warn(e); } }, get muted() { return muted; },
+    setMuted(m) { muted = m; localStorage.setItem('gorillaMute', m ? '1' : '0'); if (master) master.gain.value = m ? 0 : .8; if (!m && window.__gorillaAmbient) GorillaAudio.ambient(true); if (m) clearTimeout(breathT); } };
 })();
