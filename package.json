@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/engine.test.js test/standings.test.js test/stats.test.js test/bj-engine.test.js",
+    "test": "node --test test/engine.test.js test/standings.test.js test/stats.test.js test/bj-engine.test.js test/gorilla-math.test.js",
     "e2e": "node test/e2e.js"
   },
   "license": "UNLICENSED",
@@ -17,7 +17,8 @@
   "dependencies": {
     "express": "^5.1.0",
     "qrcode": "^1.5.4",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "three": "^0.170.0"
   },
   "devDependencies": {
     "puppeteer-core": "^24.43.1",
