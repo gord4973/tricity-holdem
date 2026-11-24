@@ -11,12 +11,28 @@ export const CLIPS = { // minor: chains smoothly (waits for / speeds up the clip
   stare: { pri: 2, dur: 6.04, snd: 'stare', minor: 1 }, // leans in and looks straight at the player
   lose: { pri: 1, dur: 4.04, snd: 'lose', minor: 1 },
   smallwin: { pri: 2, dur: 2.58, snd: 'smallwin', impacts: [[.78, .35]] }, // v4: trimmed to the single fist strike
-  chestbeat: { pri: 3, dur: 6.04, snd: 'chestbeat', major: 1, beats: [[1.5, 1], [1.75, .7], [1.96, 1], [2.25, .7], [2.48, 1], [2.75, .75], [3.0, 1], [3.19, .75], [3.38, 1]], dimAt: [[1.4, 2.2]] },
-  roar: { pri: 4, dur: 5.04, snd: 'roar', major: 1, shakeAt: [[1.2, .75], [1.55, .45], [2.05, .55], [2.6, .35]], flashAt: [1.3], dimAt: [[1.15, 2.1]], burstAt: [[1.25, 1.3], [2.05, .8]] },
+  chestbeat: { pri: 3, loud: 1, dur: 6.04, snd: 'chestbeat', major: 1, shakeAt: [[1.35, .5], [2.0, .3]], beats: [[1.5, 1], [1.75, .7], [1.96, 1], [2.25, .7], [2.48, 1], [2.75, .75], [3.0, 1], [3.19, .75], [3.38, 1]], dimAt: [[1.4, 2.2]] },
+  roar: { pri: 4, loud: 1, dur: 5.04, snd: 'roar', major: 1, shakeAt: [[1.2, .75], [1.55, .45], [2.05, .55], [2.6, .35]], flashAt: [1.3], dimAt: [[1.15, 2.1]], burstAt: [[1.25, 1.3], [2.05, .8]] },
   punch: { pri: 4, dur: 4.04, snd: 'punch', impacts: [[1.70, 1]], shakeAt: [[1.86, .3]] }, // ONE right-fist smash, fist meets the ledge at 1.70 s
-  slam: { pri: 4, file: 'punch', dur: 4.04, snd: 'punch', impacts: [[1.70, 1]], shakeAt: [[1.86, .3]] }, // lock smash uses the single punch
+  slam: { pri: 4, file: 'punch', dur: 4.04, snd: 'punch', impacts: [[1.70, 1]], shakeAt: [[1.86, .3]] }, // fallback lock smash (single punch)
+  // ---- v5 bonus clips (media/v4, lazy-loaded after the first spin). impacts/marks are the frames measured in the clips ----
+  'punch-left': { pri: 4, v4: 1, dur: 4.04, snd: 'punch-left', impacts: [[1.67, 1]], shakeAt: [[1.8, .3]] },   // fist lands on the left reel
+  'punch-right': { pri: 4, v4: 1, dur: 4.04, snd: 'punch-right', impacts: [[1.61, 1]], shakeAt: [[1.75, .3]] }, // fist lands on the right reel
+  smash: { pri: 4, v4: 1, file: 'overhead-smash', dur: 5.04, snd: 'overhead-smash', impacts: [[2.46, 1.2]], shakeAt: [[2.62, .5]], burstAt: [[2.5, 1]] }, // both fists, once
+  thunder: { pri: 4, v4: 1, loud: 1, file: 'thunder-roar-short', dur: 3.04, snd: 'thunder-roar-short', major: 1, marks: [[1.0, 'peak']], flashAt: [.9], shakeAt: [[.95, .5], [1.3, .3]], dimAt: [[.8, .9]] },
+  awaken: { pri: 5, v4: 1, loud: 1, file: 'awaken-roar', dur: 6.04, snd: 'awaken-roar', major: 1, marks: [[1.75, 'peak']], flashAt: [1.65], shakeAt: [[1.1, .45], [1.75, .85], [2.3, .5], [3.0, .35]], dimAt: [[1.0, 2.8]], burstAt: [[1.75, 1.3]] },
+  swipe: { pri: 4, v4: 1, file: 'wheel-swipe', dur: 4.04, snd: 'wheel-swipe', marks: [[1.9, 'swipe']] },
+  lunge: { pri: 5, v4: 1, file: 'lunge-in', dur: 3.0, snd: 'lunge-in', major: 1, marks: [[1.45, 'close']], shakeAt: [[1.5, .4]], dimAt: [[1.2, 1.0]] },
+  heave: { pri: 4, v4: 1, file: 'ledge-heave', dur: 5.04, snd: 'ledge-heave', marks: [[1.5, 'lift']], shakeAt: [[1.6, .35], [3.0, .3]] },
+  fist: { pri: 3, v4: 1, file: 'fist-throw', dur: 3.04, snd: 'fist-throw', marks: [[1.5, 'throw']] },
+  pound: { pri: 3, v4: 1, loud: 1, file: 'victory-pound', dur: 5.04, snd: 'victory-pound', major: 1, impacts: [[1.83, .9], [2.79, 1]] },
+  breath: { pri: 1, v4: 1, file: 'breath-heavy', dur: 4.04, snd: 'breath-heavy', minor: 1 },
+  dismiss: { pri: 2, v4: 1, dur: 3.04, snd: 'dismiss', minor: 1 },
+  look: { pri: 1, v4: 1, file: 'look-reels', dur: 3.04, snd: 'look-reels', minor: 1 },
 };
-const SND_V = { chestbeat: '6' }; // per-sound cache bump (v5 chestbeat carried a stray video stream)
+const V4 = '/gorilla/media/v4/', V4_V = '1';
+const V4_SOUNDS = ['punch-left', 'punch-right', 'overhead-smash', 'thunder-roar-short', 'awaken-roar', 'wheel-swipe', 'lunge-in', 'ledge-heave', 'fist-throw', 'victory-pound', 'breath-heavy', 'dismiss', 'look-reels'];
+const SND_V = { chestbeat: '7' }; // per-sound cache bump (v5 chestbeat carried a stray video stream)
 const MEDIA_V = '5', BASE = '/gorilla/media/v3/';
 const SOUNDS = ['anticipate', 'lose', 'smallwin', 'chestbeat', 'roar', 'punch', 'stare', 'roar-real', 'br1', 'br2', 'br3', 'br4', 'br5', 'br6', 'huff1', 'huff2', 'huff3', 'grunt1', 'grunt2'];
 export const LEDGE = 0.80;   // fraction of clip height where the reel frame's top edge sits (just under the fingertips)
@@ -57,7 +73,12 @@ export class VideoApe {
     let last = performance.now(), frames = 0, acc = 0; const loop = now => { requestAnimationFrame(loop); const dt = Math.min(.05, (now - last) / 1000); last = now; frames++; acc += dt; if (acc > 1) { this.fps = frames / acc; frames = 0; acc = 0; } this.tick(dt); }; requestAnimationFrame(loop);
   }
   file(n) { return (CLIPS[n] && CLIPS[n].file) || n; }
-  src(n) { const f = this.file(n); return this.blobs[f] || `${BASE}${f}-${this.res}.mp4?v=${MEDIA_V}`; }
+  url(n) { const c = CLIPS[n] || {}, f = this.file(n); return c.v4 ? `${V4}${f}-${this.res}.mp4?v=${V4_V}` : `${BASE}${f}-${this.res}.mp4?v=${MEDIA_V}`; }
+  src(n) { const f = this.file(n); return this.blobs[f] || this.url(n); }
+  // v5: bonus clips + sounds load lazily (after the first spin, or when a bonus starts) so the first page load is not heavier
+  loadBonus() { if (this.bonusLoading) return this.bonusLoading; A.fetchSamples(Object.fromEntries(V4_SOUNDS.map(k => [k, V4 + k + '.mp3?v=' + V4_V]))); setTimeout(() => V4_SOUNDS.forEach(k => A.decode(k)), 50);
+    const order = ['thunder', 'smash', 'punch-left', 'punch-right', 'swipe', 'awaken', 'lunge', 'heave', 'fist', 'look', 'dismiss', 'breath', 'pound'];
+    return (this.bonusLoading = (async () => { for (const n of order) { const f = this.file(n); if (this.blobs[f]) continue; try { const r = await fetch(this.url(n)); if (!r.ok) { this.bad.add(f); glog('clip-missing', { clip: n, status: r.status }); continue; } this.blobs[f] = URL.createObjectURL(await r.blob()); } catch (e) { /* stream from URL */ } } })()); }
   async _prefetch() { await this.ready; const order = ['watch', 'lose', 'smallwin', 'punch', 'anticipate', 'chestbeat', 'roar', 'stare', ...this.idleNames];
     for (const n of order) { if (!CLIPS[n] || CLIPS[n].file || this.blobs[n]) continue; try { const r = await fetch(`${BASE}${n}-${this.res}.mp4?v=${MEDIA_V}`); if (!r.ok) { this.bad.add(n); glog('clip-missing', { clip: n, status: r.status }); continue; } this.blobs[n] = URL.createObjectURL(await r.blob()); } catch (e) { /* stream from URL instead */ } } }
   // ---------- layout: the clip's ledge lines up with the top edge of the reel frame ----------
@@ -124,7 +145,7 @@ export class VideoApe {
     const prevA = this.action; if (prevA) prevA.finish(true); clearTimeout(this.holdT); this.holding = false;
     let virtual = false, t0 = 0, fired = new Set(), snd = null, done = false, started = false, raf = 0;
     const act = { name, finish: null, t0: performance.now() }; this.action = act; this.root.dataset.clip = name;
-    const sound = off => { if (!c.snd) return; snd = A.sample(c.snd, { offset: off }); if (snd && speed !== 1) { snd.stop(); snd = null; } if (snd) { if (rate !== 1 && snd.src && snd.src.playbackRate) snd.src.playbackRate.value = rate; A.duck && A.duck(((snd.dur || c.dur) - off) / rate + .4); } };
+    const sound = off => { if (!c.snd) return; snd = A.sample(c.snd, { offset: off, loud: !!c.loud }); if (snd && speed !== 1) { snd.stop(); snd = null; } if (snd) { if (rate !== 1 && snd.src && snd.src.playbackRate) snd.src.playbackRate.value = rate; A.duck && A.duck(((snd.dur || c.dur) - off) / rate + .4); } };
     const finish = (preempted) => { if (done) return; done = true; cancelAnimationFrame(raf); clearTimeout(act.safety); if (snd) snd.stop(preempted ? .25 : 0); this.dim(0);
       if (this.action === act) this.action = null; resolve();
       if (!preempted) { const p = this.pending; this.pending = null; if (p) this._act(p.name, p.onCue, p.resolve, p.o); else { this.root.dataset.clip = 'idle'; this._startIdle(); } } };
@@ -139,6 +160,7 @@ export class VideoApe {
       (c.burstAt || []).forEach(([t, s], i) => cue('u' + i, t, () => this.burst(s)));
       (c.dimAt || []).forEach(([t, d], i) => { cue('d' + i, t, () => this.dim(1)); cue('e' + i, t + d, () => this.dim(0)); });
       (c.flashAt || []).forEach((t, i) => cue('f' + i, t, () => this.lightning()));
+      (c.marks || []).forEach(([t, k], i) => cue('m' + i, t - .008 * rate, () => { this.lastMark = { clip: name, key: k, cue: t, ct: +now().toFixed(3), at: performance.now() }; onCue && onCue(k); }));
       if (virtual && now() >= c.dur) { finish(); } };
     if (this.bad.has(this.file(name))) { started = true; virtual = true; act.virtual = true; t0 = performance.now(); sound(0); raf = requestAnimationFrame(step); act.safety = setTimeout(() => finish(), 14000); return; }
     // minor clips dissolve in slowly from whatever is on screen; major/hit clips cut in faster (hard breaks only for big moments)
@@ -156,8 +178,21 @@ export class VideoApe {
   // hit clips: the returned promise resolves ON the impact frame; onImpact runs synchronously in that frame (for the reel effect)
   _hit(name, onImpact) { let hit, fired = false; const p = new Promise(r => hit = r); const go = () => { if (fired) return; fired = true; try { onImpact && onImpact(); } catch (e) { console.warn(e); } hit(); };
     this.play(name, (k, i) => { if (k === 'impact' && i === 0) go(); }, { now: true }).then(go); return p; }
-  slam(x, onImpact) { return this._hit('slam', onImpact); }
-  punch(onImpact) { return this._hit('punch', onImpact); }
+  slam(x, onImpact) { return this._hit(this.bad.has('overhead-smash') ? 'slam' : 'smash', onImpact); } // lock smash: one overhead double-fist strike
+  punch(onImpact, r = 1) { const n = r === 0 ? 'punch-left' : r === 2 ? 'punch-right' : 'punch'; return this._hit(this.bad.has(this.file(n)) ? 'punch' : n, onImpact); } // per-reel punch-nudge
+  // marked clips: fn runs synchronously on the marked frame; resolves on that frame (the clip keeps playing). .done resolves at the clip end
+  _mark(name, key, fn) { let hit, fired = false; const p = new Promise(r => hit = r); const go = () => { if (fired) return; fired = true; try { fn && fn(); } catch (e) { console.warn(e); } hit(); };
+    p.done = this.play(name, k => { if (k === key) go(); }, { now: true }).then(() => go()); return p; }
+  thunder(fn) { return this._mark('thunder', 'peak', fn); }
+  awaken(fn) { return this._mark('awaken', 'peak', fn); }
+  swipe(fn) { return this._mark('swipe', 'swipe', fn); }
+  lunge(fn) { return this._mark('lunge', 'close', fn); }
+  heave(fn) { return this._mark('heave', 'lift', fn); }
+  fistThrow(fn) { return this._mark('fist', 'throw', fn); }
+  pound() { return this.play('pound', null, { now: true }); }
+  breath() { return this.play('breath'); }
+  dismiss() { return this.play('dismiss', null, { now: true }); }
+  look(spinSec) { const r = spinSec ? Math.max(.8, Math.min(1.5, CLIPS.look.dur / (spinSec + .8))) : 1; return this.play('look', null, { now: true, rate: r }); }
   // random "lean in and stare at you" while the machine sits idle (every 45-90 s)
   _stareTimer() { clearTimeout(this.stareT); this.stareT = setTimeout(() => { const idle = !this.action && !(this.gameBusy && this.gameBusy()) && !document.hidden;
       if (idle) this.stare(); this._stareTimer(); }, rnd(45000, 90000) * (window.__gorillaSpeed || 1)); }
@@ -165,7 +200,7 @@ export class VideoApe {
   jolt(s = 1) { this.stage.style.setProperty('--jz', (1 + .035 * s).toFixed(3)); this.stage.classList.remove('jolt'); void this.stage.offsetWidth; this.stage.classList.add('jolt'); }
   reactBill() { A.sample(Math.random() < .5 ? 'grunt1' : 'grunt2', { gain: .8, rate: .9 + Math.random() * .15 }); this.stage.classList.remove('lean'); void this.stage.offsetWidth; this.stage.classList.add('lean'); }
   lightning() { this.flash.classList.remove('go'); void this.flash.offsetWidth; this.flash.classList.add('go'); this.emit('thunder'); }
-  roarSound() { A.sample('roarReal'); }
+  roarSound() { A.sample('roarReal', { loud: true }); }
   emit(ev, a) { if (this.on && this.on[ev]) this.on[ev](a); }
   // ---------- embers + debris + camera shake ----------
   particles() { this.emb = Array.from({ length: 70 }, () => this.newEmber(true)); this.deb = []; }

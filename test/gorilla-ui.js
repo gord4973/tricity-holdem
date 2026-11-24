@@ -32,21 +32,41 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   await p.evaluate(() => { window.__hits = []; const o = ape.on.slam; ape.on.slam = i => { __hits.push({ clip: ape.action && ape.action.name, busy: G.busy }); o && o(i); }; });
   await p.evaluate(() => { window.__w = null; const t0 = performance.now(); const iv = setInterval(() => { if (ape.action && ape.action.name === 'watch') { window.__w = performance.now() - t0; clearInterval(iv); } }, 5); G.spin(); });
   await p.waitForFunction(() => window.__w != null, { timeout: 3000 }); const wms = await p.evaluate(() => __w); assert.ok(wms < 100, 'watch starts with the spin: ' + wms); console.log(`✔ watch began ${wms.toFixed(0)} ms after SPIN`); await idle();
-  const sync = async k => { const r = await p.evaluate(() => ({ fx: window.__gorillaFx, hit: ape.lastImpact })); const d = r.fx.at - r.hit.at, vd = (r.hit.ct - r.hit.cue) * 1000;
+  const sync = async (k, kind) => { const r = await p.evaluate(kind => ({ fx: window.__fxBy[kind], hit: ape.lastImpact }), kind); const d = r.fx.at - r.hit.at, vd = (r.hit.ct - r.hit.cue) * 1000;
     assert.ok(Math.abs(d) <= 50 && Math.abs(vd) <= 50, k + ' sync ' + JSON.stringify(r)); console.log(`✔ ${k}: reel effect ${d.toFixed(1)} ms after the impact cue; clip clock ${vd.toFixed(0)} ms past the impact frame (${r.hit.clip} @ ${r.hit.cue}s)`); return { d, vd }; };
   await run('nudge', async () => { await p.waitForFunction(() => window.__gorillaFx && __gorillaFx.kind === 'nudge', { timeout: 60000 }); await wait(60); await p.screenshot({ path: SHOTS + '/ui-nudge.png' }); });
-  await sync('punch-nudge'); assert.ok(await p.evaluate(() => reels.winCount()) >= 3, 'nudge punched the reel into a win');
+  await sync('punch-nudge', 'nudge'); assert.ok(await p.evaluate(() => reels.winCount()) >= 3, 'nudge punched the reel into a win');
   
   assert.ok(await run('win') > -250, 'win pays'); assert.ok(await p.evaluate(() => reels.winCount()) >= 3, 'winning cells highlighted');
-  await run('smash', async () => { await p.waitForFunction(() => reels.locksGone > 0, { timeout: 60000 }); await p.screenshot({ path: SHOTS + '/ui-smash.png' }); }); await sync('lock smash');
+  await run('smash', async () => { await p.waitForFunction(() => reels.locksGone > 0, { timeout: 60000 }); await p.screenshot({ path: SHOTS + '/ui-smash.png' }); }); await sync('lock smash', 'smash');
   await run('big', async () => { await p.waitForSelector('#big:not(.hidden)', { timeout: 60000 }); await wait(600); await p.screenshot({ path: SHOTS + '/ui-bigwin.png' });
     assert.ok(!(await p.evaluate(() => ape.action && /roar|chestbeat/.test(ape.action.name))), 'no roar behind the win screen');
     await p.waitForFunction(() => document.getElementById('big').classList.contains('hidden') && ape.action && ape.action.name === 'roar', { timeout: 30000 }); await wait(1300); await p.screenshot({ path: SHOTS + '/ui-roar-after.png' }); console.log('✔ roar starts only after the big-win screen closes'); });
-  const hits = await p.evaluate(() => __hits); assert.ok(hits.every(h => h.busy && /punch|slam|smallwin/.test(h.clip)), 'hits only during a spin event: ' + JSON.stringify(hits)); console.log(`✔ ${hits.length} gorilla hits so far, all tied to a spin event (${[...new Set(hits.map(h => h.clip))].join(', ')})`);
-  await run('bonus', async () => { await p.waitForSelector('#wheelBox:not(.hidden)', { timeout: 60000 }); await wait(300); await p.screenshot({ path: SHOTS + '/ui-wheel.png' }); });
-  await run('thunder', async () => { await p.waitForSelector('#fsHud:not(.hidden)', { timeout: 90000 }); await wait(1500); await p.screenshot({ path: SHOTS + '/ui-thunder.png' }); });
+  const hits = await p.evaluate(() => __hits); assert.ok(hits.every(h => h.busy && /punch|slam|smash|smallwin|pound/.test(h.clip)), 'hits only during a spin event: ' + JSON.stringify(hits)); console.log(`✔ ${hits.length} gorilla hits so far, all tied to a spin event (${[...new Set(hits.map(h => h.clip))].join(', ')})`);
+  // ---- v5 features: thunder wild, coin respins, Rampage Meter, Temple Drum Wheel (chains / awakening / locked / jackpot), JUNGLE / FURY / INFERNO SPINS ----
+  const fx = k => p.waitForFunction(k => window.__gorillaFx && __gorillaFx.kind === k, { timeout: 120000 }, k), shot = n => p.screenshot({ path: `${SHOTS}/v5-${n}.png` });
+  const markSync = async (k, kind) => { const r = await p.evaluate(kind => ({ fx: window.__fxBy[kind], m: ape.lastMark }), kind); const d = r.fx.at - r.m.at; assert.ok(Math.abs(d) <= 50, k + ' mark sync ' + JSON.stringify(r)); console.log(`✔ ${k}: effect ${d.toFixed(1)} ms after the ${r.m.clip} '${r.m.key}' frame (${r.m.cue}s)`); };
+  await run('thunder', async () => { await fx('thunder'); await markSync('thunder wild stamp', 'thunder'); await wait(400); await shot('thunder'); });
+  await run('respin', async () => { await fx('respin'); await wait(200); await shot('respin'); });
+  await run('meter', async () => { await p.waitForSelector('#meter.full', { timeout: 60000 }); await shot('meter-full'); await fx('meter'); await p.waitForSelector('#wheelBox:not(.hidden)', { timeout: 60000 }); assert.strictEqual(await p.evaluate(() => __lastWheel.start), 2, 'full meter = 2-drum wheel'); });
+  assert.ok(await p.evaluate(() => G.st.meter) === 0, 'meter reset after the rampage'); console.log('✔ Rampage Meter: full meter smashed, 2-drum wheel, meter reset');
+  await run('wheel1', async () => { await p.waitForSelector('#wheelBox:not(.hidden)', { timeout: 60000 }); await wait(500); assert.strictEqual(await p.evaluate(() => G.wheel.locks.size), 4, '1 drum: 4 chained wedges'); await shot('wheel-chains'); await fx('swipe'); await markSync('wheel swipe', 'swipe'); await wait(900); await shot('wheel-spin'); });
+  await run('awaken', async () => { await fx('awaken'); await markSync('awakening roar', 'awaken'); await wait(250); await shot('awaken'); assert.strictEqual(await p.evaluate(() => G.wheel.locks.size), 2, 'roar shattered the chains: 1 -> 2 drums'); });
+  await run('locked', async () => { await p.waitForFunction(() => /CHAINED/.test(document.getElementById('wheelMsg').textContent), { timeout: 90000 }); await shot('wheel-locked'); });
+  await run('jackpot', async () => { await p.waitForFunction(() => /JACKPOT/.test(document.getElementById('wheelMsg').textContent), { timeout: 90000 }); await shot('wheel-jackpot');
+    await p.waitForFunction(() => !document.getElementById('big').classList.contains('hidden') && /JACKPOT/.test(document.getElementById('bigTitle').textContent), { timeout: 30000 }); await wait(800); await shot('jackpot-overlay'); });
+  for (const mode of ['jungle', 'fury', 'inferno']) await run(mode, async () => {
+    await fx('lunge'); await wait(900); await shot(mode + '-lunge');
+    await p.waitForSelector('#splash:not(.hidden)', { timeout: 60000 }); await wait(700); await shot(mode + '-splash'); await p.click('#startBtn');
+    await p.waitForSelector('#modeHud:not(.hidden)', { timeout: 20000 });
+    if (mode !== 'jungle') { await p.waitForFunction(() => G.rows === 7, { timeout: 60000 }); await wait(900); await shot(mode + '-7rows'); assert.ok(/343 WAYS/.test(await p.$eval('#hudWays', e => e.textContent)), '343 ways'); }
+    await fx('fist'); await wait(350); await shot(mode + '-firefist');
+    await p.waitForFunction(() => !document.getElementById('big').classList.contains('hidden') && /TOTAL/.test(document.getElementById('bigTitle').textContent), { timeout: 240000 }); await wait(1500); await shot(mode + '-total');
+    const r = await p.evaluate(() => ({ n: __lastRound.spins.length, win: __lastRound.win })); console.log(`  ${mode}: ${r.n} spins, ${r.win} credits`); });
+  await run('monster', async () => { await p.waitForSelector('#big.monster:not(.hidden)', { timeout: 60000 }); await wait(700); await shot('monster');
+    await p.waitForFunction(() => document.getElementById('big').classList.contains('hidden') && ape.action && ape.action.name === 'roar', { timeout: 30000 }); console.log('✔ monster: roar after the overlay'); });
   const before = await cents(); assert.ok(before > 0); await p.click('#cashBtn'); await wait(1600); await p.screenshot({ path: SHOTS + '/ui-ticket.png' }); await idle();
-  assert.strictEqual(await cents(), 0); assert.ok((await p.$eval('#ticket', e => e.textContent)).includes((before / 100).toFixed(2)), 'ticket shows cashed-out amount'); console.log('✔ cash out printed ticket for $' + (before / 100).toFixed(2));
+  assert.strictEqual(await cents(), 0); assert.ok((await p.$eval('#ticket', e => e.textContent)).includes((before / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })), 'ticket shows cashed-out amount'); console.log('✔ cash out printed ticket for $' + (before / 100).toFixed(2));
   await p.reload({ waitUntil: 'load' }); await idle(); assert.strictEqual(await cents(), 0, 'state persisted in localStorage');
   // portrait viewports: nothing overflows, gorilla on top, reels in the middle, controls at the bottom, touch targets >= 44px
   for (const [n, w, h, d] of [['phone-390', 390, 844, 3], ['phone-412', 412, 915, 3], ['ipad-834', 834, 1194, 2], ['ipad-1024', 1024, 1366, 2]]) {
@@ -74,7 +94,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     assert.ok(s1.kind === 'video' && s1.paused && !s1.c3d && /poster\.jpg/.test(s1.poster), 'blocked autoplay keeps the photoreal poster: ' + JSON.stringify(s1));
     await q.touchscreen.tap(190, 300); await q.waitForFunction(() => [...document.querySelectorAll('#scene video.v')].some(v => !v.paused && v.currentTime > .3 && +v.style.opacity > .5), { timeout: 8000 });
     assert.ok(await q.evaluate(() => document.getElementById('ape').classList.contains('hidden')), 'no 3D gorilla'); console.log('✔ autoplay blocked: poster, then video after first tap, no 3D fallback');
-    await q.evaluate(() => { window.__ev = []; ape.on = { ...ape.on, slam: i => __ev.push('slam' + i) }; const s = ape.src.bind(ape); ape.src = n => n === 'slam' ? '/gorilla/media/missing.mp4' : s(n); ape.slam(); });
+    await q.evaluate(() => { window.__ev = []; ape.on = { ...ape.on, slam: i => __ev.push('slam' + i) }; const s = ape.src.bind(ape); ape.src = n => n === 'slam' || n === 'smash' ? '/gorilla/media/missing.mp4' : s(n); ape.slam(); });
     await q.waitForFunction(() => __ev.includes('slam0') && /idle|still/.test(document.getElementById('scene').dataset.clip) && !ape.action, { timeout: 12000 });
     assert.ok(await q.evaluate(() => document.getElementById('ape').classList.contains('hidden')), 'no 3D after a failed clip'); await q.waitForFunction(() => [...document.querySelectorAll('#scene video.v')].some(v => !v.paused && +v.style.opacity > .5) || document.getElementById('scene').dataset.clip === 'still', { timeout: 8000 }); console.log('✔ failed clip skipped: impacts still fired, back to idle, no 3D fallback');
     const lg = await (await fetch(BASE + '/gorilla/log')).json(); assert.ok(lg.entries.some(e => e.kind === 'clip-skip'), 'error beacon recorded'); console.log('✔ error beacon: ' + lg.total + ' entries on /gorilla/log');

@@ -15,9 +15,10 @@
   </div>
   <div id=topBtns><button id=muteBtn class=icon title="Sound" aria-label="Sound">🔊</button><button id=fsBtn class=icon title="Full screen" aria-label="Full screen">⛶</button><button id=menuBtn class=icon title="Menu" aria-label="Menu">☰</button></div>
 </header>
-<div id=fsHud class=hidden><b>⚡ THUNDER SPINS</b> <span id=fsCount>1 of 10</span> · WIN <span id=fsWin>$0.00</span></div>
+<div id=modeHud class=hidden><b id=hudMode>JUNGLE SPINS</b><div class=hrow><span><small>SPIN</small><i id=hudSpins>1 OF 7</i></span><span><small>WAYS</small><i id=hudWays>27 WAYS</i></span><span><small>WIN</small><i id=hudWin>$0.00</i></span></div></div>
 <main id=machine>
   <div id=frame><div class=flames></div><div id=logo><span>GORILLA</span></div><div id=reels><canvas id=reelCv></canvas></div><div id=winBanner class=hidden></div></div>
+  <div id=meter title="Rampage Meter: drums fill it; full = Drum Wheel"><b>RAMPAGE</b><div class=track><div id=meterFill></div><i class=crk></i></div><span id=meterPct>0%</span></div>
   <div id=bar>
     <div id=meters>
       <div class=meter><small>CASH</small><b id=mCash>$0.00</b></div>
@@ -35,8 +36,10 @@
     </div>
   </div>
 </main>
-<div id=big class=hidden><div class=burst></div><canvas id=coinRain></canvas><div id=bigTitle>BIG WIN</div><div id=bigAmt>$0.00</div><small>tap to continue</small></div>
-<div id=wheelBox class=hidden><div id=wheelTitle>JUNGLE DRUM WHEEL</div><div id=wheelWrap><canvas id=wheel width=720 height=720></canvas><div id=pointer></div><button id=wheelHub>SPIN</button></div><div id=wheelMsg></div></div>
+<div id=big class=hidden><div class=burst></div><canvas id=coinRain></canvas><div id=bigTitle>BIG WIN</div><div id=bigAmt>$0.00</div><div id=bigSub></div><small>tap to continue</small></div>
+<div id=wheelBox class=hidden><div id=wheelTitle>TEMPLE DRUM WHEEL</div><div id=wheelTier>3 DRUMS</div><div id=wheelWrap><canvas id=wheel width=720 height=720></canvas><div id=pointer></div><button id=wheelHub>SPIN</button></div><div id=wheelMsg></div></div>
+<div id=erupt><i></i><i></i><i></i></div>
+<div id=splash class=hidden><div class=sCard><div id=splashTitle>JUNGLE</div><div class=sSpins>SPINS</div><div id=splashSub>7 FREE SPINS</div><div id=splashFeats></div><button id=startBtn>TAP TO START</button></div></div>
 <div id=denomModal class="modal hidden"><div class=card><h2>Choose your denomination</h2><p>Each credit is worth:</p><div id=denoms></div><button class=close data-close=denomModal>Done</button></div></div>
 <div id=menu class="modal hidden"><div class="card wide"><h2>GORILLA</h2>
   <div class=row><button id=qBtn class=btn2>Video: high</button><button id=payBtn class=btn2>Paytable &amp; rules</button><button id=aboutBtn class=btn2>About</button></div>

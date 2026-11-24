@@ -1,8 +1,10 @@
 // GORILLA - original synthesized sounds (WebAudio, no samples). window.GorillaAudio
 (function () {
-  let ctx = null, master = null, muted = localStorage.getItem('gorillaMute') === '1', noiseBuf = null;
+  let ctx = null, master = null, loud = null, loudIn = null, muted = localStorage.getItem('gorillaMute') === '1', noiseBuf = null;
   function init() { if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return true; } const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
     ctx = new AC(); master = ctx.createGain(); master.gain.value = muted ? 0 : .8; const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -8; comp.knee.value = 6; comp.ratio.value = 6; comp.attack.value = .003; comp.release.value = .2; master.connect(comp); comp.connect(ctx.destination);
+    // LOUD bus for the gorilla's roars + chestbeat: full gain (no 0.8 master, no -8 dB bus compressor), +1.9 dB drive into a brick-wall limiter at -1 dBFS so it is loud without clipping
+    loudIn = ctx.createGain(); loudIn.gain.value = 1.25; const lim = ctx.createDynamicsCompressor(); lim.threshold.value = -1; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = .001; lim.release.value = .12; loud = ctx.createGain(); loud.gain.value = muted ? 0 : 1; loudIn.connect(lim); lim.connect(loud); loud.connect(ctx.destination);
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; return true; }
   const now = () => ctx.currentTime;
   function env(g, t, a, peak, dec) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + dec); }
@@ -44,7 +46,7 @@
   const raw = {}, buf = {}, decoding = {}; let ambient = null;
   function fetchSamples(map) { for (const k in map) if (!raw[k]) raw[k] = fetch(map[k]).then(r => { if (!r.ok) throw new Error(map[k] + ' ' + r.status); return r.arrayBuffer(); }).catch(e => { console.warn('sample', e); return null; }); }
   function decode(k) { if (buf[k]) return Promise.resolve(buf[k]); if (!ctx || !raw[k]) return Promise.resolve(null); return decoding[k] || (decoding[k] = raw[k].then(ab => ab ? new Promise((res) => ctx.decodeAudioData(ab.slice(0), b => { buf[k] = b; res(b); }, () => res(null))) : null)); }
-  function sample(k, o = {}) { if (!ctx || muted) return null; const b = buf[k]; if (!b) { decode(k); return null; } const s = ctx.createBufferSource(), g = ctx.createGain(); s.buffer = b; s.loop = !!o.loop; if (o.rate) s.playbackRate.value = o.rate; g.gain.value = o.gain != null ? o.gain : 1; s.connect(g); g.connect(master); s.start(now() + (o.delay || 0), Math.max(0, o.offset || 0)); return { src: s, stop: (fade = 0) => { try { if (fade) { g.gain.setTargetAtTime(0, now(), fade / 3); s.stop(now() + fade); } else s.stop(); } catch (e) {} }, g, dur: b.duration / (o.rate || 1) }; }
+  function sample(k, o = {}) { if (!ctx || muted) return null; const b = buf[k]; if (!b) { decode(k); return null; } const s = ctx.createBufferSource(), g = ctx.createGain(); s.buffer = b; s.loop = !!o.loop; if (o.rate) s.playbackRate.value = o.rate; g.gain.value = o.gain != null ? o.gain : 1; s.connect(g); g.connect(o.loud && loudIn ? loudIn : master); s.start(now() + (o.delay || 0), Math.max(0, o.offset || 0)); return { src: s, stop: (fade = 0) => { try { if (fade) { g.gain.setTargetAtTime(0, now(), fade / 3); s.stop(now() + fade); } else s.stop(); } catch (e) {} }, g, dur: b.duration / (o.rate || 1) }; }
   let breathT = 0, duckUntil = 0, lastB = '';
   const BREATHS = [['br1', 3], ['br2', 3], ['br3', 2], ['br4', 2], ['br5', 2], ['br6', 3], ['huff1', .7], ['huff2', .6], ['huff3', .6], ['grunt1', .25], ['grunt2', .3]];
   function pickBreath() { const av = BREATHS.filter(([k]) => buf[k] && k !== lastB); if (!av.length) { BREATHS.forEach(([k]) => raw[k] && decode(k)); return null; } let r = Math.random() * av.reduce((a, b) => a + b[1], 0); for (const [k, w] of av) if ((r -= w) <= 0) return k; return av[0][0]; }
@@ -56,5 +58,5 @@
     // randomized breathing: one-shot breaths / huffs / grunts with random gaps, pitch and level (no loop), ducked while the gorilla's clips speak
     ambient(on) { window.__gorillaAmbient = on; clearTimeout(breathT); if (on && ctx && !muted) breathe(600); },
     duck(sec) { duckUntil = Math.max(duckUntil, performance.now() + sec * 1000); }, play(name, ...a) { if (!ctx || muted) return; try { S[name](...a); } catch (e) { console.warn(e); } }, get muted() { return muted; },
-    setMuted(m) { muted = m; localStorage.setItem('gorillaMute', m ? '1' : '0'); if (master) master.gain.value = m ? 0 : .8; if (!m && window.__gorillaAmbient) GorillaAudio.ambient(true); if (m) clearTimeout(breathT); } };
+    setMuted(m) { muted = m; localStorage.setItem('gorillaMute', m ? '1' : '0'); if (master) master.gain.value = m ? 0 : .8; if (loud) loud.gain.value = m ? 0 : 1; if (!m && window.__gorillaAmbient) GorillaAudio.ambient(true); if (m) clearTimeout(breathT); } };
 })();

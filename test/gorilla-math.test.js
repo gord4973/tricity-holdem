@@ -25,14 +25,31 @@ test('prize coins: need 3+, locked pay only when smashed, wild always smashes', 
   r = M.spin(100, Math.random, { force: g => { g[0][0] = { s: 'CN', coin: 100, locked: false }; g[2][0] = { s: 'CN', coin: 100, locked: false }; for (const r2 of [0, 1, 2]) for (const y of [1, 2]) g[r2][y] = { s: 'RB' }; g[1][0] = { s: 'EM' }; } });
   assert.strictEqual(r.coins.pay, 0, 'two coins pay nothing');
 });
-test('3 drums trigger the wheel; wheel/free games resolve', () => {
-  const r = M.spin(50, Math.random, { force: g => { for (let i = 0; i < 3; i++) g[i][1] = { s: 'DR' }; } }); assert.ok(r.bonus && r.drums === 3);
-  M.WHEEL.forEach((w, i) => { const x = M.spinWheel(50, Math.random, i); assert.strictEqual(x.win, (w.x || 0) * 50); assert.strictEqual(x.freeSpins, w.fs || 0); });
-  const fg = M.freeGames(50, M.mulberry32(7), 10); assert.ok(fg.spins.length >= 10 && fg.spins.length <= 40); assert.strictEqual(fg.win, fg.spins.reduce((a, s) => a + s.win, 0));
+test('drums trigger the Temple Drum Wheel; chained wedges, awakening, jackpots, modes', () => {
+  const r = M.spin(50, Math.random, { force: g => { for (let i = 0; i < 3; i++) g[i][1] = { s: 'DR' }; } }); assert.ok(r.bonus && r.drums === 3 && r.bonus.tier === 3);
+  assert.strictEqual(M.WHEEL.length, 12);
+  for (const tier of [1, 2, 3]) M.WHEEL.forEach((w, i) => { const x = M.spinWheel(50, Math.random, tier, { forceIdx: i, forceAwaken: false }); assert.strictEqual(x.idx, i); assert.strictEqual(x.tier, tier);
+    const locked = M.LOCKS[tier].includes(w.id); assert.strictEqual(x.locked, locked);
+    if (locked) assert.strictEqual(x.win, M.LOCK_X * 50); else if (w.mode) { assert.strictEqual(x.mode, w.mode); assert.strictEqual(x.win, 0); } else assert.strictEqual(x.win, w.x * 50); });
+  const aw = M.spinWheel(50, Math.random, 1, { forceIdx: M.WHEEL.findIndex(w => w.id === 'inferno'), forceAwaken: true }); assert.ok(aw.awaken && aw.tier === 2 && !aw.locked && aw.mode === 'inferno', 'roar breaks the chains');
   assert.ok(!M.WHEEL.some(w => /kong|mini|minor|major|grand|primal|rage|havoc/i.test(w.label)), 'original wedge names only');
 });
-test('tiers', () => { assert.strictEqual(M.tier(0, 50), ''); assert.strictEqual(M.tier(100, 50), 'win'); assert.strictEqual(M.tier(500, 50), 'big'); assert.strictEqual(M.tier(1250, 50), 'mega'); assert.strictEqual(M.tier(2500, 50), 'epic'); });
-test('RTP simulation (300k spins, seeded) lands in the 94-96% target band', () => {
+test('Rampage Meter fills on drums and awards a 2-drum wheel when full', () => {
+  const m = { n: M.METER_MAX - 1 }; let got = null;
+  for (let i = 0; i < 5000 && !got; i++) { const s = M.spin(50, Math.random, { meter: m, force: g => { for (let r = 0; r < 3; r++) for (let y = 0; y < 3; y++) if (g[r][y].s === 'DR') g[r][y] = { s: 'EM' }; g[0][1] = { s: 'DR' }; } }); if (s.bonus) got = s; }
+  assert.ok(got && got.bonus.tier === 2 && got.bonus.via === 'meter' && got.meter.full && m.n === 0);
+});
+test('bonus rounds: jungle/fury/inferno resolve, 7..50 spins, Firefist adds spins, rows 3..7 (343 ways)', () => {
+  const rng = M.mulberry32(7); let maxRows = 0, fists = 0;
+  for (const mode of ['jungle', 'fury', 'inferno']) for (let k = 0; k < 150; k++) { const b = M.bonusRound(50, rng, mode); assert.strictEqual(b.mode, mode);
+    assert.ok(b.spins.length >= M.FS_START && b.spins.length <= 50); assert.strictEqual(b.win, b.spins.reduce((a, s) => a + s.win, 0));
+    for (const s of b.spins) { const rows = s.rows[0]; assert.ok(rows >= 3 && rows <= 7); assert.strictEqual(s.waysN, s.rows.reduce((a, n) => a * n, 1)); maxRows = Math.max(maxRows, rows); fists += s.added || 0; if (mode === 'jungle') assert.strictEqual(rows, 3); } }
+  assert.strictEqual(maxRows, 7); assert.ok(fists > 0);
+  const rich = M.bonusRound(50, rng, 'inferno', { rich: true }); assert.strictEqual(rich.spins[0].rows[0], 7); assert.strictEqual(rich.spins[0].waysN, 343);
+});
+test('coin respins cap at 5', () => { const rng = M.mulberry32(3); let n = 0; for (let i = 0; i < 4000; i++) { const s = M.spin(50, rng, { forceRespin: 3 }); if (s.respin) { n++; assert.ok(s.respin.steps.length <= M.RESPIN_MAX); } } assert.ok(n > 0); });
+test('tiers', () => { assert.strictEqual(M.tier(0, 50), ''); assert.strictEqual(M.tier(100, 50), 'win'); assert.strictEqual(M.tier(500, 50), 'big'); assert.strictEqual(M.tier(1250, 50), 'mega'); assert.strictEqual(M.tier(2500, 50), 'monster'); });
+test('RTP simulation (300k spins, seeded) lands near the 95.4% target', () => {
   const s = M.simulate(300000, M.mulberry32(20261121)); console.log(`  RTP ${(s.rtp * 100).toFixed(2)}%  hit ${(s.hitRate * 100).toFixed(1)}%  SD ${s.sd.toFixed(2)}x  bonus 1 in ${s.bonusEvery.toFixed(0)}`);
   assert.ok(s.rtp > 0.925 && s.rtp < 0.985, 'short-run RTP within noise of target: ' + s.rtp); assert.ok(s.hitRate > 0.25 && s.hitRate < 0.35);
 });
@@ -43,5 +60,5 @@ test('gorilla punch-nudge: only on losing base spins one stop from a win, lands 
     assert.strictEqual(M.waysWin(s.grid.map((c, r) => r === z.r ? z.pre : c)), 0, 'landed on a loss'); assert.ok(s.ways.length > 0, 'punched into a win');
     const shared = z.dir > 0 ? [s.grid[z.r][1], s.grid[z.r][2]] : [s.grid[z.r][0], s.grid[z.r][1]]; assert.deepStrictEqual(z.dir > 0 ? z.pre.slice(0, 2) : z.pre.slice(1), shared); }
   assert.ok(n / 60000 > .004 && n / 60000 < .02, 'nudge rate ' + n / 60000);
-  for (let i = 0; i < 3000; i++) assert.ok(!M.spin(50, rng, { free: true }).nudge, 'no nudges in THUNDER SPINS');
+  for (let i = 0; i < 3000; i++) assert.ok(!M.spin(50, rng, { mode: 'jungle' }).nudge, 'no nudges in bonus spins');
 });
