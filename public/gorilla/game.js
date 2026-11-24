@@ -55,19 +55,23 @@ let mediaFiles = [];
 fetch('/gorilla/media/manifest.json').then(r => r.ok ? r.json() : { files: [] }).then(j => { mediaFiles = j.files || []; for (const c of SY.codes) if (mediaFiles.includes(`sym-${c}.png`)) SY.useCustom(c, `/gorilla/media/sym-${c}.png`); }).catch(() => {});
 function playMedia(name) { if (!mediaFiles.includes(name) || quick) return Promise.resolve(false); const v = $('cine'); return new Promise(res => { let done = false; const end = () => { if (done) return; done = true; v.pause(); v.classList.add('hidden'); v.onclick = null; res(true); };
   v.src = '/gorilla/media/' + name; v.muted = A.muted; v.classList.remove('hidden'); v.onended = end; v.onerror = end; v.onclick = end; v.play().catch(end); setTimeout(end, 15000); }); }
-// full-screen cinematic takeover (bonus trigger, mode intros, almost-tease, mega/monster). skippable, short on purpose so play stays snappy
+// full-screen cinematic takeover (bonus trigger, mode intros, almost-tease, mega/monster). skippable; cross-fades so the cabinet does not jump sideways
 function playTakeover(o = {}) {
   if (quick) return Promise.resolve(false);
   const v = $('cine'), q = (ape && ape.res === 'sd') ? 'sd' : 'hd', startAt = o.startAt == null ? 1.8 : o.startAt, dur = o.dur || 2800, clip = o.clip || 'rampage';
-  v.classList.remove('mode-jungle', 'mode-fury', 'mode-inferno');
-  v.src = `/gorilla/media/v5/${clip}-${q}.mp4?v=7`; v.muted = A.muted; v.classList.add('full'); if (o.mode) v.classList.add('mode-' + o.mode); v.classList.remove('hidden'); $('app').classList.add('quake');
-  if (o.snd !== false) { A.play(o.snd || 'roar'); if (o.snd !== 'stare') A.play('thunder'); } shakeDom();
+  const fade = 400 * (window.__gorillaSpeed || 1);
+  v.classList.remove('mode-jungle', 'mode-fury', 'mode-inferno', 'show');
+  $('app').classList.remove('quake'); // drop any leftover cabinet shake so the fade does not start mid-nudge
+  v.src = `/gorilla/media/v5/${clip}-${q}.mp4?v=7`; v.muted = A.muted; v.classList.add('full'); if (o.mode) v.classList.add('mode-' + o.mode); v.classList.remove('hidden');
+  if (o.snd !== false) { A.play(o.snd || 'roar'); if (o.snd !== 'stare') A.play('thunder'); }
   return new Promise(res => { let done = false;
-    const end = () => { if (done) return; done = true; v.pause(); v.classList.add('hidden'); v.classList.remove('full', 'mode-jungle', 'mode-fury', 'mode-inferno'); $('app').classList.remove('quake'); v.onclick = null; res(true); };
-    const go = () => { try { v.currentTime = startAt; } catch (e) {} v.play().catch(end); };
+    const end = () => { if (done) return; done = true; v.classList.remove('show'); $('app').classList.remove('takeover', 'quake'); v.onclick = null;
+      setTimeout(() => { v.pause(); v.classList.add('hidden'); v.classList.remove('full', 'mode-jungle', 'mode-fury', 'mode-inferno'); res(true); }, fade + 40); };
+    const go = () => { try { v.currentTime = startAt; } catch (e) {} v.play().catch(end);
+      requestAnimationFrame(() => requestAnimationFrame(() => { $('app').classList.add('takeover'); v.classList.add('show'); })); };
     v.onended = end; v.onerror = end; v.onclick = end;
     if (v.readyState >= 1) go(); else v.onloadedmetadata = go;
-    setTimeout(end, dur * (window.__gorillaSpeed || 1) + 500); }); }
+    setTimeout(end, dur * (window.__gorillaSpeed || 1) + fade + 500); }); }
 // two Temple Wheel badges landed, no trigger: lean into the camera + sting, then the moment lets go
 async function almostMiss() {
   $('frame').classList.add('tease', 'almost'); document.body.classList.add('almost');

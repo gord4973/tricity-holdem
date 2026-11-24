@@ -8,8 +8,11 @@ html,body{margin:0;height:100%;background:#050101;color:#fff;font-family:"Segoe 
 #safeProbe{position:fixed;top:0;left:0;width:0;height:0;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);visibility:hidden}
 #ape{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:0}
 #fallbackBg{position:absolute;inset:0;background:radial-gradient(ellipse at 60% 70%,#c2410c,#3a0d04 45%,#050101 80%);z-index:0}
-#cine{position:absolute;left:0;top:0;width:100%;height:var(--top3,var(--top));object-fit:cover;z-index:6;background:#000}
-#cine.full{inset:0;width:100%;height:100%;z-index:14;object-fit:cover;background:#000}
+#cine{position:absolute;left:0;top:0;width:100%;height:var(--top3,var(--top));object-fit:cover;z-index:6;background:#000;opacity:1;transition:opacity .4s ease}
+#cine.full{inset:0;width:100%;height:100%;z-index:14;object-fit:cover;background:#000;opacity:0}
+#cine.full.show{opacity:1}
+#app > :not(#cine):not(#dbg):not(#rotate){transition:opacity .4s ease}
+#app.takeover > :not(#cine):not(#dbg):not(#rotate){opacity:0;pointer-events:none}
 /* ---------- gorilla stage ---------- */
 #scene{position:absolute;left:0;top:0;width:100%;height:var(--top3,var(--top));overflow:hidden;z-index:0;background:#050101}
 #scene .sceneBg{position:absolute;inset:-60px;background-size:cover;background-position:center 30%;filter:blur(26px) brightness(.5) saturate(1.25);transform:scale(1.2)}
@@ -44,17 +47,14 @@ body.thunder #frame{box-shadow:0 0 0 calc(3px * var(--k)) #7ab8ff,0 0 40px #2a6a
 #frame{position:absolute;left:var(--fx);top:var(--top);width:var(--fw);height:var(--fh);padding:var(--pad);border-radius:calc(14px * var(--k)) calc(14px * var(--k)) calc(10px * var(--k)) calc(10px * var(--k));
   background:linear-gradient(#6a3a18,#2a1206 18%,#1a0a04 80%,#3a1a08);box-shadow:inset 0 0 0 calc(2px * var(--k)) #d9a441,inset 0 0 0 calc(4px * var(--k)) #3a1a06,0 0 calc(30px * var(--k)) rgba(255,90,0,.35),0 18px 40px #000}
 #frame::before{content:"";position:absolute;inset:calc(var(--pad) - 3px);border-radius:calc(8px * var(--k));border:calc(3px * var(--k)) solid transparent;background:linear-gradient(90deg,#ff3d00,#ffb300,#ff3d00,#ffb300,#ff3d00) border-box;background-size:300% 100%;-webkit-mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:lava 6s linear infinite;pointer-events:none;z-index:2}
-#frame.spinning::before{animation-duration:2.4s;filter:brightness(1.25) drop-shadow(0 0 6px #ff7a00)}
-#frame.tease::before{animation-duration:.85s;filter:brightness(1.85) drop-shadow(0 0 16px #ff7a00)}
-#frame.almost::before{animation-duration:.5s;filter:brightness(2.2) drop-shadow(0 0 22px #ff3d00)}
-#frame.tease{box-shadow:inset 0 0 0 calc(2px * var(--k)) #ffcf3a,0 0 0 calc(3px * var(--k)) #ff5a00,0 0 50px #ff4a00,0 18px 40px #000}
-#frame.almost{box-shadow:inset 0 0 0 calc(2px * var(--k)) #ffe08a,0 0 0 calc(4px * var(--k)) #ff3d00,0 0 70px #ff2a00,0 18px 40px #000}
+#frame.spinning::before{animation-duration:2.4s;filter:brightness(1.25)}
+#frame.tease::before{animation-duration:.85s;filter:brightness(1.55)}
+#frame.almost::before{animation-duration:.5s;filter:brightness(1.7)}
+#frame.tease{box-shadow:inset 0 0 0 calc(2px * var(--k)) #ffcf3a,0 0 0 calc(2px * var(--k)) #ff5a00,0 18px 40px #000}
+#frame.almost{box-shadow:inset 0 0 0 calc(2px * var(--k)) #ffe08a,0 0 0 calc(3px * var(--k)) #ff3d00,0 18px 40px #000}
 @keyframes lava{to{background-position:300% 0}}
-.flames{position:absolute;left:2%;right:2%;top:calc(-18px * var(--k));height:calc(24px * var(--k));pointer-events:none;background:radial-gradient(ellipse 7% 100% at 6% 100%,#ffcf4a,#ff5a00 45%,transparent 70%),radial-gradient(ellipse 6% 90% at 94% 100%,#ffcf4a,#ff5a00 45%,transparent 70%);animation:flick .18s infinite alternate;opacity:.9;filter:blur(1px);z-index:3}
-#frame.spinning .flames,#frame.tease .flames,#frame.almost .flames{top:calc(-28px * var(--k));left:0;right:0;height:auto;bottom:calc(-10px * var(--k));opacity:1;
-  background:radial-gradient(ellipse 8% 12% at 6% 0,#ffcf4a,#ff5a00 45%,transparent 70%),radial-gradient(ellipse 8% 12% at 94% 0,#ffcf4a,#ff5a00 45%,transparent 70%),radial-gradient(ellipse 40% 14% at 50% 0,rgba(255,140,0,.85),transparent 70%),radial-gradient(ellipse 14% 50% at 0% 50%,rgba(255,90,0,.55),transparent 70%),radial-gradient(ellipse 14% 50% at 100% 50%,rgba(255,90,0,.55),transparent 70%),radial-gradient(ellipse 40% 16% at 50% 100%,rgba(255,100,0,.7),transparent 70%)}
-#frame.almost .flames{filter:blur(1px) brightness(1.3)}
-@keyframes flick{0%{transform:scaleY(1);opacity:.85}100%{transform:scaleY(1.2) translateY(-2px);opacity:1}}
+/* bouncing flame orbs/bands above and below the reels removed — they sat between the hands and the frame, and over the Rampage meter */
+.flames{display:none!important}
 body.tease #scene .sceneBg,body.tease #scene .stage{filter:saturate(1.45) brightness(.72) contrast(1.08)}
 body.almost{--almost:1}
 body.almost #scene .stage,body.almost #scene video{filter:contrast(1.18) saturate(1.25) brightness(.8)}
@@ -122,7 +122,7 @@ body.almost::after{content:"";position:fixed;inset:0;pointer-events:none;z-index
 #toast{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);z-index:10;background:rgba(0,0,0,.85);border:2px solid #ffcf3a;border-radius:14px;padding:10px 18px;font-weight:800;font-size:calc(16px * var(--k));text-align:center;width:max-content;max-width:90%}
 #dbg{position:absolute;left:6px;top:calc(var(--top) * .3);z-index:11;display:flex;flex-direction:column;gap:3px}#dbg button{font-size:11px;padding:4px 6px}
 .shakeX{animation:shk .45s}@keyframes shk{15%{transform:translate(-10px,5px)}35%{transform:translate(9px,-6px)}55%{transform:translate(-7px,4px)}75%{transform:translate(5px,-3px)}90%{transform:translate(-2px,1px)}}
-#app.quake{animation:qk .55s}@keyframes qk{10%{transform:translate(-8px,4px) scale(1.01)}30%{transform:translate(9px,-5px) scale(1.015)}50%{transform:translate(-6px,3px)}70%{transform:translate(4px,-2px)}100%{transform:none}}
+#app.quake{animation:qk .55s}@keyframes qk{10%{transform:translateX(-50%) translate(-8px,4px) scale(1.01)}30%{transform:translateX(-50%) translate(9px,-5px) scale(1.015)}50%{transform:translateX(-50%) translate(-6px,3px)}70%{transform:translateX(-50%) translate(4px,-2px)}100%{transform:translateX(-50%)}}
 /* ---------- landscape on phones / tablets: ask to rotate ---------- */
 #rotate{display:none}
 body.rotate #rotate{display:flex;position:fixed;inset:0;z-index:100;align-items:center;justify-content:center;background:radial-gradient(#2a0d04,#050101);text-align:center}
