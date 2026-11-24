@@ -16,6 +16,7 @@ export const CLIPS = { // minor: chains smoothly (waits for / speeds up the clip
   punch: { pri: 4, dur: 4.04, snd: 'punch', impacts: [[1.70, 1]], shakeAt: [[1.86, .3]] }, // ONE right-fist smash, fist meets the ledge at 1.70 s
   slam: { pri: 4, file: 'punch', dur: 4.04, snd: 'punch', impacts: [[1.70, 1]], shakeAt: [[1.86, .3]] }, // lock smash uses the single punch
 };
+const SND_V = { chestbeat: '6' }; // per-sound cache bump (v5 chestbeat carried a stray video stream)
 const MEDIA_V = '5', BASE = '/gorilla/media/v3/';
 const SOUNDS = ['anticipate', 'lose', 'smallwin', 'chestbeat', 'roar', 'punch', 'stare', 'roar-real', 'br1', 'br2', 'br3', 'br4', 'br5', 'br6', 'huff1', 'huff2', 'huff3', 'grunt1', 'grunt2'];
 export const LEDGE = 0.80;   // fraction of clip height where the reel frame's top edge sits (just under the fingertips)
@@ -44,7 +45,7 @@ export class VideoApe {
     this._startIdle(true); this._stareTimer();
     // warm every clip (sequential blob fetch keeps switching instant; falls back to the URL if it fails)
     this._prefetch();
-    A.fetchSamples(Object.fromEntries(SOUNDS.map(k => [k === 'roar-real' ? 'roarReal' : k, BASE + k + '.mp3?v=' + MEDIA_V])));
+    A.fetchSamples(Object.fromEntries(SOUNDS.map(k => [k === 'roar-real' ? 'roarReal' : k, BASE + k + '.mp3?v=' + (SND_V[k] || MEDIA_V)])));
     window.__gorillaAmbient = true;
     const kick = () => this.kick('gesture');
     for (const ev of ['pointerdown', 'touchstart', 'keydown', 'click']) addEventListener(ev, kick, { capture: true, passive: true });
