@@ -186,3 +186,4 @@ body.graded #scene .stage::after{opacity:.55}
 body.graded.mode-inferno #scene .stage::after{opacity:.5;background:#ff2a00}
 body.graded #scene .sceneBg{transition:filter 1.2s;filter:blur(26px) brightness(.55) saturate(1.6)}
 body.bonus #logo{opacity:0;transition:opacity .4s}
+#app.wide .plq{transition:opacity .4s}#app.wide.grown .plq{opacity:0;pointer-events:none}

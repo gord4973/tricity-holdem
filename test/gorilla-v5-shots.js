@@ -2,7 +2,7 @@
 const P = require('puppeteer-core'), BASE = process.env.GORILLA_URL || 'http://localhost:3480', SHOTS = process.env.SHOTS || '/workspace/gorilla-shots/v5';
 const wait = ms => new Promise(r => setTimeout(r, ms));
 (async () => { const b = await P.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome', args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required'] }); const errs = [];
-  for (const [dev, w, h, d] of [['phone-412', 412, 915, 3], ['ipad-1024', 1024, 1366, 2]]) {
+  for (const [dev, w, h, d] of [['phone-412', 412, 915, 3], ['ipad-1024', 1024, 1366, 2]].filter(x => !process.env.DEVS || process.env.DEVS.split(',').includes(x[0]))) {
     const p = await b.newPage(); p.on('pageerror', e => errs.push(dev + ': ' + e.message)); await p.setViewport({ width: w, height: h, deviceScaleFactor: d, isMobile: true, hasTouch: true });
     await p.goto(BASE + '/gorilla?debug=1&speed=0.5', { waitUntil: 'load' }); await p.evaluate(() => localStorage.setItem('gorillaState1', JSON.stringify({ cents: 500000, denom: 1, bet: 2, meter: 120 }))); await p.reload({ waitUntil: 'load' });
     await p.waitForFunction(() => window.G && !G.busy && window.ape && ape.kind === 'video'); await p.mouse.click(w / 2, h * .3); await wait(2500);

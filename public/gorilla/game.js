@@ -48,7 +48,7 @@ function layout() {
   // v5 growing reels: the frame grows UP over the gorilla's ledge (he stays put); cells shrink so 7 rows still fit under the plaques
   const rows = curRows, maxFh = avail - Math.round(stp + H * (wide ? .1 : .12)), cellR = rows > 3 ? Math.min(cellH, (maxFh - 2 * pad) / rows) : cellH, fh = Math.round(rows * cellR + 2 * pad), top = Math.round(avail - fh);
   const v = { '--appW': W + 'px', '--k': k.toFixed(3), '--top': top + 'px', '--top3': top3 + 'px', '--fbot': avail + 'px', '--fw': fw + 'px', '--fh': fh + 'px', '--fx': Math.round((W - fw) / 2) + 'px', '--pad': pad + 'px', '--barH': barH + 'px', '--st': stp + 'px', '--sb': sbp + 'px' };
-  for (const n in v) app.style.setProperty(n, v[n]); app.classList.toggle('wide', wide);
+  for (const n in v) app.style.setProperty(n, v[n]); app.classList.toggle('wide', wide); app.classList.toggle('grown', rows > 3);
   if (ape && ape.resize) { ape.resize({ top: top3 + pad * .6, width: W }); if (ape.geom) app.style.setProperty('--gw', Math.round(ape.geom.w) + 'px'); }
   reels.resize(); }
 let mediaFiles = [];
