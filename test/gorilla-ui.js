@@ -15,7 +15,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   await p.waitForFunction(() => [...document.querySelectorAll('#scene video.v')].some(v => !v.paused && +v.style.opacity > .5), { timeout: 10000 }); assert.ok(await onScreen(), 'idle clip playing');
   assert.ok(await p.evaluate(() => /^idle-/.test(ape.lastIdle)), 'idle director picked an idle clip');
   await p.mouse.click(200, 200); // unlock audio
-  for (const n of ['roar', 'chestbeat', 'punch', 'smallwin', 'lose', 'watch', 'anticipate', 'stare']) { await p.evaluate(n => { window.__done = false; ape.play(n).then(() => window.__done = true); }, n);
+  for (const n of ['roar', 'chestbeat', 'punch', 'smallwin', 'lose', 'watch', 'anticipate', 'stare', 'lean']) { await p.evaluate(n => { window.__done = false; ape.play(n).then(() => window.__done = true); }, n);
     await p.waitForFunction(n => document.getElementById('scene').dataset.clip === n && [...document.querySelectorAll('#scene video.v')].some(v => !v.paused && +v.style.opacity > .9), { timeout: 8000 }, n);
     await p.waitForFunction(() => /idle|still/.test(document.getElementById('scene').dataset.clip) && window.__done, { timeout: 15000 }); console.log(`✔ ${n} clip played and returned to idle`); }
   await p.waitForFunction(() => ['roar', 'chestbeat', 'punch', 'stare', 'smallwin', 'lose', 'anticipate', 'br1', 'br4', 'huff1', 'grunt1', 'roarReal'].every(k => GorillaAudio.loaded(k)), { timeout: 15000 }); console.log('✔ gorilla sounds + breath one-shots decoded');
@@ -62,6 +62,11 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   await p.evaluate(() => { window.__hits = []; const o = ape.on.slam; ape.on.slam = i => { __hits.push({ clip: ape.action && ape.action.name, busy: G.busy }); o && o(i); }; });
   await p.evaluate(() => { window.__w = null; const t0 = performance.now(); const iv = setInterval(() => { if (ape.action && /^watch/.test(ape.action.name)) { window.__w = performance.now() - t0; clearInterval(iv); } }, 5); G.spin(); });
   await p.waitForFunction(() => window.__w != null, { timeout: 3000 }); const wms = await p.evaluate(() => __w); assert.ok(wms < 100, 'watch starts with the spin: ' + wms); console.log(`✔ watch began ${wms.toFixed(0)} ms after SPIN`); await idle();
+  // two Temple Wheel badges, no trigger: lean-in takeover, no wheel
+  await p.evaluate(() => { window.__almost = false; const iv = setInterval(() => { if ((window.__gorillaFx && __gorillaFx.kind === 'almost') || document.body.classList.contains('almost') || (document.getElementById('cine') && document.getElementById('cine').classList.contains('full'))) { window.__almost = true; clearInterval(iv); } }, 20); });
+  await run('almost', async () => { await p.waitForFunction(() => window.__almost, { timeout: 60000 }); await wait(200); await p.screenshot({ path: SHOTS + '/ui-almost.png' }); });
+  assert.ok(await p.evaluate(() => !document.getElementById('wheelBox') || document.getElementById('wheelBox').classList.contains('hidden')), 'almost tease does not open the wheel');
+  console.log('✔ almost tease: lean-in played, wheel stayed closed');
   const sync = async (k, kind) => { const r = await p.evaluate(kind => ({ fx: window.__fxBy[kind], hit: ape.lastImpact }), kind); const d = r.fx.at - r.hit.at, vd = (r.hit.ct - r.hit.cue) * 1000;
     assert.ok(Math.abs(d) <= 50 && Math.abs(vd) <= 50, k + ' sync ' + JSON.stringify(r)); console.log(`✔ ${k}: reel effect ${d.toFixed(1)} ms after the impact cue; clip clock ${vd.toFixed(0)} ms past the impact frame (${r.hit.clip} @ ${r.hit.cue}s)`); return { d, vd }; };
   await run('nudge', async () => { await p.waitForFunction(() => window.__gorillaFx && __gorillaFx.kind === 'nudge', { timeout: 60000 }); await wait(60); await p.screenshot({ path: SHOTS + '/ui-nudge.png' }); });

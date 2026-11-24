@@ -84,7 +84,7 @@
     return { r, steps, pay }; }
   // ---- one spin ----
   // opts: mode ('jungle'|'fury'|'inferno' = bonus spin), rows (3-7, bonus only), stack (Totem Stacks), meter ({n}) Rampage Meter state,
-  //       force(grid) debug override, forceNudge, forceRespin (n coins), forceTrigger (tier) - debug/test only
+  //       force(grid) debug override, forceNudge, forceRespin (n coins), forceTrigger (tier), noTrigger - debug/test only
   // returns { grid[reel][row] = {s, mult?, coin?, jp?, locked?}, rows, ways, wildMult, thunder, coins, respin, drums, bonus:{tier,via}|null, meter, fists, stack, pre, win, nudge }
   function spin(bet, rng, opts = {}) {
     const mode = opts.mode || null, free = !!mode, strips = free ? MODE_STRIPS[mode] : STRIPS, R = free ? (opts.rows || 3) : 3, rows = [R, R, R], stops = [], grid = [];
@@ -129,9 +129,10 @@
     const drums = grid.reduce((a, col) => a + (col.some(c => c.s === 'DR') ? 1 : 0), 0), fists = free ? grid.reduce((a, col) => a + col.filter(c => c.s === 'FI').length, 0) : 0;
     // Temple Drum Wheel trigger: 3 drums always, 1-2 drums sometimes, or a full Rampage Meter
     let bonus = null, meter = null;
-    if (!free) { if (opts.forceTrigger) bonus = { tier: opts.forceTrigger, via: 'force' };
+    if (!free) { if (opts.noTrigger) bonus = null;
+      else if (opts.forceTrigger) bonus = { tier: opts.forceTrigger, via: 'force' };
       else if (drums >= 3) bonus = { tier: 3, via: 'drums' }; else if (drums && rng() < TRIG[drums]) bonus = { tier: drums, via: 'drums' };
-      if (opts.meter) { const m = opts.meter, before = m.n; let full = false; if (!bonus && drums) { m.n = Math.min(METER_MAX, m.n + drums); if (m.n >= METER_MAX) { full = true; m.n = 0; bonus = { tier: 2, via: 'meter' }; } } meter = { before, n: m.n, added: bonus && !full ? 0 : drums, full, max: METER_MAX }; } }
+      if (opts.meter) { const m = opts.meter, before = m.n; let full = false; if (!bonus && drums) { m.n = Math.min(METER_MAX, m.n + drums); if (m.n >= METER_MAX && !opts.noTrigger) { full = true; m.n = 0; bonus = { tier: 2, via: 'meter' }; } } meter = { before, n: m.n, added: bonus && !full ? 0 : drums, full, max: METER_MAX }; } }
     return { grid, rows, waysN: ways(rows), stops, ways: wl, wildMult: wildSum, thunder, coins: { list: coins, count: coins.length, pay: coinPay, smashed }, respin, drums, bonus, meter, fists, stack, pre, win, free, mode, nudge };
   }
   // ---- Temple Drum Wheel ----

@@ -31,10 +31,14 @@ export const CLIPS = { // minor: chains smoothly (waits for / speeds up the clip
   look: { pri: 1, v4: 1, file: 'look-reels', dur: 3.04, snd: 'look-reels', minor: 1 },
   'watch-left': { pri: 1, v5: 1, dur: 6.04, minor: 1 },
   'watch-right': { pri: 1, v5: 1, dur: 6.04, minor: 1 },
+  lean: { pri: 3, v5: 1, dur: 6.04, snd: 'stare', major: 1, dimAt: [[1.2, 2.2]] }, // leans into the camera, fills the frame, settles back
   rampage: { pri: 5, v5: 1, dur: 8.04, snd: 'roar', loud: 1, major: 1, shakeAt: [[1.6, .6], [2.4, .9], [3.2, .7], [4.0, .45]], flashAt: [2.2, 3.1], dimAt: [[1.8, 3.2]], burstAt: [[2.3, 1.3], [3.2, .9]] },
+  'rampage-jungle': { pri: 5, v5: 1, dur: 8.04, snd: 'roar', loud: 1, major: 1, shakeAt: [[1.6, .6], [2.4, .9], [3.2, .7], [4.0, .45]], flashAt: [2.2, 3.1], dimAt: [[1.8, 3.2]], burstAt: [[2.3, 1.3], [3.2, .9]] },
+  'rampage-fury': { pri: 5, v5: 1, dur: 8.04, snd: 'roar', loud: 1, major: 1, shakeAt: [[1.6, .6], [2.4, .9], [3.2, .7], [4.0, .45]], flashAt: [2.2, 3.1], dimAt: [[1.8, 3.2]], burstAt: [[2.3, 1.3], [3.2, .9]] },
+  'rampage-inferno': { pri: 5, v5: 1, dur: 8.04, snd: 'roar', loud: 1, major: 1, shakeAt: [[1.6, .6], [2.4, .9], [3.2, .7], [4.0, .45]], flashAt: [2.2, 3.1], dimAt: [[1.8, 3.2]], burstAt: [[2.3, 1.3], [3.2, .9]] },
 };
 const V4 = '/gorilla/media/v4/', V4_V = '1';
-const V5 = '/gorilla/media/v5/', V5_V = '6';
+const V5 = '/gorilla/media/v5/', V5_V = '7';
 const V4_SOUNDS = ['punch-left', 'punch-right', 'overhead-smash', 'thunder-roar-short', 'awaken-roar', 'wheel-swipe', 'lunge-in', 'ledge-heave', 'fist-throw', 'victory-pound', 'breath-heavy', 'dismiss', 'look-reels'];
 const SND_V = { chestbeat: '7' }; // per-sound cache bump (v5 chestbeat carried a stray video stream)
 const MEDIA_V = '5', BASE = '/gorilla/media/v3/';
@@ -86,7 +90,7 @@ export class VideoApe {
     return (this.bonusLoading = (async () => { for (const n of order) { const f = this.file(n); if (this.blobs[f]) continue; try { const r = await fetch(this.url(n)); if (!r.ok) { this.bad.add(f); glog('clip-missing', { clip: n, status: r.status }); continue; } this.blobs[f] = URL.createObjectURL(await r.blob()); } catch (e) { /* stream from URL */ } } })()); }
   async _prefetch() { await this.ready; const order = ['watch', 'lose', 'smallwin', 'punch', 'anticipate', 'chestbeat', 'roar', 'stare', ...this.idleNames];
     for (const n of order) { if (!CLIPS[n] || CLIPS[n].file || this.blobs[n]) continue; try { const r = await fetch(`${BASE}${n}-${this.res}.mp4?v=${MEDIA_V}`); if (!r.ok) { this.bad.add(n); glog('clip-missing', { clip: n, status: r.status }); continue; } this.blobs[n] = URL.createObjectURL(await r.blob()); } catch (e) { /* stream from URL instead */ } }
-    for (const n of ['watch-left', 'watch-right', 'rampage']) { const f = this.file(n); if (this.blobs[f] || this.bad.has(f)) continue; try { const r = await fetch(this.url(n)); if (!r.ok) { this.bad.add(f); glog('clip-missing', { clip: n, status: r.status }); continue; } this.blobs[f] = URL.createObjectURL(await r.blob()); } catch (e) { /* stream from URL */ } } }
+    for (const n of ['watch-left', 'watch-right', 'lean', 'rampage']) { const f = this.file(n); if (this.blobs[f] || this.bad.has(f)) continue; try { const r = await fetch(this.url(n)); if (!r.ok) { this.bad.add(f); glog('clip-missing', { clip: n, status: r.status }); continue; } this.blobs[f] = URL.createObjectURL(await r.blob()); } catch (e) { /* stream from URL */ } } }
   // ---------- layout: the clip's ledge lines up with the top edge of the reel frame ----------
   resize(g = {}) { if (g.top != null) this.top = g.top; const W = g.width || this.root.clientWidth || innerWidth, top = this.top;
     let h = top / (LEDGE - CROP_MAX); const hFill = W / ASPECT; if (h > hFill) h = Math.max(top / LEDGE, hFill); // never wider than needed
@@ -179,6 +183,10 @@ export class VideoApe {
     const name = (side === 0 || side === 2) && this.bad.has(this.file(n)) ? 'watch' : n;
     const r = spinSec ? Math.max(.8, Math.min(1.5, (CLIPS[name].dur || 4) / (spinSec + 1.1))) : 1;
     return this.play(name, null, { now: true, rate: r }); }
+  // follow reel 1 → 2 → 3 in one spin: start on the left, then cut to mid and right as each reel stops
+  watchTrack() { return this.watch(0, 0); }
+  watchTo(side) { return this.watch(0, side); }
+  lean() { return this.play('lean', null, { now: true }); }
   anticipate() { return this.play('anticipate', null, { now: true }); }
   stare() { return this.play('stare'); }
   lose() { return this.play('lose'); }

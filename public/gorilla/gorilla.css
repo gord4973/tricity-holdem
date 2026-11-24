@@ -44,11 +44,21 @@ body.thunder #frame{box-shadow:0 0 0 calc(3px * var(--k)) #7ab8ff,0 0 40px #2a6a
 #frame{position:absolute;left:var(--fx);top:var(--top);width:var(--fw);height:var(--fh);padding:var(--pad);border-radius:calc(14px * var(--k)) calc(14px * var(--k)) calc(10px * var(--k)) calc(10px * var(--k));
   background:linear-gradient(#6a3a18,#2a1206 18%,#1a0a04 80%,#3a1a08);box-shadow:inset 0 0 0 calc(2px * var(--k)) #d9a441,inset 0 0 0 calc(4px * var(--k)) #3a1a06,0 0 calc(30px * var(--k)) rgba(255,90,0,.35),0 18px 40px #000}
 #frame::before{content:"";position:absolute;inset:calc(var(--pad) - 3px);border-radius:calc(8px * var(--k));border:calc(3px * var(--k)) solid transparent;background:linear-gradient(90deg,#ff3d00,#ffb300,#ff3d00,#ffb300,#ff3d00) border-box;background-size:300% 100%;-webkit-mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:lava 6s linear infinite;pointer-events:none;z-index:2}
-#frame.tease::before{animation-duration:1.2s;filter:brightness(1.6) drop-shadow(0 0 10px #ff7a00)}
+#frame.spinning::before{animation-duration:2.4s;filter:brightness(1.25) drop-shadow(0 0 6px #ff7a00)}
+#frame.tease::before{animation-duration:.85s;filter:brightness(1.85) drop-shadow(0 0 16px #ff7a00)}
+#frame.almost::before{animation-duration:.5s;filter:brightness(2.2) drop-shadow(0 0 22px #ff3d00)}
+#frame.tease{box-shadow:inset 0 0 0 calc(2px * var(--k)) #ffcf3a,0 0 0 calc(3px * var(--k)) #ff5a00,0 0 50px #ff4a00,0 18px 40px #000}
+#frame.almost{box-shadow:inset 0 0 0 calc(2px * var(--k)) #ffe08a,0 0 0 calc(4px * var(--k)) #ff3d00,0 0 70px #ff2a00,0 18px 40px #000}
 @keyframes lava{to{background-position:300% 0}}
-.flames{position:absolute;left:4%;right:4%;top:calc(-18px * var(--k));height:calc(24px * var(--k));pointer-events:none;background:radial-gradient(ellipse 7% 100% at 6% 100%,#ffcf4a,#ff5a00 45%,transparent 70%),radial-gradient(ellipse 6% 90% at 94% 100%,#ffcf4a,#ff5a00 45%,transparent 70%);animation:flick .18s infinite alternate;opacity:.9;filter:blur(1px)}
-#frame.tease .flames{background:radial-gradient(ellipse 7% 100% at 6% 100%,#ffcf4a,#ff5a00 45%,transparent 70%),radial-gradient(ellipse 6% 90% at 94% 100%,#ffcf4a,#ff5a00 45%,transparent 70%),radial-gradient(ellipse 30% 100% at 50% 100%,rgba(255,140,0,.8),transparent 70%)}
+.flames{position:absolute;left:2%;right:2%;top:calc(-18px * var(--k));height:calc(24px * var(--k));pointer-events:none;background:radial-gradient(ellipse 7% 100% at 6% 100%,#ffcf4a,#ff5a00 45%,transparent 70%),radial-gradient(ellipse 6% 90% at 94% 100%,#ffcf4a,#ff5a00 45%,transparent 70%);animation:flick .18s infinite alternate;opacity:.9;filter:blur(1px);z-index:3}
+#frame.spinning .flames,#frame.tease .flames,#frame.almost .flames{top:calc(-28px * var(--k));left:0;right:0;height:auto;bottom:calc(-10px * var(--k));opacity:1;
+  background:radial-gradient(ellipse 8% 12% at 6% 0,#ffcf4a,#ff5a00 45%,transparent 70%),radial-gradient(ellipse 8% 12% at 94% 0,#ffcf4a,#ff5a00 45%,transparent 70%),radial-gradient(ellipse 40% 14% at 50% 0,rgba(255,140,0,.85),transparent 70%),radial-gradient(ellipse 14% 50% at 0% 50%,rgba(255,90,0,.55),transparent 70%),radial-gradient(ellipse 14% 50% at 100% 50%,rgba(255,90,0,.55),transparent 70%),radial-gradient(ellipse 40% 16% at 50% 100%,rgba(255,100,0,.7),transparent 70%)}
+#frame.almost .flames{filter:blur(1px) brightness(1.3)}
 @keyframes flick{0%{transform:scaleY(1);opacity:.85}100%{transform:scaleY(1.2) translateY(-2px);opacity:1}}
+body.tease #scene .sceneBg,body.tease #scene .stage{filter:saturate(1.45) brightness(.72) contrast(1.08)}
+body.almost{--almost:1}
+body.almost #scene .stage,body.almost #scene video{filter:contrast(1.18) saturate(1.25) brightness(.8)}
+body.almost::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:12;background:radial-gradient(ellipse at 50% 38%,transparent 42%,rgba(40,0,0,.55) 100%)}
 #logo{display:none!important}#logo-legacy{position:absolute;left:50%;top:calc(-17px * var(--k));transform:translateX(-50%);z-index:4;pointer-events:none;padding:0 calc(14px * var(--k));border-radius:calc(8px * var(--k));background:linear-gradient(#3a1a08,#120602);box-shadow:0 0 0 calc(1.5px * var(--k)) #d9a441,0 4px 12px #000}
 #logo span{display:block;font:900 calc(24px * var(--k))/1.25 "Arial Black",Impact,sans-serif;letter-spacing:calc(5px * var(--k));background:linear-gradient(#fff3b8,#ffb52a 45%,#d2400a 70%,#ffcf6a);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 6px rgba(255,120,0,.6))}
 #reels{position:relative;width:100%;height:100%;border-radius:calc(6px * var(--k));overflow:hidden;background:#0b0503;cursor:pointer}

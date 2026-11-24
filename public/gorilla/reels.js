@@ -33,10 +33,11 @@
       const rs = this.rs = opts.randomSym || this.o.randomSym, fast = opts.fast || 1, sp = (window.__gorillaSpeed || 1); this.clearWin(); this.quick = false; this.spinT0 = performance.now();
       return Promise.all(this.reels.map((R, r) => new Promise(done => {
         const tease = !!(opts.tease && opts.tease[r]);
-        const D = (.95 + r * .38 + (tease ? 1.9 : 0)) * fast * sp, N = Math.max(8, Math.round(17 * (D / sp - .2) * (tease ? .8 : 1)));
+        const extra = (r === 2 && !tease) ? .22 : 0;
+        const D = (.95 + r * .38 + extra + (tease ? 2.35 : 0)) * fast * sp, N = Math.max(8, Math.round(17 * (D / sp - .2) * (tease ? .8 : 1)));
         const n = this.rows, vis = Array.from({ length: n }, (_, k) => R.strip[Math.round(R.y) + k] || rs(r));
         R.strip = [...grid[r].map(c => ({ ...c })), ...Array.from({ length: N }, () => rs(r)), ...vis]; R.y = N + n; R.above = rs(r); R.pop = {}; R.rattle = {}; R.tease = false;
-        const ov = .2 + Math.random() * .06, td = (tease ? 1.25 : .42) * sp, ta = .16 * sp, wind = .1 * sp;
+        const ov = .2 + Math.random() * .06, td = (tease ? 1.55 : (r === 2 ? .58 : .42)) * sp, ta = .16 * sp, wind = .1 * sp;
         R.anim = { t0: performance.now() / 1000, y0: R.y, D, ov, td, ta, wind, done, r, tease, landed: false, onStop: opts.onStop, teaseOn: opts.onTease };
         R.anim.vmax = (R.anim.y0 + ov) / (D - ta / 2 - td / 2);
       })));
@@ -64,13 +65,13 @@
       if (t < a.wind) { R.y = a.y0 + .12 * Math.sin(Math.PI * t / a.wind); return 2; } t -= a.wind;
       const { vmax, ta, td, D } = a; let d;
       if (t < ta) d = vmax * t * t / (2 * ta); else if (t < D - td) d = vmax * ta / 2 + vmax * (t - ta); else { const tt = Math.min(t, D) - (D - td); d = vmax * ta / 2 + vmax * (D - td - ta) + vmax * (tt - tt * tt / (2 * td)); }
-      if (a.tease && !R.tease && t > D - td - .9) { R.tease = true; a.teaseOn && a.teaseOn(a.r, td + .9); }
+      if (a.tease && !R.tease && t > D - td - 1.05) { R.tease = true; a.teaseOn && a.teaseOn(a.r, td + 1.05); }
       R.y = a.y0 - d; const v = t < ta ? vmax * t / ta : t < D - td ? vmax : vmax * (1 - (Math.min(t, D) - (D - td)) / td);
       if (t >= D) { R.y = -a.ov; a.settle = nowS; R.tease = false; this.land(R, a.r); }
       return v; }
     land(R, r) { const now = performance.now(); let special = false;
       for (let y = 0; y < this.rows; y++) { const c = R.strip[y]; R.pop[y] = now; if (c.s === 'CN' && c.locked) R.rattle[y] = now; if (SPECIAL[c.s] || c.mult > 1 || c.locked) special = true; }
-      if (special) this.flash = Math.max(this.flash, .45); R.anim.onStop && R.anim.onStop(r, R.strip.slice(0, this.rows)); }
+      if (special) this.flash = Math.max(this.flash, .55); if (R.anim && R.anim.tease) this.flash = Math.max(this.flash, 1); R.anim.onStop && R.anim.onStop(r, R.strip.slice(0, this.rows)); }
     // punch-nudge: a fire/ember column over the struck reel
     fireCol(r) { this.fire = { r, t0: performance.now() }; this.flash = 1; }
     // ----- wins / effects -----
@@ -102,7 +103,7 @@
           if (opts.onStep) await opts.onStep(st, placed); }
       } finally { R.respin = false; } }
     // Totem Stacks: cells turn into one symbol with a golden flash
-    transform(cells, s) { const now = performance.now(); for (const [r, y] of cells) { const R = this.reels[r]; if (!R.strip[y]) continue; R.strip[y] = { s }; R.pop[y] = now; this.burstAt(r, y, 14, 'spark'); } this.flash = .55; }
+    transform(cells, s) { const now = performance.now(); const hit = new Set(); for (const [r, y] of cells) { const R = this.reels[r]; if (!R.strip[y]) continue; R.strip[y] = { s }; R.pop[y] = now; this.burstAt(r, y, 22, 'spark'); hit.add(r); } hit.forEach(r => this.fireCol(r)); this.flash = 1.15; }
     // thunder wild: the multiplier stamps onto the (plain) wild
     stamp(r, y, mult) { const R = this.reels[r], c = R.strip[y]; if (!c) return; c.mult = mult; c.stamped = performance.now(); R.pop[y] = performance.now(); this.flash = .9; this.burstAt(r, y, 40, 'spark'); }
     pulse(r, y) { this.reels[r].pop[y] = performance.now(); this.burstAt(r, y, 16, 'spark'); }
@@ -176,8 +177,8 @@
       const grd = g.createRadialGradient(0, -r * .25, r * .1, 0, 0, r); grd.addColorStop(0, '#fff4c0'); grd.addColorStop(.45, '#ffc94a'); grd.addColorStop(1, '#8a3a00');
       g.fillStyle = grd; g.beginPath(); g.arc(0, 0, r, 0, TAU); g.fill(); g.lineWidth = Math.max(2, r * .12); g.strokeStyle = '#5a1500'; g.stroke();
       g.shadowBlur = 0; this.label(g, txt, 0, 0, r * 1.05, '#3a0c00', '#fff4c0'); g.restore(); }
-    teaseGlow(g, x0, t) { const p = .6 + .4 * Math.sin(t * 14); g.save(); g.globalCompositeOperation = 'lighter'; g.shadowColor = '#ff7a00'; g.shadowBlur = 24; g.lineWidth = 4 + 3 * p; g.strokeStyle = `rgba(255,${150 + 80 * p | 0},40,${.65 + .35 * p})`; g.strokeRect(x0 + 3, 3, this.colW - 6, this.H - 6);
-      const gr = g.createLinearGradient(0, this.H, 0, 0); gr.addColorStop(0, `rgba(255,90,0,${.35 * p})`); gr.addColorStop(.5, 'rgba(255,90,0,0)'); g.fillStyle = gr; g.fillRect(x0, 0, this.colW, this.H); g.restore(); }
+    teaseGlow(g, x0, t) { const p = .7 + .3 * Math.sin(t * 16); g.save(); g.globalCompositeOperation = 'lighter'; g.shadowColor = '#ff5a00'; g.shadowBlur = 36; g.lineWidth = 6 + 4 * p; g.strokeStyle = `rgba(255,${140 + 90 * p | 0},30,${.75 + .25 * p})`; g.strokeRect(x0 + 2, 2, this.colW - 4, this.H - 4);
+      const gr = g.createLinearGradient(0, this.H, 0, 0); gr.addColorStop(0, `rgba(255,70,0,${.5 * p})`); gr.addColorStop(.55, `rgba(255,140,0,${.18 * p})`); gr.addColorStop(1, 'rgba(255,90,0,0)'); g.fillStyle = gr; g.fillRect(x0, 0, this.colW, this.H); g.restore(); }
     drawWin(g, nowMs) { const u = (nowMs - this.win.t0) / 1000; g.save(); g.globalCompositeOperation = 'lighter';
       for (const k of this.win.cells) { const [r, y] = k.split(',').map(Number), b = this.cellBox(r, y), pad = 3, p = .5 + .5 * Math.sin(u * 7.5);
         g.shadowColor = '#ffb300'; g.shadowBlur = 14 + 10 * p; g.lineWidth = 3; g.strokeStyle = `rgba(255,${200 + 40 * p | 0},90,${.75 + .25 * p})`; this.rrect(g, b.x + pad, b.y + pad, b.w - 2 * pad, b.h - 2 * pad, 10); g.stroke();

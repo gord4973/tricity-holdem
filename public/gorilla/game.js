@@ -14,7 +14,7 @@ let busy = false, rng = M.cryptoRng(), forceNext = null, quick = false;
 // ---------------- gorilla: photoreal video director (3D only with ?ape=3d) ----------------
 const Q = qs.get('q') || localStorage.getItem('gorillaQ') || undefined;
 let ape = null;
-const stub = { chestBeat: () => sleep(800), roar: () => sleep(1500), slam: (x, f) => sleep(900).then(() => f && f()), punch: f => sleep(900).then(() => f && f()), stare: () => 0, watch: () => 0, anticipate: () => 0, lose: () => 0, smallWin: () => 0, settle: () => 0, reactBill: () => 0, nod: () => 0, lookAt: () => 0, lightning: () => 0, busy: () => false, on: {}, fps: 60, setQuality: q => { localStorage.setItem('gorillaQ', q); location.reload(); } };
+const stub = { chestBeat: () => sleep(800), roar: () => sleep(1500), slam: (x, f) => sleep(900).then(() => f && f()), punch: f => sleep(900).then(() => f && f()), stare: () => 0, watch: () => 0, watchTo: () => 0, watchTrack: () => 0, lean: () => sleep(800), anticipate: () => 0, lose: () => 0, smallWin: () => 0, settle: () => 0, reactBill: () => 0, nod: () => 0, lookAt: () => 0, lightning: () => 0, busy: () => false, on: {}, fps: 60, setQuality: q => { localStorage.setItem('gorillaQ', q); location.reload(); } };
 async function use3D() { // only with ?ape=3d
   try { const { Ape } = await import('/gorilla/ape.js'); $('scene').classList.add('hidden'); $('ape').classList.remove('hidden'); ape = new Ape($('ape'), { quality: Q === 'low' ? 'low' : 'med', frameFrac: .5 }); for (const k of ['watch', 'anticipate', 'lose', 'smallWin', 'settle', 'stare']) ape[k] = ape[k] || (() => 0); if (!ape.punch) ape.punch = f => Promise.resolve(ape.slam && ape.slam()).then(() => f && f()); }
   catch (e) { console.warn('3D gorilla unavailable', e); ape = stub; $('ape').classList.add('hidden'); $('fallbackBg').classList.remove('hidden'); }
@@ -23,7 +23,7 @@ async function use3D() { // only with ?ape=3d
 function wireApe() { window.ape = ape;
   const marked = f => Promise.resolve(sleep(700)).then(() => { f && f(); return sleep(500); }); // non-video apes: the cue fires on a clock
   for (const k of ['thunder', 'awaken', 'swipe', 'lunge', 'heave', 'fistThrow']) if (!ape[k]) ape[k] = marked;
-  for (const k of ['pound', 'breath', 'dismiss', 'look', 'loadBonus', 'calm']) if (!ape[k]) ape[k] = () => Promise.resolve();
+  for (const k of ['pound', 'breath', 'dismiss', 'look', 'loadBonus', 'calm', 'watchTrack', 'watchTo', 'lean']) if (!ape[k]) ape[k] = () => Promise.resolve();
   if (ape.punch && ape.kind !== 'video') { const p = ape.punch.bind(ape); ape.punch = (f) => p(f); }
   ape.on = ape.kind === 'video' ? { slam: () => shakeDom(), beat: () => shakeDom(), thunder: () => A.play('thunder') } : { beat: () => A.play('beat'), roar: () => A.play('roar'), slam: () => { A.play('slam'); shakeDom(); }, thunder: () => A.play('thunder') };
   ape.onShake = sk => { $('machine').style.transform = sk > .002 ? `translate(${(Math.random() - .5) * sk * 22}px,${(Math.random() - .5) * sk * 18}px)` : ''; }; }
@@ -55,18 +55,25 @@ let mediaFiles = [];
 fetch('/gorilla/media/manifest.json').then(r => r.ok ? r.json() : { files: [] }).then(j => { mediaFiles = j.files || []; for (const c of SY.codes) if (mediaFiles.includes(`sym-${c}.png`)) SY.useCustom(c, `/gorilla/media/sym-${c}.png`); }).catch(() => {});
 function playMedia(name) { if (!mediaFiles.includes(name) || quick) return Promise.resolve(false); const v = $('cine'); return new Promise(res => { let done = false; const end = () => { if (done) return; done = true; v.pause(); v.classList.add('hidden'); v.onclick = null; res(true); };
   v.src = '/gorilla/media/' + name; v.muted = A.muted; v.classList.remove('hidden'); v.onended = end; v.onerror = end; v.onclick = end; v.play().catch(end); setTimeout(end, 15000); }); }
-// full-screen cinematic takeover (bonus trigger, mega/monster wins). skippable, short on purpose so play stays snappy
+// full-screen cinematic takeover (bonus trigger, mode intros, almost-tease, mega/monster). skippable, short on purpose so play stays snappy
 function playTakeover(o = {}) {
   if (quick) return Promise.resolve(false);
-  const v = $('cine'), q = (ape && ape.res === 'sd') ? 'sd' : 'hd', startAt = o.startAt == null ? 1.8 : o.startAt, dur = o.dur || 2800;
-  v.src = `/gorilla/media/v5/rampage-${q}.mp4?v=6`; v.muted = A.muted; v.classList.add('full'); v.classList.remove('hidden'); $('app').classList.add('quake');
-  if (o.snd !== false) { A.play('roar'); A.play('thunder'); } shakeDom();
+  const v = $('cine'), q = (ape && ape.res === 'sd') ? 'sd' : 'hd', startAt = o.startAt == null ? 1.8 : o.startAt, dur = o.dur || 2800, clip = o.clip || 'rampage';
+  v.classList.remove('mode-jungle', 'mode-fury', 'mode-inferno');
+  v.src = `/gorilla/media/v5/${clip}-${q}.mp4?v=7`; v.muted = A.muted; v.classList.add('full'); if (o.mode) v.classList.add('mode-' + o.mode); v.classList.remove('hidden'); $('app').classList.add('quake');
+  if (o.snd !== false) { A.play(o.snd || 'roar'); if (o.snd !== 'stare') A.play('thunder'); } shakeDom();
   return new Promise(res => { let done = false;
-    const end = () => { if (done) return; done = true; v.pause(); v.classList.add('hidden'); v.classList.remove('full'); $('app').classList.remove('quake'); v.onclick = null; res(true); };
+    const end = () => { if (done) return; done = true; v.pause(); v.classList.add('hidden'); v.classList.remove('full', 'mode-jungle', 'mode-fury', 'mode-inferno'); $('app').classList.remove('quake'); v.onclick = null; res(true); };
     const go = () => { try { v.currentTime = startAt; } catch (e) {} v.play().catch(end); };
     v.onended = end; v.onerror = end; v.onclick = end;
     if (v.readyState >= 1) go(); else v.onloadedmetadata = go;
     setTimeout(end, dur * (window.__gorillaSpeed || 1) + 500); }); }
+// two Temple Wheel badges landed, no trigger: lean into the camera + sting, then the moment lets go
+async function almostMiss() {
+  $('frame').classList.add('tease', 'almost'); document.body.classList.add('almost');
+  A.play('almost', 1.5); fxs({ kind: 'almost', at: performance.now() });
+  await playTakeover({ clip: 'lean', dur: 2600, startAt: 1.05, snd: 'stare' });
+  $('frame').classList.remove('tease', 'almost'); document.body.classList.remove('almost', 'tease'); }
 // ---------------- reels ----------------
 let shown = [0, 1, 2].map(r => [0, 1, 2].map(y => ({ s: M.STRIPS[r][(r * 7 + y) % M.STRIPS[r].length] })));
 function renderStatic() { reels.setGrid(shown); }
@@ -78,18 +85,25 @@ async function animateReels(res, mode) {
   const drums = r => grid[r].some(c => c.s === 'DR'), coins = r => grid[r].filter(c => c.s === 'CN').length;
   const tease = !mode && ((drums(0) && drums(1)) || (coins(0) + coins(1) >= 2 && Math.random() < .6));
   A.play('whoosh'); clearMarks(); const fast = quick ? .35 : 1, sp = window.__gorillaSpeed || 1;
-  const spinSec = ((.95 + 2 * .38 + (tease ? 1.9 : 0)) * fast + .1 + .34) * sp; // last reel's stop + settle (reels.js timing)
-  if (!quick) { const hot = [0, 1, 2].filter(r => grid[r].some(c => c.s === 'DR' || c.s === 'CN' || (c.s === 'WD' && c.mult > 1)));
-    const side = nz ? nz.r : (hot.length ? hot[hot.length - 1] : (Math.random() * 3 | 0));
-    if (mode && Math.random() < .4) ape.look(spinSec); else ape.watch(spinSec, side); } // eyes on the left, middle or right reel
+  const spinSec = ((.95 + 2 * .38 + (tease ? 2.35 : .22)) * fast + .1 + .34) * sp; // last reel's stop + settle (reels.js timing)
+  $('frame').classList.add('spinning');
+  if (!quick) { if (mode && Math.random() < .4 && ape.look) ape.look(spinSec);
+    else if (ape.watchTrack) ape.watchTrack(spinSec); // eyes track reel 1 → 2 → 3 as each one stops
+    else { const hot = [0, 1, 2].filter(r => grid[r].some(c => c.s === 'DR' || c.s === 'CN' || (c.s === 'WD' && c.mult > 1)));
+      const side = nz ? nz.r : (hot.length ? hot[hot.length - 1] : (Math.random() * 3 | 0)); ape.watch(spinSec, side); } }
   await reels.spin(grid, { free: !!mode, fast, tease: [false, false, tease],
-    onStop: (r, cells) => { A.play('reelStop', r); cells.forEach((c, y) => { if (c.s === 'DR') A.play('drum', r); else if (c.s === 'CN') A.play(c.locked ? 'rattle' : 'glint', r * 3 + y); else if (c.s === 'WD' || c.s === 'FI') A.play('glint', 6); }); if (r === 2) $('frame').classList.remove('tease'); },
-    onTease: (r, dur) => { $('frame').classList.add('tease'); A.play('tease', dur); if (!quick) ape.anticipate(); } });
-  $('frame').classList.remove('tease'); res.teased = tease;
+    onStop: (r, cells) => { A.play('reelStop', r); if (r === 2 && tease) { A.play('slam'); A.play('crack'); $('app').classList.add('quake'); setTimeout(() => $('app').classList.remove('quake'), 400); }
+      cells.forEach((c, y) => { if (c.s === 'DR') A.play('drum', r); else if (c.s === 'CN') A.play(c.locked ? 'rattle' : 'glint', r * 3 + y); else if (c.s === 'WD' || c.s === 'FI') A.play('glint', 6); });
+      if (!quick && ape.watchTo) { if (r === 0) ape.watchTo(1); else if (r === 1 && !tease) ape.watchTo(2); } },
+    onTease: (r, dur) => { $('frame').classList.add('tease'); document.body.classList.add('tease'); A.play('tease', dur); if (!quick) ape.anticipate(); } });
+  $('frame').classList.remove('spinning'); res.teased = tease;
   if (nz) { await sleep(quick ? 80 : 420); // GORILLA PUNCH: a beat, then one fist; fire column + shake on the impact frame
     let jolt = null; await ape.punch(() => { fxs({ kind: 'nudge', at: performance.now() }); A.play('slam'); A.play('crack'); A.play('thunder'); reels.fireCol(nz.r); shakeDom(); jolt = reels.nudge(nz.r, nz.dir, res.grid[nz.r]); }, nz.r);
     await jolt; await sleep(quick ? 60 : 280); }
-  if (res.stack) { await sleep(quick ? 60 : 220); reels.transform(res.stack.cells, res.stack.s); A.play('sparkle'); A.play('glint', 3); fxs({ kind: 'stack', at: performance.now() }); await sleep(quick ? 150 : 650); }
+  if (res.stack) { await sleep(quick ? 60 : 220); // Totem Stack snap: fire, slam, a hard pop
+    reels.transform(res.stack.cells, res.stack.s); A.play('slam'); A.play('crack'); A.play('sparkle'); A.play('glint', 3); shakeDom(); $('app').classList.add('quake'); setTimeout(() => $('app').classList.remove('quake'), 420); fxs({ kind: 'stack', at: performance.now() }); await sleep(quick ? 150 : 700); }
+  if (!mode && !quick && tease && !res.bonus && !nz && res.drums >= 2) { res.almost = true; await almostMiss(); }
+  else { $('frame').classList.remove('tease', 'almost'); document.body.classList.remove('almost', 'tease'); }
   shown = res.grid.map(col => col.map(c => ({ ...c })));
 }
 function clearMarks() { reels.clearWin(); $('winBanner').classList.add('hidden'); }
@@ -136,6 +150,7 @@ function forceOf(kind) {
   if (kind === 'locked') { F.force = drums(1); F.tier = 1; F.awaken = false; F.idx = WIDX('silver'); }
   if (kind === 'jackpot') { F.force = drums(3); F.tier = 3; F.idx = WIDX('gold'); }
   if (/^(jungle|fury|inferno)$/.test(kind)) { F.force = drums(3); F.tier = 3; F.idx = WIDX(kind); F.rich = true; F.awaken = false; }
+  if (kind === 'almost') { F.force = drums(2); F.noTrigger = true; }
   return F;
 }
 async function spin() {
@@ -146,14 +161,14 @@ async function spin() {
   if (curRows !== 3) await setRows(3);
   const fk = forceNext; forceNext = null; const F = fk ? forceOf(fk) : {};
   if (F.meter) st.meter = M.METER_MAX - 1;
-  const mt = { n: st.meter || 0 }, opts = () => ({ force: F.force, forceRespin: F.respin, forceTrigger: F.tier, meter: { ...mt } });
+  const mt = { n: st.meter || 0 }, opts = () => ({ force: F.force, forceRespin: F.respin, forceTrigger: F.tier, noTrigger: F.noTrigger, meter: { ...mt } });
   let o = opts(), res = M.spin(bet(), rng, o);
   if (fk === 'nudge') for (let i = 0; i < 500 && !(res.nudge && !M.waysWin(res.grid.map((c, r) => r === res.nudge.r ? res.nudge.pre : c))); i++) { o = { forceNudge: true, meter: { ...mt } }; res = M.spin(bet(), rng, o); } // debug/test only
   st.meter = o.meter.n; save();
   await animateReels(res, null);
   let total = await resolve(res, null);
   if (res.meter) await meterUpdate(res.meter);
-  if (!total && !res.bonus) { if (res.teased && Math.random() < .5) ape.stare(); else if (Math.random() < .55) ape.lose(); else ape.settle(); }
+  if (!total && !res.bonus) { if (res.almost && ape.dismiss) ape.dismiss(); else if (res.teased && Math.random() < .5) ape.stare(); else if (Math.random() < .55) ape.lose(); else ape.settle(); }
   if (res.bonus) total += await bonus(res.bonus, F);
   if (total > 0) { st.cents += total * st.denom; st.lastWin = total; save(); await roll('cents', st.cents, 600, false); }
   $('spinBtn').classList.remove('stop'); $('spinBtn').textContent = 'SPIN'; busy = false; quick = false; meters();
@@ -292,6 +307,7 @@ async function fistFly(res) { const hudN = $('hudSpins').getBoundingClientRect()
 async function freeRound(mode, F = {}) {
   const R = M.bonusRound(bet(), rng, mode, { rich: F.rich }); window.__lastRound = R;
   document.body.classList.add('bonus', 'mode-' + mode);
+  if (!quick) await playTakeover({ clip: 'rampage-' + mode, mode, dur: 2200, startAt: 1.6 }); // mode-coloured rampage (Jungle cyan, Fury green, Inferno fire)
   await ape.lunge(() => { document.body.classList.add('graded'); A.play('thunder'); fxs({ kind: 'lunge', at: performance.now() }); }); // he leans into the camera as the colour changes
   await sleep(quick ? 100 : 1300);
   await splash(mode);
@@ -344,7 +360,7 @@ function coinRain(on, tier) { const c = $('coinRain'); cancelAnimationFrame(rain
     rainRAF = requestAnimationFrame(step); }; rainRAF = requestAnimationFrame(step); }
 // debug / test hooks
 window.G = { wheel, get rows() { return curRows; }, st, spin, insertBill, cashOut, get busy() { return busy; }, setDenom: d => { st.denom = d; save(); meters(); }, setBet: i => { st.bet = i; save(); meters(); }, M };
-if (DEBUG) { window.G.force = k => { forceNext = k; }; window.__gorillaSpeed = +(qs.get('speed') || 1); const d = $('dbg'); d.classList.remove('hidden'); d.innerHTML = ['win', 'nudge', 'thunder', 'smash', 'respin', 'big', 'mega', 'monster', 'meter', 'wheel1', 'wheel2', 'wheel3', 'awaken', 'locked', 'jackpot', 'jungle', 'fury', 'inferno'].map(k => `<button data-k=${k}>${k}</button>`).join(''); d.onclick = e => { if (e.target.dataset.k) { forceNext = e.target.dataset.k; toast('next spin: ' + forceNext, 900); } }; }
+if (DEBUG) { window.G.force = k => { forceNext = k; }; window.__gorillaSpeed = +(qs.get('speed') || 1); const d = $('dbg'); d.classList.remove('hidden'); d.innerHTML = ['win', 'nudge', 'thunder', 'smash', 'respin', 'big', 'mega', 'monster', 'meter', 'wheel1', 'wheel2', 'wheel3', 'awaken', 'locked', 'jackpot', 'jungle', 'fury', 'inferno', 'almost'].map(k => `<button data-k=${k}>${k}</button>`).join(''); d.onclick = e => { if (e.target.dataset.k) { forceNext = e.target.dataset.k; toast('next spin: ' + forceNext, 900); } }; }
 // boot
 layout(); renderStatic(); meters(); meterDraw(st.meter); requestAnimationFrame(layout); SY.ready.then(layout);
 document.addEventListener('pointerdown', () => A.init(), { once: true });
