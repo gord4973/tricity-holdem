@@ -15,7 +15,7 @@
     }
     resize() { const r = this.cv.getBoundingClientRect(), d = Math.min(devicePixelRatio || 1, 3); this.dpr = d; this.W = Math.max(30, r.width); this.H = Math.max(30, r.height);
       this.cv.width = Math.round(this.W * d); this.cv.height = Math.round(this.H * d); this.gap = Math.max(3, this.W * .012); this.colW = (this.W - 2 * this.gap) / 3; this.cellH = this.H / this.rows; this.dl = DELTA * 3 / this.rows;
-      this.R = (this.H / 2) / Math.sin(1.5 * DELTA); this.sprites = {}; this.blurred = {}; this.bg = null; }
+      this.R = (this.H / 2) / Math.sin(1.5 * DELTA); this.sprites = {}; this.blurred = {}; this.bg = null; this.shadeC = null; }
     setGrid(grid) { grid.forEach((col, r) => { const R = this.reels[r]; R.strip = col.map(c => ({ ...c })); R.y = 0; R.anim = null; R.pop = {}; }); }
     // v5 growing reels: change the visible row count (3-7). New rows are filled from the reel (random symbols); the frame itself is resized by the page.
     setRows(n) { if (n === this.rows) return; this.rows = n; this.reels.forEach((R, r) => { const vis = R.strip.slice(Math.round(R.y), Math.round(R.y) + n); while (vis.length < n) vis.push(this.o.randomSym ? this.o.randomSym(r) : { s: 'SP' }); R.strip = vis; R.y = 0; R.anim = null; R.pop = {}; }); this.resize(); }
@@ -110,18 +110,21 @@
     cellRect(r, y) { const b = this.cv.getBoundingClientRect(), c = this.cellBox(r, y); return { left: b.left + c.x, top: b.top + c.y, width: c.w, height: c.h }; }
     // ----- drawing -----
     background() { if (this.bg) return this.bg; const c = document.createElement('canvas'), d = this.dpr; c.width = this.cv.width; c.height = this.cv.height; const g = c.getContext('2d'); g.scale(d, d);
-      for (let r = 0; r < 3; r++) { const x = r * (this.colW + this.gap), gr = g.createLinearGradient(0, 0, 0, this.H); gr.addColorStop(0, '#0b0503'); gr.addColorStop(.5, '#2a140b'); gr.addColorStop(1, '#0b0503'); g.fillStyle = gr; g.fillRect(x, 0, this.colW, this.H);
+      const u = 3 / Math.max(3, this.rows); // keep the 3-row look; on 4–7 row reels the mid tone covers the inner rows
+      for (let r = 0; r < 3; r++) { const x = r * (this.colW + this.gap), gr = g.createLinearGradient(0, 0, 0, this.H); gr.addColorStop(0, '#0b0503'); gr.addColorStop(.5 * u, '#2a140b'); gr.addColorStop(1 - .5 * u, '#2a140b'); gr.addColorStop(1, '#0b0503'); g.fillStyle = gr; g.fillRect(x, 0, this.colW, this.H);
         const rg = g.createRadialGradient(x + this.colW / 2, this.H / 2, 0, x + this.colW / 2, this.H / 2, this.H * .6); rg.addColorStop(0, 'rgba(120,60,20,.28)'); rg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = rg; g.fillRect(x, 0, this.colW, this.H); }
       // reel dividers (bronze bevel)
       for (let r = 1; r < 3; r++) { const x = r * (this.colW + this.gap) - this.gap, gr = g.createLinearGradient(x, 0, x + this.gap, 0); gr.addColorStop(0, '#2a1404'); gr.addColorStop(.45, '#d9a441'); gr.addColorStop(.55, '#8a5a14'); gr.addColorStop(1, '#1a0a02'); g.fillStyle = gr; g.fillRect(x, 0, this.gap, this.H); }
       this.bg = c; return c; }
-    shade() { if (this.shadeC) { if (this.shadeC.width === this.cv.width && this.shadeC.height === this.cv.height) return this.shadeC; } const c = document.createElement('canvas'), d = this.dpr; c.width = this.cv.width; c.height = this.cv.height; const g = c.getContext('2d'); g.scale(d, d);
-      for (let r = 0; r < 3; r++) { const x = r * (this.colW + this.gap), gr = g.createLinearGradient(0, 0, 0, this.H); gr.addColorStop(0, 'rgba(0,0,0,.82)'); gr.addColorStop(.17, 'rgba(0,0,0,.32)'); gr.addColorStop(.36, 'rgba(0,0,0,0)'); gr.addColorStop(.64, 'rgba(0,0,0,0)'); gr.addColorStop(.83, 'rgba(0,0,0,.32)'); gr.addColorStop(1, 'rgba(0,0,0,.85)'); g.fillStyle = gr; g.fillRect(x, 0, this.colW, this.H);
+    shade() { if (this.shadeC && this.shadeC.width === this.cv.width && this.shadeC.height === this.cv.height && this.shadeC.rows === this.rows) return this.shadeC; const c = document.createElement('canvas'), d = this.dpr; c.width = this.cv.width; c.height = this.cv.height; const g = c.getContext('2d'); g.scale(d, d);
+      // Cylinder lip in row units (0.17/0.36 of a 3-row reel ≈ 0.5/1.1 rows). Grown reels keep a thin edge curve so every row stays evenly bright.
+      const u = 3 / Math.max(3, this.rows), a = .17 * u, b = .36 * u, gloss = this.H * .3 * u;
+      for (let r = 0; r < 3; r++) { const x = r * (this.colW + this.gap), gr = g.createLinearGradient(0, 0, 0, this.H); gr.addColorStop(0, 'rgba(0,0,0,.82)'); gr.addColorStop(a, 'rgba(0,0,0,.32)'); gr.addColorStop(b, 'rgba(0,0,0,0)'); gr.addColorStop(1 - b, 'rgba(0,0,0,0)'); gr.addColorStop(1 - a, 'rgba(0,0,0,.32)'); gr.addColorStop(1, 'rgba(0,0,0,.85)'); g.fillStyle = gr; g.fillRect(x, 0, this.colW, this.H);
         const sg = g.createLinearGradient(x, 0, x + this.colW, 0); sg.addColorStop(0, 'rgba(0,0,0,.45)'); sg.addColorStop(.1, 'rgba(0,0,0,0)'); sg.addColorStop(.9, 'rgba(0,0,0,0)'); sg.addColorStop(1, 'rgba(0,0,0,.45)'); g.fillStyle = sg; g.fillRect(x, 0, this.colW, this.H); }
       // glass: top gloss + diagonal reflection
-      const gl = g.createLinearGradient(0, 0, 0, this.H * .3); gl.addColorStop(0, 'rgba(255,255,255,.10)'); gl.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gl; g.fillRect(0, 0, this.W, this.H * .3);
+      const gl = g.createLinearGradient(0, 0, 0, gloss); gl.addColorStop(0, 'rgba(255,255,255,.10)'); gl.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gl; g.fillRect(0, 0, this.W, gloss);
       g.save(); g.beginPath(); g.moveTo(this.W * .08, 0); g.lineTo(this.W * .30, 0); g.lineTo(this.W * .12, this.H); g.lineTo(-this.W * .1, this.H); g.closePath(); const dg = g.createLinearGradient(0, 0, this.W * .3, 0); dg.addColorStop(0, 'rgba(255,255,255,0)'); dg.addColorStop(.5, 'rgba(255,255,255,.05)'); dg.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = dg; g.fill(); g.restore();
-      this.shadeC = c; return c; }
+      c.rows = this.rows; this.shadeC = c; return c; }
     draw(nowMs) { const g = this.g, d = this.dpr, nowS = nowMs / 1000, t = nowS; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, this.cv.width, this.cv.height); g.drawImage(this.background(), 0, 0); g.setTransform(d, 0, 0, d, 0, 0);
       const cy = this.H / 2;
       this.reels.forEach((R, r) => { const v = this.stepAnim(R, nowS), x0 = r * (this.colW + this.gap), blur = clamp((v - 7) / 10, 0, 1);
