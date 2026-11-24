@@ -11,7 +11,7 @@
     WD: { name: 'Wild (reel 2, multiplies)', kind: 'wild' }, CN: { name: 'Prize Coin', kind: 'coin' }, DR: { name: 'Jungle Drum', kind: 'scatter' }, FI: { name: 'Firefist (+1 spin)', kind: 'fist' },
   };
   // pay per WAY for 3 of a kind, in units of (total bet / 27)
-  const PAY_SCALE = 1.095; // trimmed from 1.25 so a 1-in-85 bonus still lands near 95.4% RTP
+  const PAY_SCALE = 1.118; // trimmed from 1.25 so a 1-in-85 bonus still lands near 95.4% RTP
   const PAY0 = { SB: 66.57, MK: 46.01, TC: 34.19, ID: 28.37, BN: 20.55, RB: 16.14, EM: 14.14, SP: 10.73 };
   const PAY = Object.fromEntries(Object.entries(PAY0).map(([k, v]) => [k, +(v * PAY_SCALE).toFixed(2)]));
   const DENOMS = [1, 2, 5, 10, 25, 100]; // cents per credit
@@ -66,7 +66,7 @@
   function cryptoRng() { const g = (typeof crypto !== 'undefined' && crypto.getRandomValues) ? crypto : (typeof require === 'function' ? require('crypto').webcrypto : null); const buf = new Uint32Array(64); let i = 64; return () => { if (i >= 64) { g.getRandomValues(buf); i = 0; } return buf[i++] / 4294967296; }; }
   const pickW = (rng, table) => { let t = 0; for (const e of table) t += e[e.length - 1]; let x = rng() * t; for (const e of table) { if ((x -= e[e.length - 1]) < 0) return e; } return table[table.length - 1]; };
   const pickV = (rng, table) => pickW(rng, table)[0];
-  const COIN_SCALE = 0.876; // base-game coins only; bonus-mode coin values keep their feel
+  const COIN_SCALE = 1; // keep face-value coins (0.5×–50× bet); ways/thunder carry the RTP trim
   const coinCell = (rng, bet, table, scale) => { const e = pickW(rng, table), c = { s: 'CN', coin: Math.round(e[0] * bet * (scale == null ? (table === COIN_VAL ? COIN_SCALE : 1) : scale)) }; if (typeof e[1] === 'string') c.jp = e[1]; return c; };
   const ways = rows => rows[0] * rows[1] * rows[2];
   // ways pay of a plain symbol grid - used to find punch-nudge targets
