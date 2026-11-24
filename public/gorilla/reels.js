@@ -68,8 +68,11 @@
       R.y = a.y0 - d; const v = t < ta ? vmax * t / ta : t < D - td ? vmax : vmax * (1 - (Math.min(t, D) - (D - td)) / td);
       if (t >= D) { R.y = -a.ov; a.settle = nowS; R.tease = false; this.land(R, a.r); }
       return v; }
-    land(R, r) { const now = performance.now(); for (let y = 0; y < this.rows; y++) { const c = R.strip[y]; if (SPECIAL[c.s]) R.pop[y] = now; if (c.s === 'CN' && c.locked) R.rattle[y] = now; }
-      R.anim.onStop && R.anim.onStop(r, R.strip.slice(0, this.rows)); }
+    land(R, r) { const now = performance.now(); let special = false;
+      for (let y = 0; y < this.rows; y++) { const c = R.strip[y]; R.pop[y] = now; if (c.s === 'CN' && c.locked) R.rattle[y] = now; if (SPECIAL[c.s] || c.mult > 1 || c.locked) special = true; }
+      if (special) this.flash = Math.max(this.flash, .45); R.anim.onStop && R.anim.onStop(r, R.strip.slice(0, this.rows)); }
+    // punch-nudge: a fire/ember column over the struck reel
+    fireCol(r) { this.fire = { r, t0: performance.now() }; this.flash = 1; }
     // ----- wins / effects -----
     setWin(cells) { this.win = cells && cells.size ? { cells, t0: performance.now() } : null; }
     clearWin() { this.win = null; this.sparks = []; }
@@ -143,6 +146,10 @@
       g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(this.shade(), 0, 0); g.setTransform(d, 0, 0, d, 0, 0);
       if (this.win) this.drawWin(g, nowMs);
       this.drawShimmer(g, nowMs); this.drawPieces(g, nowS);
+      if (this.fire) { const u = (nowMs - this.fire.t0) / 750; if (u >= 1) this.fire = null; else { const x = this.fire.r * (this.colW + this.gap), p = 1 - u, gy = g.createLinearGradient(0, this.H, 0, 0);
+        gy.addColorStop(0, `rgba(255,80,0,${.75 * p})`); gy.addColorStop(.45, `rgba(255,180,40,${.45 * p})`); gy.addColorStop(1, 'rgba(255,240,160,0)');
+        g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = gy; g.fillRect(x, 0, this.colW, this.H);
+        g.shadowColor = '#ff9a00'; g.shadowBlur = 28; g.strokeStyle = `rgba(255,220,120,${.7 * p})`; g.lineWidth = 5; g.strokeRect(x + 2, 2, this.colW - 4, this.H - 4); g.restore(); } }
       if (this.flash > 0) { g.fillStyle = `rgba(255,220,150,${this.flash * .35})`; g.fillRect(0, 0, this.W, this.H); this.flash -= .05; } }
     drawCell(g, c, cx, cy, sq, sc, blur, nowMs, settled, rot, r, i) {
       const sp = blur > .5 ? this.blurSprite(c.s) : this.sprite(c.s); if (!sp) return; const w = sp.width / this.dpr * sc, h = (blur > .5 ? sp.height : sp.width) / this.dpr * sc * sq;
@@ -151,14 +158,24 @@
       else { if (blur > 0) g.globalAlpha = 1 - blur * .4; g.drawImage(sp, -w / 2, -h / 2, w, h); }
       g.globalAlpha = 1;
       if (blur < .5) { const fs = Math.min(this.colW, this.cellH) * .2;
-        if (c.s === 'WD' && c.mult > 1) { const u = c.stamped ? Math.max(0, 1 - (nowMs - c.stamped) / 700) : 0; this.label(g, '×' + c.mult, w * .26 * (1 - u * .6), h * .3 * (1 - u * .6), fs * 1.15 * sq * (1 + u * 1.6), '#fff4c0', '#5a1500'); }
+        if (c.s === 'DR' && settled) { const p = .55 + .45 * Math.sin(nowMs / 150); g.save(); g.globalCompositeOperation = 'lighter'; g.shadowColor = '#ffb000'; g.shadowBlur = 14 + 12 * p; g.strokeStyle = `rgba(255,200,70,${.4 + .4 * p})`; g.lineWidth = 3; g.beginPath(); g.arc(0, 0, w * .47, 0, TAU); g.stroke(); g.restore(); }
+        if (c.s === 'WD' && c.mult > 1) { const u = c.stamped ? Math.max(0, 1 - (nowMs - c.stamped) / 700) : 0; this.multBadge(g, '×' + c.mult, 0, h * .32, Math.min(this.colW, this.cellH) * (.23 + u * .16) * sq, u); }
         if (c.s === 'CN' && c.jp) { const JC = { bronze: ['#ffb27a', '#5a2408'], silver: ['#ffffff', '#3a3a48'] }[c.jp] || ['#fff', '#000']; g.save(); g.globalCompositeOperation = 'lighter'; g.shadowColor = JC[0]; g.shadowBlur = 18; g.strokeStyle = JC[0]; g.lineWidth = 3; g.beginPath(); g.arc(0, 0, w * .44, 0, TAU); g.stroke(); g.restore();
           this.label(g, c.jp.toUpperCase(), 0, -h * .02, fs * .62 * sq, JC[0], JC[1]); this.label(g, this.o.coinText ? this.o.coinText(c) : String(c.coin), 0, h * .2, fs * .55 * sq, '#3a1c00', '#ffe9a0', true); }
         else if (c.s === 'CN' && c.coin != null) { this.label(g, this.o.coinText ? this.o.coinText(c) : String(c.coin), 0, h * .03, fs * .95 * sq, '#3a1c00', '#ffe9a0', true);
-          if (c.locked) { const L = this.sprite('LOCK'); if (L) { const lw = L.width / this.dpr; g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.arc(0, 0, w * .42, 0, TAU); g.fill(); g.drawImage(L, -lw / 2, -lw / 2 * sq, lw, lw * sq); } }
+          if (c.locked) { const pulse = .6 + .4 * Math.sin(nowMs / 140), Ch = this.sprite('CHAIN'), L = this.sprite('LOCK');
+            g.fillStyle = `rgba(0,0,0,${.38 + .08 * pulse})`; g.beginPath(); g.arc(0, 0, w * .46, 0, TAU); g.fill();
+            if (Ch) { const cw = Ch.width / this.dpr * 1.08; g.drawImage(Ch, -cw / 2, -cw / 2 * sq, cw, cw * sq); }
+            if (L) { const lw = L.width / this.dpr * .78; g.drawImage(L, -lw / 2, -lw / 2 * sq, lw, lw * sq); }
+            g.save(); g.globalCompositeOperation = 'lighter'; g.strokeStyle = `rgba(255,190,80,${.3 + .35 * pulse})`; g.lineWidth = 3; g.beginPath(); g.arc(0, 0, w * .45, 0, TAU); g.stroke(); g.restore(); }
           else if (c.smashed && nowMs - c.smashed < 900) { const u = (nowMs - c.smashed) / 900; g.globalCompositeOperation = 'lighter'; g.fillStyle = `rgba(255,210,120,${(1 - u) * .7})`; g.beginPath(); g.arc(0, 0, w * (.3 + u * .4), 0, TAU); g.fill(); g.globalCompositeOperation = 'source-over'; } } }
       g.restore(); }
     label(g, txt, x, y, size, fill, stroke, thin) { g.font = `900 ${Math.max(9, size)}px "Arial Black", Impact, system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round'; g.lineWidth = size * (thin ? .2 : .28); g.strokeStyle = stroke; g.strokeText(txt, x, y); g.fillStyle = fill; g.fillText(txt, x, y); }
+    // gold multiplier medallion (2× / 3× / 5× / 10×) — large enough to read on a phone
+    multBadge(g, txt, x, y, r, pop) { g.save(); g.translate(x, y); const s = 1 + pop * .7; g.scale(s, s); g.shadowColor = '#ffb000'; g.shadowBlur = 12 + 16 * pop;
+      const grd = g.createRadialGradient(0, -r * .25, r * .1, 0, 0, r); grd.addColorStop(0, '#fff4c0'); grd.addColorStop(.45, '#ffc94a'); grd.addColorStop(1, '#8a3a00');
+      g.fillStyle = grd; g.beginPath(); g.arc(0, 0, r, 0, TAU); g.fill(); g.lineWidth = Math.max(2, r * .12); g.strokeStyle = '#5a1500'; g.stroke();
+      g.shadowBlur = 0; this.label(g, txt, 0, 0, r * 1.05, '#3a0c00', '#fff4c0'); g.restore(); }
     teaseGlow(g, x0, t) { const p = .6 + .4 * Math.sin(t * 14); g.save(); g.globalCompositeOperation = 'lighter'; g.shadowColor = '#ff7a00'; g.shadowBlur = 24; g.lineWidth = 4 + 3 * p; g.strokeStyle = `rgba(255,${150 + 80 * p | 0},40,${.65 + .35 * p})`; g.strokeRect(x0 + 3, 3, this.colW - 6, this.H - 6);
       const gr = g.createLinearGradient(0, this.H, 0, 0); gr.addColorStop(0, `rgba(255,90,0,${.35 * p})`); gr.addColorStop(.5, 'rgba(255,90,0,0)'); g.fillStyle = gr; g.fillRect(x0, 0, this.colW, this.H); g.restore(); }
     drawWin(g, nowMs) { const u = (nowMs - this.win.t0) / 1000; g.save(); g.globalCompositeOperation = 'lighter';

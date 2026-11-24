@@ -11,18 +11,18 @@
     WD: { name: 'Wild (reel 2, multiplies)', kind: 'wild' }, CN: { name: 'Prize Coin', kind: 'coin' }, DR: { name: 'Jungle Drum', kind: 'scatter' }, FI: { name: 'Firefist (+1 spin)', kind: 'fist' },
   };
   // pay per WAY for 3 of a kind, in units of (total bet / 27)
-  const PAY_SCALE = 1.118; // trimmed from 1.25 so a 1-in-85 bonus still lands near 95.4% RTP
+  const PAY_SCALE = 1.096; // trimmed so a higher punch-nudge rate (~1 in 60) still lands near 95.4% RTP
   const PAY0 = { SB: 66.57, MK: 46.01, TC: 34.19, ID: 28.37, BN: 20.55, RB: 16.14, EM: 14.14, SP: 10.73 };
   const PAY = Object.fromEntries(Object.entries(PAY0).map(([k, v]) => [k, +(v * PAY_SCALE).toFixed(2)]));
   const DENOMS = [1, 2, 5, 10, 25, 100]; // cents per credit
   const BETS = [50, 100, 150, 250, 500]; // credits per spin
-  // wild multipliers 2x-16x. Base: most wilds are plain (x1); a multiplied wild that wins is a THUNDER WILD (roar, then the stamp).
+  // wild multipliers 2x-16x (2/3/5/10 are the common visible badges). A multiplied wild that wins in the base game is a THUNDER WILD (roar, then the stamp).
   const WILD_MULT = { base: [[1, 75], [2, 12], [3, 6], [5, 4], [8, 2], [10, 1], [16, 0.5]], free: [[2, 40], [3, 30], [5, 18], [8, 8], [10, 3], [16, 1]] };
   const COIN_VAL = [[0.5, 30], [1, 30], [2, 18], [3, 10], [5, 6], [10, 3.5], [25, 1.05], [50, 0.15]]; // base coins, x total bet
   const COIN_FREE = [[0.5, 24], [1, 30], [2, 20], [3, 12], [5, 7], [10, 3], [25, 0.8]];
   const COIN_INF = [[0.5, 22], [1, 28], [2, 20], [3, 12], [5, 8], [10, 4], [25, 'bronze', 1.0], [75, 'silver', 0.2]]; // Inferno: jackpot coins
   const LOCK_P = 0.35, SMASH_P = 0.28; // base: chance a coin lands locked; chance the gorilla smashes the locks on a spin with no wild
-  const NUDGE_P = 0.06;   // chance of a gorilla punch-nudge when a losing base spin is one stop away from a win
+  const NUDGE_P = 0.11;   // punch-nudge when a losing base spin is one stop from a win (raised so it shows up ~1 in 60)
   const RESPIN_P = 0.30, RESPIN_MAX = 5; // coin respins: each respin lands a new coin with this chance (and goes again), up to 5
   // ---- Temple Drum Wheel: 12 wedges, index 0 at the top, clockwise ----
   const JP = { bronze: 25, silver: 75, gold: 250, titan: 1000 };

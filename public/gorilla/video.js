@@ -29,8 +29,12 @@ export const CLIPS = { // minor: chains smoothly (waits for / speeds up the clip
   breath: { pri: 1, v4: 1, file: 'breath-heavy', dur: 4.04, snd: 'breath-heavy', minor: 1 },
   dismiss: { pri: 2, v4: 1, dur: 3.04, snd: 'dismiss', minor: 1 },
   look: { pri: 1, v4: 1, file: 'look-reels', dur: 3.04, snd: 'look-reels', minor: 1 },
+  'watch-left': { pri: 1, v5: 1, dur: 6.04, minor: 1 },
+  'watch-right': { pri: 1, v5: 1, dur: 6.04, minor: 1 },
+  rampage: { pri: 5, v5: 1, dur: 8.04, snd: 'roar', loud: 1, major: 1, shakeAt: [[1.6, .6], [2.4, .9], [3.2, .7], [4.0, .45]], flashAt: [2.2, 3.1], dimAt: [[1.8, 3.2]], burstAt: [[2.3, 1.3], [3.2, .9]] },
 };
 const V4 = '/gorilla/media/v4/', V4_V = '1';
+const V5 = '/gorilla/media/v5/', V5_V = '6';
 const V4_SOUNDS = ['punch-left', 'punch-right', 'overhead-smash', 'thunder-roar-short', 'awaken-roar', 'wheel-swipe', 'lunge-in', 'ledge-heave', 'fist-throw', 'victory-pound', 'breath-heavy', 'dismiss', 'look-reels'];
 const SND_V = { chestbeat: '7' }; // per-sound cache bump (v5 chestbeat carried a stray video stream)
 const MEDIA_V = '5', BASE = '/gorilla/media/v3/';
@@ -61,6 +65,7 @@ export class VideoApe {
     this._startIdle(true); this._stareTimer();
     // warm every clip (sequential blob fetch keeps switching instant; falls back to the URL if it fails)
     this._prefetch();
+    // v6 gaze clips: warm left/right looks after the first idle so the first spin can pick any side
     A.fetchSamples(Object.fromEntries(SOUNDS.map(k => [k === 'roar-real' ? 'roarReal' : k, BASE + k + '.mp3?v=' + (SND_V[k] || MEDIA_V)])));
     window.__gorillaAmbient = true;
     const kick = () => this.kick('gesture');
@@ -73,14 +78,15 @@ export class VideoApe {
     let last = performance.now(), frames = 0, acc = 0; const loop = now => { requestAnimationFrame(loop); const dt = Math.min(.05, (now - last) / 1000); last = now; frames++; acc += dt; if (acc > 1) { this.fps = frames / acc; frames = 0; acc = 0; } this.tick(dt); }; requestAnimationFrame(loop);
   }
   file(n) { return (CLIPS[n] && CLIPS[n].file) || n; }
-  url(n) { const c = CLIPS[n] || {}, f = this.file(n); return c.v4 ? `${V4}${f}-${this.res}.mp4?v=${V4_V}` : `${BASE}${f}-${this.res}.mp4?v=${MEDIA_V}`; }
+  url(n) { const c = CLIPS[n] || {}, f = this.file(n); return c.v5 ? `${V5}${f}-${this.res}.mp4?v=${V5_V}` : c.v4 ? `${V4}${f}-${this.res}.mp4?v=${V4_V}` : `${BASE}${f}-${this.res}.mp4?v=${MEDIA_V}`; }
   src(n) { const f = this.file(n); return this.blobs[f] || this.url(n); }
   // v5: bonus clips + sounds load lazily (after the first spin, or when a bonus starts) so the first page load is not heavier
   loadBonus() { if (this.bonusLoading) return this.bonusLoading; A.fetchSamples(Object.fromEntries(V4_SOUNDS.map(k => [k, V4 + k + '.mp3?v=' + V4_V]))); setTimeout(() => V4_SOUNDS.forEach(k => A.decode(k)), 50);
     const order = ['thunder', 'smash', 'punch-left', 'punch-right', 'swipe', 'awaken', 'lunge', 'heave', 'fist', 'look', 'dismiss', 'breath', 'pound'];
     return (this.bonusLoading = (async () => { for (const n of order) { const f = this.file(n); if (this.blobs[f]) continue; try { const r = await fetch(this.url(n)); if (!r.ok) { this.bad.add(f); glog('clip-missing', { clip: n, status: r.status }); continue; } this.blobs[f] = URL.createObjectURL(await r.blob()); } catch (e) { /* stream from URL */ } } })()); }
   async _prefetch() { await this.ready; const order = ['watch', 'lose', 'smallwin', 'punch', 'anticipate', 'chestbeat', 'roar', 'stare', ...this.idleNames];
-    for (const n of order) { if (!CLIPS[n] || CLIPS[n].file || this.blobs[n]) continue; try { const r = await fetch(`${BASE}${n}-${this.res}.mp4?v=${MEDIA_V}`); if (!r.ok) { this.bad.add(n); glog('clip-missing', { clip: n, status: r.status }); continue; } this.blobs[n] = URL.createObjectURL(await r.blob()); } catch (e) { /* stream from URL instead */ } } }
+    for (const n of order) { if (!CLIPS[n] || CLIPS[n].file || this.blobs[n]) continue; try { const r = await fetch(`${BASE}${n}-${this.res}.mp4?v=${MEDIA_V}`); if (!r.ok) { this.bad.add(n); glog('clip-missing', { clip: n, status: r.status }); continue; } this.blobs[n] = URL.createObjectURL(await r.blob()); } catch (e) { /* stream from URL instead */ } }
+    for (const n of ['watch-left', 'watch-right', 'rampage']) { const f = this.file(n); if (this.blobs[f] || this.bad.has(f)) continue; try { const r = await fetch(this.url(n)); if (!r.ok) { this.bad.add(f); glog('clip-missing', { clip: n, status: r.status }); continue; } this.blobs[f] = URL.createObjectURL(await r.blob()); } catch (e) { /* stream from URL */ } } }
   // ---------- layout: the clip's ledge lines up with the top edge of the reel frame ----------
   resize(g = {}) { if (g.top != null) this.top = g.top; const W = g.width || this.root.clientWidth || innerWidth, top = this.top;
     let h = top / (LEDGE - CROP_MAX); const hFill = W / ASPECT; if (h > hFill) h = Math.max(top / LEDGE, hFill); // never wider than needed
@@ -168,7 +174,11 @@ export class VideoApe {
     const job = this._show(name, { fade, onPlaying: j => { started = true; act.el = j.el; j.el.playbackRate = rate; sound(j.el.currentTime); }, onEnd: () => finish(), onFail: () => goVirtual() });
     raf = requestAnimationFrame(step); act.safety = setTimeout(() => finish(), 14000); }
   // watch the spin: start now, and stretch/squeeze the clip so his eyes follow the reels for the whole spin (spinSec)
-  watch(spinSec) { const r = spinSec ? Math.max(.8, Math.min(1.5, CLIPS.watch.dur / (spinSec + 1.1))) : 1; return this.play('watch', null, { now: true, rate: r }); }
+  watch(spinSec, side) { // side: 0 left reel, 1 middle, 2 right; omit to pick at random
+    const n = side === 0 ? 'watch-left' : side === 2 ? 'watch-right' : 'watch';
+    const name = (side === 0 || side === 2) && this.bad.has(this.file(n)) ? 'watch' : n;
+    const r = spinSec ? Math.max(.8, Math.min(1.5, (CLIPS[name].dur || 4) / (spinSec + 1.1))) : 1;
+    return this.play(name, null, { now: true, rate: r }); }
   anticipate() { return this.play('anticipate', null, { now: true }); }
   stare() { return this.play('stare'); }
   lose() { return this.play('lose'); }

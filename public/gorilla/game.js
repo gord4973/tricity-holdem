@@ -55,6 +55,18 @@ let mediaFiles = [];
 fetch('/gorilla/media/manifest.json').then(r => r.ok ? r.json() : { files: [] }).then(j => { mediaFiles = j.files || []; for (const c of SY.codes) if (mediaFiles.includes(`sym-${c}.png`)) SY.useCustom(c, `/gorilla/media/sym-${c}.png`); }).catch(() => {});
 function playMedia(name) { if (!mediaFiles.includes(name) || quick) return Promise.resolve(false); const v = $('cine'); return new Promise(res => { let done = false; const end = () => { if (done) return; done = true; v.pause(); v.classList.add('hidden'); v.onclick = null; res(true); };
   v.src = '/gorilla/media/' + name; v.muted = A.muted; v.classList.remove('hidden'); v.onended = end; v.onerror = end; v.onclick = end; v.play().catch(end); setTimeout(end, 15000); }); }
+// full-screen cinematic takeover (bonus trigger, mega/monster wins). skippable, short on purpose so play stays snappy
+function playTakeover(o = {}) {
+  if (quick) return Promise.resolve(false);
+  const v = $('cine'), q = (ape && ape.res === 'sd') ? 'sd' : 'hd', startAt = o.startAt == null ? 1.8 : o.startAt, dur = o.dur || 2800;
+  v.src = `/gorilla/media/v5/rampage-${q}.mp4?v=6`; v.muted = A.muted; v.classList.add('full'); v.classList.remove('hidden'); $('app').classList.add('quake');
+  if (o.snd !== false) { A.play('roar'); A.play('thunder'); } shakeDom();
+  return new Promise(res => { let done = false;
+    const end = () => { if (done) return; done = true; v.pause(); v.classList.add('hidden'); v.classList.remove('full'); $('app').classList.remove('quake'); v.onclick = null; res(true); };
+    const go = () => { try { v.currentTime = startAt; } catch (e) {} v.play().catch(end); };
+    v.onended = end; v.onerror = end; v.onclick = end;
+    if (v.readyState >= 1) go(); else v.onloadedmetadata = go;
+    setTimeout(end, dur * (window.__gorillaSpeed || 1) + 500); }); }
 // ---------------- reels ----------------
 let shown = [0, 1, 2].map(r => [0, 1, 2].map(y => ({ s: M.STRIPS[r][(r * 7 + y) % M.STRIPS[r].length] })));
 function renderStatic() { reels.setGrid(shown); }
@@ -67,14 +79,16 @@ async function animateReels(res, mode) {
   const tease = !mode && ((drums(0) && drums(1)) || (coins(0) + coins(1) >= 2 && Math.random() < .6));
   A.play('whoosh'); clearMarks(); const fast = quick ? .35 : 1, sp = window.__gorillaSpeed || 1;
   const spinSec = ((.95 + 2 * .38 + (tease ? 1.9 : 0)) * fast + .1 + .34) * sp; // last reel's stop + settle (reels.js timing)
-  if (!quick) { if (mode && Math.random() < .4) ape.look(spinSec); else ape.watch(spinSec); } // eyes on the reels from the first frame of the spin
+  if (!quick) { const hot = [0, 1, 2].filter(r => grid[r].some(c => c.s === 'DR' || c.s === 'CN' || (c.s === 'WD' && c.mult > 1)));
+    const side = nz ? nz.r : (hot.length ? hot[hot.length - 1] : (Math.random() * 3 | 0));
+    if (mode && Math.random() < .4) ape.look(spinSec); else ape.watch(spinSec, side); } // eyes on the left, middle or right reel
   await reels.spin(grid, { free: !!mode, fast, tease: [false, false, tease],
     onStop: (r, cells) => { A.play('reelStop', r); cells.forEach((c, y) => { if (c.s === 'DR') A.play('drum', r); else if (c.s === 'CN') A.play(c.locked ? 'rattle' : 'glint', r * 3 + y); else if (c.s === 'WD' || c.s === 'FI') A.play('glint', 6); }); if (r === 2) $('frame').classList.remove('tease'); },
     onTease: (r, dur) => { $('frame').classList.add('tease'); A.play('tease', dur); if (!quick) ape.anticipate(); } });
   $('frame').classList.remove('tease'); res.teased = tease;
-  if (nz) { await sleep(quick ? 80 : 260); // GORILLA PUNCH: the fist on that reel's side lands and the reel jolts one stop on the impact frame
-    let jolt = null; await ape.punch(() => { fxs({ kind: 'nudge', at: performance.now() }); A.play('slam'); A.play('crack'); jolt = reels.nudge(nz.r, nz.dir, res.grid[nz.r]); }, nz.r);
-    await jolt; await sleep(quick ? 60 : 200); }
+  if (nz) { await sleep(quick ? 80 : 420); // GORILLA PUNCH: a beat, then one fist; fire column + shake on the impact frame
+    let jolt = null; await ape.punch(() => { fxs({ kind: 'nudge', at: performance.now() }); A.play('slam'); A.play('crack'); A.play('thunder'); reels.fireCol(nz.r); shakeDom(); jolt = reels.nudge(nz.r, nz.dir, res.grid[nz.r]); }, nz.r);
+    await jolt; await sleep(quick ? 60 : 280); }
   if (res.stack) { await sleep(quick ? 60 : 220); reels.transform(res.stack.cells, res.stack.s); A.play('sparkle'); A.play('glint', 3); fxs({ kind: 'stack', at: performance.now() }); await sleep(quick ? 150 : 650); }
   shown = res.grid.map(col => col.map(c => ({ ...c })));
 }
@@ -178,6 +192,7 @@ async function resolve(res, mode) {
 const TIER_TXT = { big: 'BIG WIN', mega: 'MEGA WIN', monster: 'MONSTER WIN' };
 // win overlay: counts up first; the gorilla's big moves play AFTER it closes, in full view
 async function bigWin(t, win, o = {}) {
+  if ((t === 'mega' || t === 'monster') && !o.noTakeover) await playTakeover({ dur: t === 'monster' ? 3400 : 2600, startAt: 1.6 });
   const ov = $('big'); ov.className = t || 'big'; $('bigTitle').textContent = o.title || TIER_TXT[t] || 'WIN'; $('bigSub').textContent = ''; $('bigAmt').textContent = money(0); ov.classList.remove('hidden');
   A.play('fanfare', t === 'monster' ? 3 : t === 'mega' ? 2 : 1); ape.calm && ape.calm(); coinRain(true, t || 'big');
   let skip = false; ov.onclick = () => { skip = true; quick = true; };
@@ -226,6 +241,8 @@ async function bonus(b, F = {}) {
   if (ape.loadBonus) ape.loadBonus();
   const w = M.spinWheel(bet(), rng, b.tier, { forceIdx: F.idx, forceAwaken: F.awaken });
   window.__lastWheel = w;
+  fxs({ kind: 'bonus', at: performance.now() });
+  await playTakeover({ dur: 2600, startAt: 1.8 });
   await eruption();
   const box = $('wheelBox'); wheel.locks = lockedIdx(w.start); wheel.glow = -1; wheel.ang = -(Math.random() * 2 * Math.PI); box.className = 'tier' + w.start; box.classList.remove('hidden'); wheelLoop(true);
   $('wheelTitle').textContent = 'TEMPLE DRUM WHEEL'; $('wheelTier').textContent = `${w.start} DRUM${w.start > 1 ? 'S' : ''}${b.via === 'meter' ? ' · RAMPAGE' : ''}`; $('wheelMsg').textContent = w.start < 3 ? `${wheel.locks.size} wedges chained` : 'Every wedge is open';
@@ -313,7 +330,7 @@ $('qBtn').onclick = () => ape.setQuality(ape.q === 'low' ? 'high' : 'low');
 $('payBtn').onclick = showPay; $('aboutBtn').onclick = () => { $('menuBody').innerHTML = `<p><b>GORILLA</b> is an original play-money slot for game nights. It is not a real-money game: bills, credits and tickets have no cash value.</p><p>The gorilla and the reel symbols are photoreal AI-generated art made for this game (original character and designs, no film likeness). Gorilla sounds are real recordings: “Gorillaschrei” (alpha male roar, zoo in Germany) by J0ck0 on Freesound, CC0 / public domain — freesound.org/s/397054 — layered with the clips’ own synced roar, chest-beat and slam audio. Other effects are synthesized live. Math: 27 ways, target return about 95.5%.</p><p>Played ${st.played.toLocaleString()} spins · inserted ${money(st.inserted)} play money on this device.</p>`; };
 function showPay() { const b = betCents(), u = b / 27; const row = s => `<div><img src="${SY.get(s)}"><b>${M.SYM[s].name}</b><span>3 = ${money(M.PAY[s] * u)}/way</span></div>`;
   $('menuBody').innerHTML = `<p>Bet ${bet()} credits (${money(b)}). 27 ways: 3 matching symbols on adjacent reels from left to right, any row. Pays shown per way at this bet.</p><div class=pt>${['SB', 'MK', 'TC', 'ID', 'BN', 'RB', 'EM', 'SP'].map(row).join('')}</div>
-  <div class=pt><div><img src="${SY.get('WD')}"><b>Wild</b><span>reel 2; thunder wilds roar on ×2–×16</span></div><div><img src="${SY.get('CN')}"><b>Prize Coins</b><span>3+ pay their values; a coin column can respin up to 5 times</span></div><div><img src="${SY.get('CN')}"><b>🔒 Locked</b><span>pay only if the gorilla smashes them</span></div><div><img src="${SY.get('DR')}"><b>Temple Drums</b><span>1, 2 or 3 can start the Drum Wheel</span></div><div><img src="${SY.get('FI')}"><b>Firefist</b><span>bonus spins: +1 spin</span></div></div>
+  <div class=pt><div><img src="${SY.get('WD')}"><b>Wild</b><span>reel 2; gold ×2 ×3 ×5 ×10 badges (and rarer ×8 ×16). A hitting badge is a thunder wild</span></div><div><img src="${SY.get('CN')}"><b>Prize Coins</b><span>3+ pay their values; a coin column can respin up to 5 times</span></div><div><img src="${SY.get('CN')}"><b>Chained Coins</b><span>locked with chains; they pay only if the gorilla smashes them</span></div><div><img src="${SY.get('DR')}"><b>Temple Wheel</b><span>1, 2 or 3 badges can start the Temple Drum Wheel</span></div><div><img src="${SY.get('FI')}"><b>Firefist</b><span>bonus spins: +1 spin</span></div></div>
   <p><b>Temple Drum Wheel.</b> 3 drums open every wedge. With 1 or 2 drums the top wedges are chained (a chained wedge pays ${M.LOCK_X}× bet), unless the gorilla's roar breaks the chains. Wedges: ${money(8 * b)}, ${money(15 * b)}, BRONZE ${money(25 * b)}, SILVER ${money(75 * b)}, GOLD ${money(250 * b)}, TITAN ${money(1000 * b)}, or a bonus round.</p>
   <p><b>Bonus rounds</b> start with ${M.FS_START} spins (up to 50): <b>JUNGLE</b> stacks and wilds ×2–×16 · <b>FURY</b> adds growing reels up to 7 rows (343 ways) · <b>INFERNO</b> puts coins and jackpot coins on every reel.</p>
   <p><b>Rampage Meter.</b> Every drum that lands without a wheel fills the meter; when full the gorilla smashes it and a 2-drum wheel starts. Return to player about 95.4% (play money only).</p>`; }

@@ -22,6 +22,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   await p.waitForFunction(() => GorillaSymbols.codes.every(c => GorillaSymbols.img[c].naturalWidth >= 512), { timeout: 10000 }); console.log('✔ photoreal symbols loaded (2x webp)');
   await p.click('#menuBtn'); await p.waitForSelector('#menu:not(.hidden)');
   const qLabel = await p.$eval('#qBtn', e => e.textContent); assert.ok(/^Video Res: (High|Low)$/.test(qLabel), 'video res label: ' + qLabel); console.log('✔ options menu: ' + qLabel);
+  const hasLogo = await p.evaluate(() => { const el = document.getElementById('logo'); return !!(el && getComputedStyle(el).display !== 'none' && el.textContent.trim()); }); assert.ok(!hasLogo, 'Gorilla title above the reels should be gone'); console.log('✔ no Gorilla title above the reels');
   await p.click('[data-close=menu]'); await p.waitForSelector('#menu.hidden');
   await p.click('#spinBtn'); await wait(300); assert.ok(await p.$eval('#toast', e => !e.classList.contains('hidden') && /Insert/.test(e.textContent)), 'spin with no cash asks for a bill');
   await p.click('#billBtn'); await p.waitForFunction(() => document.getElementById('bill').classList.contains('go'), { timeout: 5000 }); await idle();
@@ -59,7 +60,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   const run = async (k, check) => { await p.evaluate(k => G.force(k), k); const c0 = await cents(); await p.click('#spinBtn'); if (check) await check(); await idle(); const c1 = await cents(); console.log(`✔ ${k}: ${c0} -> ${c1} cents (${await p.$eval('#winBanner', e => e.textContent)})`); return c1 - c0; };
   // v4: watch starts with the spin; hit impact frame and reel effect land together (+-50 ms)
   await p.evaluate(() => { window.__hits = []; const o = ape.on.slam; ape.on.slam = i => { __hits.push({ clip: ape.action && ape.action.name, busy: G.busy }); o && o(i); }; });
-  await p.evaluate(() => { window.__w = null; const t0 = performance.now(); const iv = setInterval(() => { if (ape.action && ape.action.name === 'watch') { window.__w = performance.now() - t0; clearInterval(iv); } }, 5); G.spin(); });
+  await p.evaluate(() => { window.__w = null; const t0 = performance.now(); const iv = setInterval(() => { if (ape.action && /^watch/.test(ape.action.name)) { window.__w = performance.now() - t0; clearInterval(iv); } }, 5); G.spin(); });
   await p.waitForFunction(() => window.__w != null, { timeout: 3000 }); const wms = await p.evaluate(() => __w); assert.ok(wms < 100, 'watch starts with the spin: ' + wms); console.log(`✔ watch began ${wms.toFixed(0)} ms after SPIN`); await idle();
   const sync = async (k, kind) => { const r = await p.evaluate(kind => ({ fx: window.__fxBy[kind], hit: ape.lastImpact }), kind); const d = r.fx.at - r.hit.at, vd = (r.hit.ct - r.hit.cue) * 1000;
     assert.ok(Math.abs(d) <= 50 && Math.abs(vd) <= 50, k + ' sync ' + JSON.stringify(r)); console.log(`✔ ${k}: reel effect ${d.toFixed(1)} ms after the impact cue; clip clock ${vd.toFixed(0)} ms past the impact frame (${r.hit.clip} @ ${r.hit.cue}s)`); return { d, vd }; };
