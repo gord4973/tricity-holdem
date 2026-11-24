@@ -118,3 +118,8 @@ body.rotate #rotate>div{display:flex;flex-direction:column;align-items:center;ga
 body.rotate #rotate b{font:900 22px "Arial Black",sans-serif;color:#ffcf3a}body.rotate #rotate span{color:#ccc}
 .phoneIco{width:44px;height:76px;border:4px solid #ffcf3a;border-radius:10px;animation:rot 2s ease-in-out infinite}@keyframes rot{0%,30%{transform:rotate(-90deg)}60%,100%{transform:rotate(0)}}
 #app.wide #topBtns{flex-direction:row}
+/* v4: big-moment camera jolt + dim/vignette (roar, chest beat) */
+#scene .stage.jolt{animation:jolt .32s cubic-bezier(.2,.9,.3,1)}@keyframes jolt{0%{scale:1}18%{scale:var(--jz,1.03)}100%{scale:1}}
+#scene::before{content:"";position:absolute;inset:0;z-index:4;pointer-events:none;opacity:0;transition:opacity .45s ease;background:radial-gradient(ellipse at 50% 42%,transparent 30%,rgba(0,0,0,.55) 70%,rgba(0,0,0,.85))}
+#scene.dim::before{opacity:1;transition-duration:.18s}
+body:has(#scene.dim) #machine{filter:brightness(.72);transition:filter .18s}#machine{transition:filter .5s}

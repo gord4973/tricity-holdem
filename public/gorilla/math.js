@@ -9,12 +9,13 @@
     WD: { name: 'Wild (reel 2, multiplies)', kind: 'wild' }, CN: { name: 'Prize Coin', kind: 'coin' }, DR: { name: 'Jungle Drum', kind: 'scatter' },
   };
   // pay per WAY for 3 of a kind, in units of (total bet / 27) -> e.g. 27 ways of Silverback at "40" = 40 x bet
-  const PAY = { SB: 68, MK: 47, TC: 35, ID: 29, BN: 21, RB: 16.5, EM: 14.5, SP: 11 };
+  const PAY = { SB: 66.57, MK: 46.01, TC: 34.19, ID: 28.37, BN: 20.55, RB: 16.14, EM: 14.14, SP: 10.73 };
   const DENOMS = [1, 2, 5, 10, 25, 100]; // cents per credit
   const BETS = [50, 100, 150, 250, 500]; // credits per spin
   const WILD_MULT = { base: [[2, 40], [3, 25], [5, 18], [10, 10], [15, 4], [25, 3]], free: [[3, 30], [5, 28], [10, 22], [15, 12], [25, 8]] };
   const COIN_VAL = [[0.5, 30], [1, 30], [2, 18], [3, 10], [5, 6], [10, 3.5], [25, 1.2], [50, 0.3]]; // x total bet
   const LOCK_P = 0.35, SMASH_P = 0.28; // chance a coin lands locked; chance the gorilla smashes locks on a spin with no wild
+  const NUDGE_P = 0.06; // chance of a gorilla punch-nudge when a losing base spin is one stop away from a win
   const WHEEL = [ // 16 wedges shown on the wheel; `w` = chance weight (not every wedge is equally likely)
     { id: 'c10', label: '10× BET', x: 10, w: 16 }, { id: 'thunder', label: 'THUNDER SPINS', fs: 10, w: 13 }, { id: 'c15', label: '15× BET', x: 15, w: 13 }, { id: 'bronze', label: 'BRONZE', x: 25, jp: 1, w: 12 },
     { id: 'c20', label: '20× BET', x: 20, w: 10 }, { id: 'thunder', label: 'THUNDER SPINS', fs: 10, w: 13 }, { id: 'c10', label: '10× BET', x: 10, w: 16 }, { id: 'silver', label: 'SILVER', x: 75, jp: 2, w: 4 },
@@ -42,14 +43,31 @@
   const pickW = (rng, table) => { let t = 0; for (const [, w] of table) t += w; let x = rng() * t; for (const [v, w] of table) { if ((x -= w) < 0) return v; } return table[table.length - 1][0]; };
   // ---- one spin ----
   // returns { grid[reel][row] = {s, mult?, coin?, locked?}, stops, ways:[{s, ways, pay}], wildMult, coins:{count,paid,value,smashed}, drums, bonus, win }
+  // ways pay of a plain symbol grid (no coins) - used to find punch-nudge targets
+  function waysWin(grid) { let n = 0; const wild = grid[1].some(c => c.s === 'WD'); for (const s in PAY) { const a = grid[0].some(c => c.s === s), c3 = grid[2].some(c => c.s === s); if (a && c3 && (wild || grid[1].some(c => c.s === s))) n++; } return n; }
+  // GORILLA PUNCH: when a base-game spin stops one position away from a 3-of-a-kind, the gorilla sometimes punches that reel
+  // one stop (dir +1 = reel drops one symbol, the symbol above enters at the top; -1 = reel climbs one). Decided here, so it is in the RTP.
+  function nudgeFor(stops, strips, rng) {
+    const cand = [];
+    for (let r = 0; r < 3; r++) for (const d of [1, -1]) { const L = strips[r].length, st2 = (stops[r] - d + L) % L, g = stops.map((st, k) => [0, 1, 2].map(y => ({ s: strips[k][((k === r ? st2 : st) + y) % strips[k].length] })));
+      const preCol = [0, 1, 2, 3].map(y => strips[r][(stops[r] - 1 + y + L) % L]);
+      if (g[r].some(c => /DR|CN/.test(c.s)) || preCol.some(x => /DR|CN|WD/.test(x))) continue; if (waysWin(g)) cand.push({ r, dir: d, stop: st2 }); }
+    return cand.length && rng() < NUDGE_P ? cand[Math.floor(rng() * cand.length)] : null; }
   function spin(bet, rng, opts = {}) {
     const free = !!opts.free, strips = free ? FREE_STRIPS : STRIPS, stops = [], grid = [];
-    for (let r = 0; r < 3; r++) { const st = opts.stops ? opts.stops[r] : Math.floor(rng() * strips[r].length); stops.push(st); const col = []; for (let y = 0; y < 3; y++) col.push({ s: strips[r][(st + y) % strips[r].length] }); grid.push(col); }
+    for (let r = 0; r < 3; r++) stops.push(opts.stops ? opts.stops[r] : Math.floor(rng() * strips[r].length));
+    let nudge = null; const pre = stops.slice();
+    if (!free && !opts.force && !opts.noNudge) { const g0 = stops.map((st, k) => [0, 1, 2].map(y => ({ s: strips[k][(st + y) % strips[k].length] }))), drums = g0.filter(col => col.some(c => c.s === 'DR')).length;
+      if (!waysWin(g0) && drums < 3) { const n = nudgeFor(stops, strips, rng); if (n) { nudge = { r: n.r, dir: n.dir, preStop: stops[n.r] }; stops[n.r] = n.stop; } } }
+    if (opts.forceNudge) { const n = nudgeFor(stops, strips, () => 0); if (n) { nudge = { r: n.r, dir: n.dir, preStop: stops[n.r] }; stops[n.r] = n.stop; } }
+    for (let r = 0; r < 3; r++) { const st = stops[r], col = []; for (let y = 0; y < 3; y++) col.push({ s: strips[r][(st + y) % strips[r].length] }); grid.push(col); }
+    if (nudge) { const r = nudge.r, L = strips[r].length; nudge.pre = [0, 1, 2].map(y => ({ s: strips[r][(nudge.preStop + y) % L] })); }
     if (opts.force) opts.force(grid);
     for (const col of grid) for (const c of col) {
       if (c.s === 'WD' && c.mult == null) c.mult = pickW(rng, free ? WILD_MULT.free : WILD_MULT.base);
       if (c.s === 'CN' && c.coin == null) { c.coin = Math.round(pickW(rng, COIN_VAL) * bet); c.locked = c.locked != null ? c.locked : rng() < LOCK_P; }
     }
+    if (nudge) { const col = grid[nudge.r]; nudge.pre = nudge.dir > 0 ? [col[1], col[2], nudge.pre[2]] : [nudge.pre[0], col[0], col[1]]; }
     const unit = bet / 27, ways = []; let win = 0;
     const wildSum = grid[1].reduce((a, c) => a + (c.s === 'WD' ? c.mult : 0), 0);
     for (const s in PAY) {
@@ -65,7 +83,7 @@
     let coinPay = 0; if (coins.length >= 3) for (const c of coins) if (!c.locked) coinPay += c.value;
     win += coinPay;
     const drums = grid.reduce((a, col) => a + (col.some(c => c.s === 'DR') ? 1 : 0), 0);
-    return { grid, stops, ways, wildMult: wildSum, coins: { list: coins, count: coins.length, pay: coinPay, smashed }, drums, bonus: drums >= 3, win, free };
+    return { grid, stops, ways, wildMult: wildSum, coins: { list: coins, count: coins.length, pay: coinPay, smashed }, drums, bonus: drums >= 3, win, free, nudge };
   }
   function spinWheel(bet, rng, forceIdx) {
     let idx = forceIdx; if (idx == null) { let t = 0; for (const w of WHEEL) t += w.w; let x = rng() * t; idx = WHEEL.length - 1; for (let i = 0; i < WHEEL.length; i++) if ((x -= WHEEL[i].w) < 0) { idx = i; break; } }
@@ -77,10 +95,10 @@
   function play(bet, rng) { const s = spin(bet, rng); let total = s.win, wheel = null, fg = null; if (s.bonus) { wheel = spinWheel(bet, rng); total += wheel.win; if (wheel.freeSpins) { fg = freeGames(bet, rng, wheel.freeSpins); total += fg.win; } } return { spin: s, wheel, fg, total }; }
   const tier = (win, bet) => win >= 50 * bet ? 'epic' : win >= 25 * bet ? 'mega' : win >= 10 * bet ? 'big' : win > 0 ? 'win' : '';
   function simulate(n, rng = cryptoRng(), bet = 50) {
-    let wagered = 0, won = 0, hits = 0, bonuses = 0, sq = 0, maxX = 0, smash = 0, coinPays = 0, fsWin = 0, wheelWin = 0; const tiers = { big: 0, mega: 0, epic: 0 }, wedges = {};
-    for (let i = 0; i < n; i++) { const p = play(bet, rng); wagered += bet; won += p.total; const x = p.total / bet; sq += x * x; if (x > maxX) maxX = x; if (p.total > 0) hits++; if (p.spin.bonus) { bonuses++; wedges[p.wheel.wedge.id] = (wedges[p.wheel.wedge.id] || 0) + 1; wheelWin += p.wheel.win; if (p.fg) fsWin += p.fg.win; } if (p.spin.coins.smashed) smash++; coinPays += p.spin.coins.pay; const t = tier(p.total, bet); if (tiers[t] != null) tiers[t]++; }
+    let nudges = 0, nudgeWin = 0, wagered = 0, won = 0, hits = 0, bonuses = 0, sq = 0, maxX = 0, smash = 0, coinPays = 0, fsWin = 0, wheelWin = 0; const tiers = { big: 0, mega: 0, epic: 0 }, wedges = {};
+    for (let i = 0; i < n; i++) { const p = play(bet, rng); wagered += bet; won += p.total; const x = p.total / bet; sq += x * x; if (x > maxX) maxX = x; if (p.total > 0) hits++; if (p.spin.bonus) { bonuses++; wedges[p.wheel.wedge.id] = (wedges[p.wheel.wedge.id] || 0) + 1; wheelWin += p.wheel.win; if (p.fg) fsWin += p.fg.win; } if (p.spin.coins.smashed) smash++; if (p.spin.nudge) { nudges++; nudgeWin += p.spin.win; } coinPays += p.spin.coins.pay; const t = tier(p.total, bet); if (tiers[t] != null) tiers[t]++; }
     const rtp = won / wagered, mean = rtp, sd = Math.sqrt(sq / n - mean * mean);
-    return { spins: n, rtp, hitRate: hits / n, sd, bonusEvery: bonuses ? n / bonuses : null, maxX, smashRate: smash / n, coinShare: coinPays / won, bonusShare: (wheelWin + fsWin) / won, tiers, wedges };
+    return { spins: n, rtp, hitRate: hits / n, sd, bonusEvery: bonuses ? n / bonuses : null, maxX, smashRate: smash / n, coinShare: coinPays / won, bonusShare: (wheelWin + fsWin) / won, nudgeRate: nudges / n, nudgeShare: nudgeWin / won, tiers, wedges };
   }
-  return { SYM, PAY, DENOMS, BETS, WILD_MULT, COIN_VAL, WHEEL, STRIPS, FREE_STRIPS, COUNTS, spin, spinWheel, freeGames, play, simulate, tier, mulberry32, cryptoRng };
+  return { NUDGE_P, waysWin, SYM, PAY, DENOMS, BETS, WILD_MULT, COIN_VAL, WHEEL, STRIPS, FREE_STRIPS, COUNTS, spin, spinWheel, freeGames, play, simulate, tier, mulberry32, cryptoRng };
 });

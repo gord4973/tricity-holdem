@@ -14,18 +14,18 @@ let busy = false, rng = M.cryptoRng(), forceNext = null, quick = false;
 // ---------------- gorilla: photoreal video director (3D only with ?ape=3d) ----------------
 const Q = qs.get('q') || localStorage.getItem('gorillaQ') || undefined;
 let ape = null;
-const stub = { chestBeat: () => sleep(800), roar: () => sleep(1500), slam: () => sleep(900), watch: () => 0, anticipate: () => 0, lose: () => 0, smallWin: () => 0, settle: () => 0, reactBill: () => 0, nod: () => 0, lookAt: () => 0, lightning: () => 0, busy: () => false, on: {}, fps: 60, setQuality: q => { localStorage.setItem('gorillaQ', q); location.reload(); } };
+const stub = { chestBeat: () => sleep(800), roar: () => sleep(1500), slam: (x, f) => sleep(900).then(() => f && f()), punch: f => sleep(900).then(() => f && f()), stare: () => 0, watch: () => 0, anticipate: () => 0, lose: () => 0, smallWin: () => 0, settle: () => 0, reactBill: () => 0, nod: () => 0, lookAt: () => 0, lightning: () => 0, busy: () => false, on: {}, fps: 60, setQuality: q => { localStorage.setItem('gorillaQ', q); location.reload(); } };
 async function use3D() { // only with ?ape=3d
-  try { const { Ape } = await import('/gorilla/ape.js'); $('scene').classList.add('hidden'); $('ape').classList.remove('hidden'); ape = new Ape($('ape'), { quality: Q === 'low' ? 'low' : 'med', frameFrac: .5 }); for (const k of ['watch', 'anticipate', 'lose', 'smallWin', 'settle']) ape[k] = ape[k] || (() => 0); }
+  try { const { Ape } = await import('/gorilla/ape.js'); $('scene').classList.add('hidden'); $('ape').classList.remove('hidden'); ape = new Ape($('ape'), { quality: Q === 'low' ? 'low' : 'med', frameFrac: .5 }); for (const k of ['watch', 'anticipate', 'lose', 'smallWin', 'settle', 'stare']) ape[k] = ape[k] || (() => 0); if (!ape.punch) ape.punch = f => Promise.resolve(ape.slam && ape.slam()).then(() => f && f()); }
   catch (e) { console.warn('3D gorilla unavailable', e); ape = stub; $('ape').classList.add('hidden'); $('fallbackBg').classList.remove('hidden'); }
   wireApe(); requestAnimationFrame(() => layout());
 }
 function wireApe() { window.ape = ape;
-  ape.on = ape.kind === 'video' ? { slam: () => shakeDom(), thunder: () => A.play('thunder') } : { beat: () => A.play('beat'), roar: () => A.play('roar'), slam: () => { A.play('slam'); shakeDom(); }, thunder: () => A.play('thunder') };
+  ape.on = ape.kind === 'video' ? { slam: () => shakeDom(), beat: () => shakeDom(), thunder: () => A.play('thunder') } : { beat: () => A.play('beat'), roar: () => A.play('roar'), slam: () => { A.play('slam'); shakeDom(); }, thunder: () => A.play('thunder') };
   ape.onShake = sk => { $('machine').style.transform = sk > .002 ? `translate(${(Math.random() - .5) * sk * 22}px,${(Math.random() - .5) * sk * 18}px)` : ''; }; }
 if (qs.get('ape') === '3d') await use3D();
 else { try { const { VideoApe, glog } = await import('/gorilla/video.js?v=' + (new URL(import.meta.url).searchParams.get('v') || '4')); window.glog = glog; ape = new VideoApe($('scene'), { quality: qs.get('q') || localStorage.getItem('gorillaVQ') || undefined });
-    ape.settle = () => { if (ape.action && ['watch', 'anticipate'].includes(ape.action.name)) ape.action.finish(); }; wireApe(); }
+    ape.gameBusy = () => busy; wireApe(); }
   catch (e) { console.warn(e); ape = stub; wireApe(); $('scene').style.background = 'url(/gorilla/media/v3/poster.jpg?v=4) center top/cover no-repeat #050101';
     fetch('/gorilla/log', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'video-module-failed', msg: String(e && e.message || e), ua: navigator.userAgent }) }).catch(() => {}); } }
 function shakeDom() { const m = $('frame'); m.classList.remove('shakeX'); void m.offsetWidth; m.classList.add('shakeX'); }
@@ -56,13 +56,20 @@ let shown = [0, 1, 2].map(r => [0, 1, 2].map(y => ({ s: M.STRIPS[r][(r * 7 + y) 
 function renderStatic() { reels.setGrid(shown); }
 function randomSym(r, free) { const s = (free ? M.FREE_STRIPS : M.STRIPS)[r]; const x = s[Math.floor(Math.random() * s.length)]; return { s: x, mult: x === 'WD' ? [2, 3, 5, 10][Math.random() * 4 | 0] : null, coin: x === 'CN' ? bet() * [.5, 1, 2][Math.random() * 3 | 0] : null }; }
 async function animateReels(res, free) {
-  curFree = free; const grid = res.grid, drums = r => grid[r].some(c => c.s === 'DR'), coins = r => grid[r].filter(c => c.s === 'CN').length;
+  curFree = free; const nz = res.nudge, grid = nz ? res.grid.map((col, r) => r === nz.r ? nz.pre : col) : res.grid; // a punch-nudge spin first lands one stop off
+  const drums = r => grid[r].some(c => c.s === 'DR'), coins = r => grid[r].filter(c => c.s === 'CN').length;
   const tease = (drums(0) && drums(1)) || (coins(0) + coins(1) >= 2 && Math.random() < .6);
-  A.play('whoosh'); clearMarks(); const fast = quick ? .35 : 1;
+  A.play('whoosh'); clearMarks(); const fast = quick ? .35 : 1, sp = window.__gorillaSpeed || 1;
+  const spinSec = ((.95 + 2 * .38 + (tease ? 1.9 : 0)) * fast + .1 + .34) * sp; // last reel's stop + settle (reels.js timing)
+  if (!quick) ape.watch(spinSec); // eyes on the reels from the first frame of the spin
   await reels.spin(grid, { free, fast, tease: [false, false, tease],
     onStop: (r, cells) => { A.play('reelStop', r); cells.forEach((c, y) => { if (c.s === 'DR') A.play('drum', r); else if (c.s === 'CN') A.play(c.locked ? 'rattle' : 'glint', r * 3 + y); else if (c.s === 'WD') A.play('glint', 6); }); if (r === 2) $('frame').classList.remove('tease'); },
     onTease: (r, dur) => { $('frame').classList.add('tease'); A.play('tease', dur); if (!quick) ape.anticipate(); } });
-  $('frame').classList.remove('tease'); shown = grid.map(col => col.map(c => ({ ...c })));
+  $('frame').classList.remove('tease'); res.teased = tease;
+  if (nz) { await sleep(quick ? 80 : 260); // GORILLA PUNCH: the reel jolts one stop on the fist's impact frame
+    let jolt = null; await ape.punch(() => { window.__gorillaFx = { kind: 'nudge', at: performance.now() }; A.play('slam'); A.play('crack'); jolt = reels.nudge(nz.r, nz.dir, res.grid[nz.r]); });
+    await jolt; await sleep(quick ? 60 : 200); }
+  shown = res.grid.map(col => col.map(c => ({ ...c })));
 }
 function clearMarks() { reels.clearWin(); $('winBanner').classList.add('hidden'); }
 function markWins(res) { const cells = new Set(); for (const w of res.ways) for (let r = 0; r < 3; r++) res.grid[r].forEach((c, y) => { if (c.s === w.s || (r === 1 && c.s === 'WD')) cells.add(r + ',' + y); });
@@ -97,11 +104,12 @@ async function spin() {
   A.init(); if (busy) { quick = true; reels.stopNow(); return; }
   if (st.cents < betCents()) { A.play('deny'); toast(st.cents > 0 ? 'Not enough for this bet — lower the bet or insert a bill' : 'Insert a $100 bill to play'); $('billBtn').classList.remove('pulse'); void $('billBtn').offsetWidth; $('billBtn').classList.add('pulse'); return; }
   busy = true; quick = false; meters(); $('spinBtn').classList.add('stop'); $('spinBtn').textContent = 'STOP';
-  st.cents -= betCents(); st.played++; save(); disp.cents = st.cents; disp.win = 0; meters(); if (Math.random() < .8) ape.watch();
-  const fk = forceNext; forceNext = null; const res = M.spin(bet(), rng, fk ? { force: applyForce(fk) } : {});
+  st.cents -= betCents(); st.played++; save(); disp.cents = st.cents; disp.win = 0; meters();
+  const fk = forceNext; forceNext = null; let res = M.spin(bet(), rng, fk && fk !== 'nudge' ? { force: applyForce(fk) } : {});
+  if (fk === 'nudge') for (let i = 0; i < 500 && !(res.nudge && !M.waysWin(res.grid.map((c, r) => r === res.nudge.r ? res.nudge.pre : c))); i++) res = M.spin(bet(), rng, { forceNudge: true }); // debug/test only
   await animateReels(res, false);
   let total = await resolve(res, false);
-  if (!total && !res.bonus) { if (Math.random() < .5) ape.lose(); else ape.settle(); }
+  if (!total && !res.bonus) { if (res.teased && Math.random() < .5) ape.stare(); else if (Math.random() < .55) ape.lose(); else ape.settle(); }
   if (res.bonus) total += await bonus(fk);
   if (total > 0) { st.cents += total * st.denom; st.lastWin = total; save(); await roll('cents', st.cents, 600, false); }
   $('spinBtn').classList.remove('stop'); $('spinBtn').textContent = 'SPIN'; busy = false; quick = false; meters(); 
@@ -112,7 +120,7 @@ async function resolve(res, free) {
   const locked = res.coins.list.filter((c, i) => res.grid[c.r][c.y].locked);
   if (res.coins.count >= 3 && locked.length) {
     if (res.coins.smashed) { const tgt = locked[0], rc = reels.cellRect(tgt.r, tgt.y); await sleep(200);
-      await ape.slam((rc.left + rc.width / 2) / innerWidth); A.play('crack'); reels.smash(); await sleep(500); }
+      await ape.slam((rc.left + rc.width / 2) / innerWidth, () => { window.__gorillaFx = { kind: 'smash', at: performance.now() }; A.play('crack'); reels.smash(); }); await sleep(500); }
     else { await sleep(500); toast('🔒 Locked coins — the gorilla didn’t smash them this time', 1400); }
   }
   markWins(res); const win = res.win; if (!win) return 0;
@@ -125,11 +133,12 @@ async function resolve(res, free) {
 }
 async function bigWin(t, win) {
   const o = $('big'); o.className = t; $('bigTitle').textContent = t.toUpperCase() + ' WIN'; $('bigAmt').textContent = money(0); o.classList.remove('hidden');
-  A.play('fanfare', t === 'epic' ? 3 : t === 'mega' ? 2 : 1); playMedia(t + '-win.mp4'); ape.roar(); coinRain(true, t);
+  A.play('fanfare', t === 'epic' ? 3 : t === 'mega' ? 2 : 1); ape.calm && ape.calm(); playMedia(t + '-win.mp4'); coinRain(true, t); // gorilla waits: roar/chest beat play AFTER this screen, in full view
   let skip = false; o.onclick = () => { skip = true; quick = true; };
   const ms = t === 'epic' ? 9000 : t === 'mega' ? 6500 : 4500, from = disp.win, t0 = performance.now(), dur = ms * (window.__gorillaSpeed || 1);
   await new Promise(res => { let last = 0; const step = now => { const u = skip ? 1 : Math.min(1, (now - t0) / dur), v = Math.round(win * (1 - Math.pow(1 - u, 2))); $('bigAmt').textContent = money(v * st.denom); disp.win = from + v; meters(); if (now - last > 90) { last = now; A.play('coin', (now / 90 | 0) % 12); } if (u < 1) requestAnimationFrame(step); else res(); }; requestAnimationFrame(step); });
-  await sleep(skip ? 300 : 1400); o.classList.add('hidden'); coinRain(false); if (t !== 'big') ape.chestBeat();
+  await sleep(skip ? 300 : 1400); o.classList.add('hidden'); coinRain(false); await sleep(120); const roar = ape.roar(); if (t !== 'big') ape.chestBeat(); // chest beat queues behind the roar
+  await Promise.race([roar, sleep(5400)]); // the roar is the payoff: let it play out in full view before the next spin
 }
 // ---------------- bonus: drum wheel + THUNDER SPINS ----------------
 function drawWheel(ang) { const c = $('wheel'), g = c.getContext('2d'), W = c.width, R = W / 2, n = M.WHEEL.length; g.clearRect(0, 0, W, W); g.save(); g.translate(R, R); g.rotate(ang);
@@ -150,7 +159,7 @@ async function bonus(fk) {
   let won = 0;
   if (w.freeSpins) { $('wheelMsg').textContent = `⚡ ${w.freeSpins} THUNDER SPINS!`; A.play('thunder'); ape.lightning(); playMedia('thunder-intro.mp4'); await sleep(1800); box.classList.add('hidden'); won = await thunderSpins(w.freeSpins); }
   else { const c = w.win; $('wheelMsg').textContent = w.wedge.jp ? `${w.wedge.label} JACKPOT ${money(c * st.denom)}` : `${money(c * st.denom)}`;
-    if (w.wedge.jp) { A.play('jackpot'); const pl = document.querySelector('.plq.' + w.wedge.id); pl && pl.classList.add('hit'); setTimeout(() => pl && pl.classList.remove('hit'), 3500); playMedia('jackpot.mp4'); ape.roar(2.2); } else { A.play('win', 4); ape.chestBeat(5); }
+    if (w.wedge.jp) { A.play('jackpot'); const pl = document.querySelector('.plq.' + w.wedge.id); pl && pl.classList.add('hit'); setTimeout(() => pl && pl.classList.remove('hit'), 3500); playMedia('jackpot.mp4'); } else A.play('win', 4); // the roar comes after the win screen (bigWin)
     await sleep(2200); box.classList.add('hidden'); const t = M.tier(c, bet()); if (t.match(/big|mega|epic/)) await bigWin(t, c); else await roll('win', disp.win + c, 1200, true); won = c; }
   return won;
 }
@@ -194,7 +203,7 @@ function coinRain(on, tier) { const c = $('coinRain'); cancelAnimationFrame(rain
     rainRAF = requestAnimationFrame(step); }; rainRAF = requestAnimationFrame(step); }
 // debug / test hooks
 window.G = { st, spin, insertBill, cashOut, get busy() { return busy; }, setDenom: d => { st.denom = d; save(); meters(); }, setBet: i => { st.bet = i; save(); meters(); }, M };
-if (DEBUG) { window.G.force = k => { forceNext = k; }; window.__gorillaSpeed = +(qs.get('speed') || 1); const d = $('dbg'); d.classList.remove('hidden'); d.innerHTML = ['win', 'big', 'mega', 'epic', 'smash', 'bonus', 'thunder', 'jackpot'].map(k => `<button data-k=${k}>${k}</button>`).join(''); d.onclick = e => { if (e.target.dataset.k) { forceNext = e.target.dataset.k; toast('next spin: ' + forceNext, 900); } }; }
+if (DEBUG) { window.G.force = k => { forceNext = k; }; window.__gorillaSpeed = +(qs.get('speed') || 1); const d = $('dbg'); d.classList.remove('hidden'); d.innerHTML = ['win', 'nudge', 'big', 'mega', 'epic', 'smash', 'bonus', 'thunder', 'jackpot'].map(k => `<button data-k=${k}>${k}</button>`).join(''); d.onclick = e => { if (e.target.dataset.k) { forceNext = e.target.dataset.k; toast('next spin: ' + forceNext, 900); } }; }
 // boot
 layout(); renderStatic(); meters(); requestAnimationFrame(layout); SY.ready.then(layout);
 document.addEventListener('pointerdown', () => A.init(), { once: true });

@@ -43,7 +43,20 @@
         const yi = Math.floor(R.y), frac = R.y - yi, vis = R.strip.slice(yi, yi + 4), grid = R.strip.slice(0, 3), fill = [0, 1, 2].map(() => this.rs(r));
         R.strip = [...grid, ...fill, ...vis]; R.y = 6 + frac; const td = (.2 + r * .07) * (window.__gorillaSpeed || 1);
         Object.assign(a, { t0: now, wind: 0, y0: R.y, D: td + .02, ta: .02, td, tease: false }); a.vmax = (a.y0 + a.ov) / (a.D - a.ta / 2 - a.td / 2); R.tease = false; }); }
-    stepAnim(R, nowS) { const a = R.anim; if (!a) return 0; let t = nowS - a.t0;
+    // GORILLA PUNCH nudge: reel r jolts ONE stop (dir +1 = drops, the symbol above enters at the top; -1 = climbs), hard bounce, rock debris.
+    // col = the final 3 cells. Resolves when the reel has settled.
+    nudge(r, dir, col) { const R = this.reels[r], cur = R.strip.slice(0, 3).map(c => ({ ...c })), fin = col.map(c => ({ ...c }));
+      if (dir > 0) { R.strip = [fin[0], ...cur]; R.y = 1; } else { R.strip = [...cur, fin[2], this.rs ? this.rs(r) : { ...cur[0] }]; R.y = 0; }
+      const sp = window.__gorillaSpeed || 1, now = performance.now() / 1000; this.nudgeT = performance.now();
+      return new Promise(done => { R.anim = { nudge: true, t0: now, from: R.y, to: dir > 0 ? 0 : 1, dur: .13 * sp, ov: .16 * dir, done: () => { R.strip = fin; R.y = 0; R.pop = { 0: performance.now(), 1: performance.now(), 2: performance.now() }; done(); } };
+        const { x, w } = this.cellBox(r, 0); this.flash = .8;
+        for (let i = 0; i < 34; i++) { const a = -Math.PI / 2 + (Math.random() - .5) * 2.6, s = 120 + Math.random() * 380; this.pieces.push({ kind: i % 3 ? 'rock' : 'spark', x: x + w * (.15 + Math.random() * .7), y: dir > 0 ? 4 : this.H - 4, vx: Math.cos(a) * s * .6, vy: (dir > 0 ? -1 : -1.3) * Math.abs(Math.sin(a) * s), t: 0, life: .7 + Math.random() * .6, r: 1.5 + Math.random() * 3.5, rot: Math.random() * 6, vr: (Math.random() - .5) * 14 }); } }); }
+    stepAnim(R, nowS) { const a = R.anim; if (!a) return 0;
+      if (a.nudge) { const u = (nowS - a.t0) / a.dur, span = a.to - a.from;
+        if (u < 1) { const e = u * u * (3 - 2 * u) * .3 + u * .7; R.y = a.from + span * e; return Math.abs(span) / a.dur * 1.4; }
+        const v = nowS - a.t0 - a.dur; if (v > .38) { R.anim = null; R.y = a.to; a.done(); return 0; }
+        R.y = a.to - a.ov * Math.exp(-v / .07) * Math.cos(Math.PI * v / .12); return 0; }
+      let t = nowS - a.t0;
       if (a.settle != null) { const u = nowS - a.settle; if (u > .34) { R.y = 0; R.anim = null; a.done(); return 0; } R.y = -a.ov * Math.exp(-u / .085) * Math.cos(Math.PI * u / .2); return 0; }
       if (t < a.wind) { R.y = a.y0 + .12 * Math.sin(Math.PI * t / a.wind); return 2; } t -= a.wind;
       const { vmax, ta, td, D } = a; let d;
@@ -135,6 +148,7 @@
     drawPieces(g, nowS) { if (!this.pieces.length) return; const dt = 1 / 60, L = this.sprite('LOCK');
       this.pieces = this.pieces.filter(p => { p.t += dt; p.vy += 700 * dt; p.x += p.vx * dt; p.y += p.vy * dt;
         if (p.kind === 'lock') { if (p.t > 1.2 || !L) return false; p.rot += p.vr * dt; const lw = L.width / this.dpr; g.save(); g.translate(p.x, p.y); g.rotate(p.rot); g.globalAlpha = Math.max(0, 1 - p.t / 1.2); g.beginPath(); g.rect(p.half ? 0 : -lw / 2, -lw / 2, lw / 2, lw); g.clip(); g.drawImage(L, -lw / 2, -lw / 2, lw, lw); g.restore(); return true; }
+        if (p.kind === 'rock') { if (p.t > p.life) return false; p.rot += p.vr * dt; const al = Math.max(0, 1 - p.t / p.life); g.save(); g.translate(p.x, p.y); g.rotate(p.rot); g.fillStyle = `rgba(${70 + p.r * 8 | 0},${48 + p.r * 5 | 0},${32 + p.r * 3 | 0},${al})`; g.beginPath(); g.moveTo(-p.r, -p.r * .6); g.lineTo(p.r * .8, -p.r); g.lineTo(p.r, p.r * .5); g.lineTo(-p.r * .4, p.r); g.closePath(); g.fill(); g.restore(); return true; }
         if (p.t > p.life) return false; g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = `rgba(255,${180 + 60 * Math.random() | 0},80,${1 - p.t / p.life})`; g.beginPath(); g.arc(p.x, p.y, 2.2, 0, TAU); g.fill(); g.restore(); return true; }); }
   }
   window.GorillaReels = Reels;

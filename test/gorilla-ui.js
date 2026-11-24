@@ -15,10 +15,10 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   await p.waitForFunction(() => [...document.querySelectorAll('#scene video.v')].some(v => !v.paused && +v.style.opacity > .5), { timeout: 10000 }); assert.ok(await onScreen(), 'idle clip playing');
   assert.ok(await p.evaluate(() => /^idle-/.test(ape.lastIdle)), 'idle director picked an idle clip');
   await p.mouse.click(200, 200); // unlock audio
-  for (const n of ['roar', 'chestbeat', 'slam', 'smallwin', 'lose', 'watch', 'anticipate']) { await p.evaluate(n => { window.__done = false; ape.play(n).then(() => window.__done = true); }, n);
+  for (const n of ['roar', 'chestbeat', 'punch', 'smallwin', 'lose', 'watch', 'anticipate', 'stare']) { await p.evaluate(n => { window.__done = false; ape.play(n).then(() => window.__done = true); }, n);
     await p.waitForFunction(n => document.getElementById('scene').dataset.clip === n && [...document.querySelectorAll('#scene video.v')].some(v => !v.paused && +v.style.opacity > .9), { timeout: 8000 }, n);
     await p.waitForFunction(() => /idle|still/.test(document.getElementById('scene').dataset.clip) && window.__done, { timeout: 15000 }); console.log(`✔ ${n} clip played and returned to idle`); }
-  await p.waitForFunction(() => ['roar', 'chestbeat', 'slam', 'smallwin', 'lose', 'anticipate', 'br1', 'br4', 'huff1', 'grunt1', 'roarReal'].every(k => GorillaAudio.loaded(k)), { timeout: 15000 }); console.log('✔ gorilla sounds + breath one-shots decoded');
+  await p.waitForFunction(() => ['roar', 'chestbeat', 'punch', 'stare', 'smallwin', 'lose', 'anticipate', 'br1', 'br4', 'huff1', 'grunt1', 'roarReal'].every(k => GorillaAudio.loaded(k)), { timeout: 15000 }); console.log('✔ gorilla sounds + breath one-shots decoded');
   await p.waitForFunction(() => GorillaSymbols.codes.every(c => GorillaSymbols.img[c].naturalWidth >= 512), { timeout: 10000 }); console.log('✔ photoreal symbols loaded (2x webp)');
   await p.click('#spinBtn'); await wait(300); assert.ok(await p.$eval('#toast', e => !e.classList.contains('hidden') && /Insert/.test(e.textContent)), 'spin with no cash asks for a bill');
   await p.click('#billBtn'); await p.waitForFunction(() => document.getElementById('bill').classList.contains('go'), { timeout: 5000 }); await idle();
@@ -28,9 +28,21 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   await p.click('#denomBtn'); await p.click('#denoms button[data-d="5"]'); await p.click('[data-close=denomModal]');
   await p.click('#betUp'); assert.strictEqual(await p.$eval('#mBet', e => e.textContent), '100'); await p.click('#betDn');
   const run = async (k, check) => { await p.evaluate(k => G.force(k), k); const c0 = await cents(); await p.click('#spinBtn'); if (check) await check(); await idle(); const c1 = await cents(); console.log(`✔ ${k}: ${c0} -> ${c1} cents (${await p.$eval('#winBanner', e => e.textContent)})`); return c1 - c0; };
+  // v4: watch starts with the spin; hit impact frame and reel effect land together (+-50 ms)
+  await p.evaluate(() => { window.__hits = []; const o = ape.on.slam; ape.on.slam = i => { __hits.push({ clip: ape.action && ape.action.name, busy: G.busy }); o && o(i); }; });
+  await p.evaluate(() => { window.__w = null; const t0 = performance.now(); const iv = setInterval(() => { if (ape.action && ape.action.name === 'watch') { window.__w = performance.now() - t0; clearInterval(iv); } }, 5); G.spin(); });
+  await p.waitForFunction(() => window.__w != null, { timeout: 3000 }); const wms = await p.evaluate(() => __w); assert.ok(wms < 100, 'watch starts with the spin: ' + wms); console.log(`✔ watch began ${wms.toFixed(0)} ms after SPIN`); await idle();
+  const sync = async k => { const r = await p.evaluate(() => ({ fx: window.__gorillaFx, hit: ape.lastImpact })); const d = r.fx.at - r.hit.at, vd = (r.hit.ct - r.hit.cue) * 1000;
+    assert.ok(Math.abs(d) <= 50 && Math.abs(vd) <= 50, k + ' sync ' + JSON.stringify(r)); console.log(`✔ ${k}: reel effect ${d.toFixed(1)} ms after the impact cue; clip clock ${vd.toFixed(0)} ms past the impact frame (${r.hit.clip} @ ${r.hit.cue}s)`); return { d, vd }; };
+  await run('nudge', async () => { await p.waitForFunction(() => window.__gorillaFx && __gorillaFx.kind === 'nudge', { timeout: 60000 }); await wait(60); await p.screenshot({ path: SHOTS + '/ui-nudge.png' }); });
+  await sync('punch-nudge'); assert.ok(await p.evaluate(() => reels.winCount()) >= 3, 'nudge punched the reel into a win');
+  
   assert.ok(await run('win') > -250, 'win pays'); assert.ok(await p.evaluate(() => reels.winCount()) >= 3, 'winning cells highlighted');
-  await run('smash', async () => { await p.waitForFunction(() => reels.locksGone > 0, { timeout: 60000 }); await p.screenshot({ path: SHOTS + '/ui-smash.png' }); });
-  await run('big', async () => { await p.waitForSelector('#big:not(.hidden)', { timeout: 60000 }); await wait(600); await p.screenshot({ path: SHOTS + '/ui-bigwin.png' }); });
+  await run('smash', async () => { await p.waitForFunction(() => reels.locksGone > 0, { timeout: 60000 }); await p.screenshot({ path: SHOTS + '/ui-smash.png' }); }); await sync('lock smash');
+  await run('big', async () => { await p.waitForSelector('#big:not(.hidden)', { timeout: 60000 }); await wait(600); await p.screenshot({ path: SHOTS + '/ui-bigwin.png' });
+    assert.ok(!(await p.evaluate(() => ape.action && /roar|chestbeat/.test(ape.action.name))), 'no roar behind the win screen');
+    await p.waitForFunction(() => document.getElementById('big').classList.contains('hidden') && ape.action && ape.action.name === 'roar', { timeout: 30000 }); await wait(1300); await p.screenshot({ path: SHOTS + '/ui-roar-after.png' }); console.log('✔ roar starts only after the big-win screen closes'); });
+  const hits = await p.evaluate(() => __hits); assert.ok(hits.every(h => h.busy && /punch|slam|smallwin/.test(h.clip)), 'hits only during a spin event: ' + JSON.stringify(hits)); console.log(`✔ ${hits.length} gorilla hits so far, all tied to a spin event (${[...new Set(hits.map(h => h.clip))].join(', ')})`);
   await run('bonus', async () => { await p.waitForSelector('#wheelBox:not(.hidden)', { timeout: 60000 }); await wait(300); await p.screenshot({ path: SHOTS + '/ui-wheel.png' }); });
   await run('thunder', async () => { await p.waitForSelector('#fsHud:not(.hidden)', { timeout: 90000 }); await wait(1500); await p.screenshot({ path: SHOTS + '/ui-thunder.png' }); });
   const before = await cents(); assert.ok(before > 0); await p.click('#cashBtn'); await wait(1600); await p.screenshot({ path: SHOTS + '/ui-ticket.png' }); await idle();

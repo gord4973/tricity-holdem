@@ -10,13 +10,13 @@ test('strips: fixed, deterministic, scatter/wild spacing', () => {
 test('27 ways: 3 of a kind pays per way in bet/27 units', () => {
   const g = grid => { const res = M.spin(270, Math.random, { force: gr => grid.forEach((col, r) => col.forEach((s, y) => gr[r][y] = typeof s === 'string' ? { s } : s)) }); return res; };
   let r = g([['SB', 'RB', 'EM'], ['SB', 'EM', 'RB'], ['SB', 'SP', 'BN']]); // one way of SB, EM? no (reel 3 has none)
-  assert.strictEqual(r.ways.length, 1); assert.strictEqual(r.ways[0].s, 'SB'); assert.strictEqual(r.win, M.PAY.SB * 10);
-  r = g([['SB', 'SB', 'EM'], ['SB', 'MK', 'RB'], ['SB', 'SB', 'SB']]); assert.strictEqual(r.ways[0].ways, 6); assert.strictEqual(r.win, M.PAY.SB * 10 * 6);
+  assert.strictEqual(r.ways.length, 1); assert.strictEqual(r.ways[0].s, 'SB'); assert.strictEqual(r.win, Math.round(M.PAY.SB * 10));
+  r = g([['SB', 'SB', 'EM'], ['SB', 'MK', 'RB'], ['SB', 'SB', 'SB']]); assert.strictEqual(r.ways[0].ways, 6); assert.strictEqual(r.win, Math.round(M.PAY.SB * 10 * 6));
   r = g([['SB', 'TC', 'EM'], ['MK', 'MK', 'RB'], ['SB', 'BN', 'BN']]); assert.strictEqual(r.win, 0, 'reel 2 must match');
 });
 test('reel-2 wild substitutes and multiplies', () => {
   const r = M.spin(270, Math.random, { force: g => { g[0] = [{ s: 'MK' }, { s: 'RB' }, { s: 'EM' }]; g[1] = [{ s: 'BN' }, { s: 'WD', mult: 5 }, { s: 'SP' }]; g[2] = [{ s: 'MK' }, { s: 'TC' }, { s: 'ID' }]; } });
-  assert.strictEqual(r.win, M.PAY.MK * 10 * 5); assert.strictEqual(r.wildMult, 5);
+  assert.strictEqual(r.win, Math.round(M.PAY.MK * 10 * 5)); assert.strictEqual(r.wildMult, 5);
 });
 test('prize coins: need 3+, locked pay only when smashed, wild always smashes', () => {
   const coins = (lockedWild) => M.spin(100, fixed(.99), { force: g => { g[0] = [{ s: 'CN', coin: 100, locked: true }, { s: 'RB' }, { s: 'EM' }]; g[1] = [{ s: 'CN', coin: 50, locked: false }, lockedWild ? { s: 'WD', mult: 2 } : { s: 'TC' }, { s: 'SP' }]; g[2] = [{ s: 'CN', coin: 200, locked: false }, { s: 'BN' }, { s: 'ID' }]; } });
@@ -35,4 +35,13 @@ test('tiers', () => { assert.strictEqual(M.tier(0, 50), ''); assert.strictEqual(
 test('RTP simulation (300k spins, seeded) lands in the 94-96% target band', () => {
   const s = M.simulate(300000, M.mulberry32(20261121)); console.log(`  RTP ${(s.rtp * 100).toFixed(2)}%  hit ${(s.hitRate * 100).toFixed(1)}%  SD ${s.sd.toFixed(2)}x  bonus 1 in ${s.bonusEvery.toFixed(0)}`);
   assert.ok(s.rtp > 0.925 && s.rtp < 0.985, 'short-run RTP within noise of target: ' + s.rtp); assert.ok(s.hitRate > 0.25 && s.hitRate < 0.35);
+});
+test('gorilla punch-nudge: only on losing base spins one stop from a win, lands the reel exactly one stop over', () => {
+  const rng = M.mulberry32(99); let n = 0;
+  for (let i = 0; i < 60000; i++) { const s = M.spin(50, rng); if (!s.nudge) continue; n++; const z = s.nudge, L = M.STRIPS[z.r].length;
+    assert.ok(Math.abs(z.dir) === 1); assert.strictEqual((z.preStop - z.dir + L) % L, s.stops[z.r]);
+    assert.strictEqual(M.waysWin(s.grid.map((c, r) => r === z.r ? z.pre : c)), 0, 'landed on a loss'); assert.ok(s.ways.length > 0, 'punched into a win');
+    const shared = z.dir > 0 ? [s.grid[z.r][1], s.grid[z.r][2]] : [s.grid[z.r][0], s.grid[z.r][1]]; assert.deepStrictEqual(z.dir > 0 ? z.pre.slice(0, 2) : z.pre.slice(1), shared); }
+  assert.ok(n / 60000 > .004 && n / 60000 < .02, 'nudge rate ' + n / 60000);
+  for (let i = 0; i < 3000; i++) assert.ok(!M.spin(50, rng, { free: true }).nudge, 'no nudges in THUNDER SPINS');
 });
