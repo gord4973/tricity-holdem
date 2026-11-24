@@ -85,11 +85,19 @@
         const vis = Array.from({ length: n }, (_, k) => R.strip[Math.round(R.y) + k] || rs(r)); R.strip = [...col.map(c => ({ ...c })), ...Array.from({ length: N }, () => rs(r)), ...vis]; R.y = N + n; R.above = rs(r); R.pop = {}; R.rattle = {};
         const ov = .18, td = .38 * sp, ta = .12 * sp; R.anim = { t0: performance.now() / 1000, y0: R.y, D, ov, td, ta, wind: .06 * sp, done, r, tease: false, landed: false, onStop: opts.onStop };
         R.anim.vmax = (R.anim.y0 + ov) / (D - ta / 2 - td / 2); }); }
-    // coin respins: reel r glows blue and respins once per step (a coin in the middle row, or nothing); onStep(step) runs after each landing
+    // coin respins: reel r glows blue and respins once per step. Existing coins and symbols stay put; a hit lands a new
+    // coin on a free row (middle first); a miss keeps the current column. Never write a blank 'NO' cell into the final grid.
     async respin(r, steps, opts = {}) { const R = this.reels[r], mid = Math.floor(this.rows / 2); R.respin = true; this.respinR = r;
-      try { for (const st of steps) { const col = Array.from({ length: this.rows }, (_, y) => y === mid && st ? { ...st } : { s: 'NO' });
-          await this.spinReel(r, col, { randomSym: opts.randomSym, dur: opts.dur }); if (st) { R.pop[mid] = performance.now(); this.flash = .5; this.burstAt(r, mid, 24, 'spark'); } if (opts.onStep) await opts.onStep(st); } }
-      finally { R.respin = false; } }
+      const fill = () => { const src = opts.holdSym || this.o.randomSym || this.rs; const c = src ? src(r) : { s: 'SP' }; return (!c || !c.s || c.s === 'NO') ? { s: 'SP' } : { ...c }; };
+      try { let col = R.strip.slice(0, this.rows).map(c => (c && c.s && c.s !== 'NO') ? { ...c } : fill());
+        for (const st of steps) { let placed = -1;
+          if (st) { let y = (col[mid] && col[mid].s !== 'CN') ? mid : col.findIndex(c => !c || c.s !== 'CN'); if (y < 0) y = mid;
+            col = col.map((c, i) => i === y ? { ...st } : (c && c.s && c.s !== 'NO' ? { ...c } : fill())); placed = y; }
+          else col = col.map(c => (c && c.s && c.s !== 'NO') ? { ...c } : fill());
+          await this.spinReel(r, col, { randomSym: opts.randomSym, dur: opts.dur });
+          if (st && placed >= 0) { R.pop[placed] = performance.now(); this.flash = .5; this.burstAt(r, placed, 24, 'spark'); }
+          if (opts.onStep) await opts.onStep(st, placed); }
+      } finally { R.respin = false; } }
     // Totem Stacks: cells turn into one symbol with a golden flash
     transform(cells, s) { const now = performance.now(); for (const [r, y] of cells) { const R = this.reels[r]; if (!R.strip[y]) continue; R.strip[y] = { s }; R.pop[y] = now; this.burstAt(r, y, 14, 'spark'); } this.flash = .55; }
     // thunder wild: the multiplier stamps onto the (plain) wild

@@ -11,7 +11,7 @@
     WD: { name: 'Wild (reel 2, multiplies)', kind: 'wild' }, CN: { name: 'Prize Coin', kind: 'coin' }, DR: { name: 'Jungle Drum', kind: 'scatter' }, FI: { name: 'Firefist (+1 spin)', kind: 'fist' },
   };
   // pay per WAY for 3 of a kind, in units of (total bet / 27)
-  const PAY_SCALE = 1.25;
+  const PAY_SCALE = 1.095; // trimmed from 1.25 so a 1-in-85 bonus still lands near 95.4% RTP
   const PAY0 = { SB: 66.57, MK: 46.01, TC: 34.19, ID: 28.37, BN: 20.55, RB: 16.14, EM: 14.14, SP: 10.73 };
   const PAY = Object.fromEntries(Object.entries(PAY0).map(([k, v]) => [k, +(v * PAY_SCALE).toFixed(2)]));
   const DENOMS = [1, 2, 5, 10, 25, 100]; // cents per credit
@@ -35,7 +35,7 @@
   const LOCKS = { 1: ['inferno', 'silver', 'gold', 'titan'], 2: ['gold', 'titan'], 3: [] }; // chained wedges by drum tier
   const LOCK_X = 6;                         // a chained wedge pays 6x bet
   const AWAKEN = { 1: 0.15, 2: 0.10 };      // the gorilla's roar breaks the chains: tier +1
-  const TRIG = { 1: 0.0021, 2: 0.018 };     // 1 or 2 drums may trigger the wheel; 3 always do
+  const TRIG = { 1: 0.0048, 2: 0.041 };     // 1 or 2 drums may trigger the wheel; 3 always do (tuned for ~1 in 85)
   const METER_MAX = 300;                    // Rampage Meter: each drum that lands without a trigger adds a notch; full = guaranteed wheel (2-drum tier)
   // ---- free spins ----
   const FS_START = 7, FS_MAX = 50, MAX_X = 5000;
@@ -66,7 +66,8 @@
   function cryptoRng() { const g = (typeof crypto !== 'undefined' && crypto.getRandomValues) ? crypto : (typeof require === 'function' ? require('crypto').webcrypto : null); const buf = new Uint32Array(64); let i = 64; return () => { if (i >= 64) { g.getRandomValues(buf); i = 0; } return buf[i++] / 4294967296; }; }
   const pickW = (rng, table) => { let t = 0; for (const e of table) t += e[e.length - 1]; let x = rng() * t; for (const e of table) { if ((x -= e[e.length - 1]) < 0) return e; } return table[table.length - 1]; };
   const pickV = (rng, table) => pickW(rng, table)[0];
-  const coinCell = (rng, bet, table) => { const e = pickW(rng, table), c = { s: 'CN', coin: Math.round(e[0] * bet) }; if (typeof e[1] === 'string') c.jp = e[1]; return c; };
+  const COIN_SCALE = 0.876; // base-game coins only; bonus-mode coin values keep their feel
+  const coinCell = (rng, bet, table, scale) => { const e = pickW(rng, table), c = { s: 'CN', coin: Math.round(e[0] * bet * (scale == null ? (table === COIN_VAL ? COIN_SCALE : 1) : scale)) }; if (typeof e[1] === 'string') c.jp = e[1]; return c; };
   const ways = rows => rows[0] * rows[1] * rows[2];
   // ways pay of a plain symbol grid - used to find punch-nudge targets
   function waysWin(grid) { let n = 0; const wild = grid[1].some(c => c.s === 'WD'); for (const s in PAY) { const a = grid[0].some(c => c.s === s), c3 = grid[2].some(c => c.s === s); if (a && c3 && (wild || grid[1].some(c => c.s === s))) n++; } return n; }
@@ -169,5 +170,5 @@
     const T = n * bet, rtp = won / T, sd = Math.sqrt(sq / n - rtp * rtp), share = {}; for (const k in B) share[k] = B[k] / T;
     return { spins: n, rtp, hitRate: hits / n, sd, bonusEvery: n / bonuses, meterEvery: viaMeter ? n / viaMeter : null, maxX, nudgeEvery: n / nudges, thunderEvery: n / thunders, smashRate: smash / n, respinEvery: n / respinsN, awakenRate: awakens / bonuses, avgFreeSpins: fsSpins / fsRounds, growRate: grows / fsN, share, tiers, wedges, modes, wheelTiers: tiersW };
   }
-  return { NUDGE_P, waysWin, SYM, PAY, PAY_SCALE, DENOMS, BETS, WILD_MULT, COIN_VAL, COIN_FREE, COIN_INF, JP, WHEEL, LOCKS, LOCK_X, AWAKEN, TRIG, METER_MAX, MODES, FS_START, GROW_ROWS, RESPIN_MAX, STRIPS, FREE_STRIPS, MODE_STRIPS, COUNTS, spin, spinWheel, bonusRound, play, simulate, tier, ways, mulberry32, cryptoRng };
+  return { NUDGE_P, waysWin, SYM, PAY, PAY_SCALE, DENOMS, BETS, WILD_MULT, COIN_VAL, COIN_FREE, COIN_INF, COIN_SCALE, JP, WHEEL, LOCKS, LOCK_X, AWAKEN, TRIG, METER_MAX, MODES, FS_START, GROW_ROWS, RESPIN_MAX, STRIPS, FREE_STRIPS, MODE_STRIPS, COUNTS, spin, spinWheel, bonusRound, play, simulate, tier, ways, mulberry32, cryptoRng };
 });

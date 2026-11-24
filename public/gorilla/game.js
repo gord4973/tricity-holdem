@@ -162,8 +162,10 @@ async function resolve(res, mode) {
   const banner = v => { $('winBanner').textContent = `WIN ${money(v * st.denom)}`; $('winBanner').title = lines.join(' · '); $('winBanner').classList.remove('hidden'); };
   if (shownWin > 0) banner(shownWin);
   if (res.respin) { const rp = res.respin; await sleep(quick ? 80 : 400); toast('🪙 COIN RESPIN', 1100); A.play('tease', 1.2);
-    await reels.respin(rp.r, rp.steps, { randomSym: () => Math.random() < .35 ? { s: 'CN', coin: bet() * [.5, 1, 2, 3][Math.random() * 4 | 0] } : { s: 'NO' }, dur: quick ? .35 : .8,
-      onStep: async c => { if (c) { A.play('coin', 6); A.play('glint', 2); shownWin += c.coin; banner(shownWin); fxs({ kind: 'respin', at: performance.now() }); await sleep(quick ? 60 : 350); } else { A.play('reelStop', 1); await sleep(quick ? 60 : 250); } } });
+    await reels.respin(rp.r, rp.steps, { randomSym: () => Math.random() < .35 ? { s: 'CN', coin: bet() * [.5, 1, 2, 3][Math.random() * 4 | 0] } : randomSym(rp.r), holdSym: () => randomSym(rp.r), dur: quick ? .35 : .8,
+      onStep: async (c, y) => { if (c) { A.play('coin', 6); A.play('glint', 2); shownWin += c.coin; banner(shownWin); fxs({ kind: 'respin', at: performance.now() });
+        if (y >= 0) { const cells = reels.win ? new Set(reels.win.cells) : new Set(); cells.add(rp.r + ',' + y); reels.setWin(cells); }
+        await sleep(quick ? 60 : 350); } else { A.play('reelStop', 1); await sleep(quick ? 60 : 250); } } });
     if (rp.pay) lines.push(`Coin respins ${money(rp.pay * st.denom)}`); }
   banner(win);
   if (mode) { // bonus spins: the round total gets the big celebration; here just the meter and a small reaction
