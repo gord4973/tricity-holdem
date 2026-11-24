@@ -20,6 +20,9 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     await p.waitForFunction(() => /idle|still/.test(document.getElementById('scene').dataset.clip) && window.__done, { timeout: 15000 }); console.log(`✔ ${n} clip played and returned to idle`); }
   await p.waitForFunction(() => ['roar', 'chestbeat', 'punch', 'stare', 'smallwin', 'lose', 'anticipate', 'br1', 'br4', 'huff1', 'grunt1', 'roarReal'].every(k => GorillaAudio.loaded(k)), { timeout: 15000 }); console.log('✔ gorilla sounds + breath one-shots decoded');
   await p.waitForFunction(() => GorillaSymbols.codes.every(c => GorillaSymbols.img[c].naturalWidth >= 512), { timeout: 10000 }); console.log('✔ photoreal symbols loaded (2x webp)');
+  await p.click('#menuBtn'); await p.waitForSelector('#menu:not(.hidden)');
+  const qLabel = await p.$eval('#qBtn', e => e.textContent); assert.ok(/^Video Res: (High|Low)$/.test(qLabel), 'video res label: ' + qLabel); console.log('✔ options menu: ' + qLabel);
+  await p.click('[data-close=menu]'); await p.waitForSelector('#menu.hidden');
   await p.click('#spinBtn'); await wait(300); assert.ok(await p.$eval('#toast', e => !e.classList.contains('hidden') && /Insert/.test(e.textContent)), 'spin with no cash asks for a bill');
   await p.click('#billBtn'); await p.waitForFunction(() => document.getElementById('bill').classList.contains('go'), { timeout: 5000 }); await idle();
   assert.strictEqual(await cents(), 10000); assert.strictEqual(await p.$eval('#mCash', e => e.textContent), '$100.00'); console.log('✔ bill inserted, CASH rolled to $100.00');
