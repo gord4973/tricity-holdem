@@ -64,23 +64,21 @@ function playTakeover(o = {}) {
   $('app').classList.remove('quake'); // drop any leftover cabinet shake so the fade does not start mid-nudge
   v.src = `/gorilla/media/v5/${clip}-${q}.mp4?v=7`; v.muted = true; v.classList.add('full'); if (o.mode) v.classList.add('mode-' + o.mode); v.classList.remove('hidden');
   A.init && A.init();
-  if (o.snd !== false) { // cine is always muted; roars play on the loud WebAudio bus, synced to the open mouth
-    const snd = o.snd || 'roar';
-    if (snd === 'roar' || o.loudRoar) {
-      A.duck && A.duck(4);
-      const s = A.sample && A.sample('roarReal', { loud: true, gain: 1.05 });
-      if (!s) { if (A.decode) A.decode('roarReal').then(() => A.sample && A.sample('roarReal', { loud: true, gain: 1.05 })); A.play('roar'); }
-      if (!A.muted) { window.__takeoverRoar = true; window.__lastRoarAt = performance.now(); }
-    } else A.play(snd);
-    if (snd !== 'stare') A.play('thunder'); }
+  // cine is always muted; the roar fires when the clip is actually on screen with the mouth open (not when the takeover is requested:
+  // on a phone the clip can take a second or more to load, and a roar fired up front was over before the gorilla appeared)
+  const snd = o.snd === false ? null : (o.snd || 'roar'); let roared = false;
+  const roarNow = why => { if (roared || !snd) return; roared = true; window.__lastTakeover = { clip, at: performance.now(), why, ct: v.currentTime, shown: v.classList.contains('show') };
+    if (snd === 'roar' || o.loudRoar) { A.duck && A.duck(4); A.roar ? A.roar({ tag: 'takeover:' + clip }) : A.play('roar'); } else A.play(snd);
+    if (snd !== 'stare') A.play('thunder'); };
   return new Promise(res => { let done = false;
-    const end = () => { if (done) return; done = true; v.classList.remove('show'); $('app').classList.remove('takeover', 'quake'); v.onclick = null;
+    const end = () => { if (done) return; done = true; roarNow('end'); v.classList.remove('show'); $('app').classList.remove('takeover', 'quake'); v.onclick = null;
       setTimeout(() => { v.pause(); v.classList.add('hidden'); v.classList.remove('full', 'mode-jungle', 'mode-fury', 'mode-inferno'); res(true); }, fade + 40); };
-    const go = () => { try { v.currentTime = startAt; } catch (e) {} v.play().catch(end);
-      requestAnimationFrame(() => requestAnimationFrame(() => { $('app').classList.add('takeover'); v.classList.add('show'); })); };
+    const go = () => { try { v.currentTime = startAt; } catch (e) {} v.play().then(() => { requestAnimationFrame(() => roarNow('playing')); setTimeout(end, dur * (window.__gorillaSpeed || 1) + fade); }).catch(() => { roarNow('play-failed'); end(); });
+      requestAnimationFrame(() => requestAnimationFrame(() => { $('app').classList.add('takeover'); v.classList.add('show'); }));
+      setTimeout(() => roarNow('timeout'), 1200); };
     v.onended = end; v.onerror = end; v.onclick = end;
     if (v.readyState >= 1) go(); else v.onloadedmetadata = go;
-    setTimeout(end, dur * (window.__gorillaSpeed || 1) + fade + 500); }); }
+    setTimeout(end, dur * (window.__gorillaSpeed || 1) + fade + 6000); }); } // safety only; the clip's own timer starts once it is playing
 // two Temple Wheel badges landed, no trigger: he stays on the reels and leans down at the last one (never a player-stare — that is only for the punch)
 async function almostMiss() {
   $('frame').classList.add('tease', 'almost'); document.body.classList.add('almost');
@@ -254,9 +252,21 @@ async function meterUpdate(m) {
 const WIMG = new Image(), CHAIN = new Image(); WIMG.src = '/gorilla/media/v4/art/wheel@2x.webp?v=1'; CHAIN.src = '/gorilla/media/v4/art/chains.webp?v=1';
 const WEDGE_STYLE = { jungle: ['#7fd4ff', '#06223a', 'JUNGLE', 'SPINS'], fury: ['#9dff5a', '#0e2a04', 'FURY', 'SPINS'], inferno: ['#ff7a2a', '#3a0800', 'INFERNO', 'SPINS'], titan: ['#ff5a1a', '#2a0400', 'TITAN', 'JACKPOT'], gold: ['#ffd34a', '#3a2400', 'GOLD', 'JACKPOT'], silver: ['#eef0ff', '#2a2a38', 'SILVER', 'JACKPOT'], bronze: ['#ffb27a', '#3a1404', 'BRONZE', 'JACKPOT'], c8: ['#fff4d0', '#2a1204', '8×', 'BET'], c15: ['#fff4d0', '#2a1204', '15×', 'BET'] };
 const wheel = { ang: 0, locks: new Set(), pieces: [], raf: 0, glow: -1 };
-const wedgeAngle = i => (15 + i * 30) * Math.PI / 180; // wedge centre, clockwise from 12 o'clock (a spoke sits at the top of the art)
+const WSEG = 2 * Math.PI / 12, wedgeAngle = i => (i + .5) * WSEG; // wedge i spans [i*30°, (i+1)*30°] clockwise from 12 o'clock; centre at 15° + 30°·i
+const wheelStopAngle = i => -wedgeAngle(i); // rotation that puts wedge i's centre dead under the 12 o'clock pointer
+const wedgeUnderPointer = ang => { const th = ((-ang) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI); return { idx: Math.floor(th / WSEG) % 12, off: (th - wedgeAngle(Math.floor(th / WSEG) % 12)) * 180 / Math.PI }; };
+window.__wheelGeom = { wedgeAngle, wheelStopAngle, wedgeUnderPointer, n: 12 };
 function drawWheel() { const c = $('wheel'), g = c.getContext('2d'), W = c.width, R = W / 2, n = M.WHEEL.length; g.clearRect(0, 0, W, W); g.save(); g.translate(R, R); g.rotate(wheel.ang);
   if (WIMG.complete && WIMG.naturalWidth) g.drawImage(WIMG, -R, -R, W, W); else { g.fillStyle = '#2a1206'; g.beginPath(); g.arc(0, 0, R, 0, 7); g.fill(); }
+  { const r0 = R * .335, r1 = R * .875; // exact 30° wedge faces between the hub and the rim
+    for (let i = 0; i < n; i++) { const a0 = i * WSEG - Math.PI / 2, a1 = a0 + WSEG, [fc] = WEDGE_STYLE[M.WHEEL[i].id]; const gr = g.createRadialGradient(0, 0, r0, 0, 0, r1);
+      if (i % 2) { gr.addColorStop(0, '#5a3c18'); gr.addColorStop(1, '#2e1c0a'); } else { gr.addColorStop(0, '#1e1610'); gr.addColorStop(1, '#0a0705'); }
+      g.beginPath(); g.arc(0, 0, r1, a0, a1); g.arc(0, 0, r0, a1, a0, true); g.closePath(); g.fillStyle = gr; g.fill();
+      g.save(); g.globalAlpha = .13; g.fillStyle = fc; g.fill(); g.restore(); }
+    for (let i = 0; i < n; i++) { const a = i * WSEG - Math.PI / 2, c = Math.cos(a), s = Math.sin(a); // gold spokes exactly on the wedge boundaries
+      g.lineCap = 'round'; g.strokeStyle = 'rgba(0,0,0,.6)'; g.lineWidth = R * .04; g.beginPath(); g.moveTo(c * r0, s * r0); g.lineTo(c * r1, s * r1); g.stroke();
+      const sg = g.createLinearGradient(c * r0, s * r0, c * r1, s * r1); sg.addColorStop(0, '#8a6020'); sg.addColorStop(.5, '#ffd36a'); sg.addColorStop(1, '#a87a2a'); g.strokeStyle = sg; g.lineWidth = R * .022; g.beginPath(); g.moveTo(c * r0, s * r0); g.lineTo(c * r1, s * r1); g.stroke(); }
+    g.lineWidth = R * .02; g.strokeStyle = '#c8973a'; g.beginPath(); g.arc(0, 0, r1, 0, 7); g.stroke(); g.beginPath(); g.arc(0, 0, r0, 0, 7); g.stroke(); }
   for (let i = 0; i < n; i++) { const w = M.WHEEL[i], a = wedgeAngle(i) - Math.PI / 2, [fc, sc, l1, l2] = WEDGE_STYLE[w.id]; g.save(); g.rotate(a + Math.PI / 2);
     if (wheel.glow === i) { g.save(); g.globalCompositeOperation = 'lighter'; const p = .5 + .5 * Math.sin(performance.now() / 90); g.fillStyle = `rgba(255,200,80,${.25 + .25 * p})`; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R * .86, -Math.PI / 2 - Math.PI / 12, -Math.PI / 2 + Math.PI / 12); g.closePath(); g.fill(); g.restore(); }
     g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
@@ -289,14 +299,16 @@ async function bonus(b, F = {}) {
     await ape.awaken(() => { const free = [...lockedIdx(w.start)].filter(i => !lockedIdx(w.tier).has(i)); shatterChains(free); A.play('crack'); A.play('rattle'); A.play('thunder'); fxs({ kind: 'awaken', at: performance.now() }); box.className = 'tier' + w.tier; $('wheelTier').textContent = `AWAKENED · ${w.tier} DRUMS`; });
     $('wheelMsg').textContent = wheel.locks.size ? `${wheel.locks.size} wedges still chained` : 'Every wedge is open'; await sleep(quick ? 200 : 1500); }
   $('wheelMsg').textContent = 'Tap the wheel'; $('wheelHub').classList.add('ready');
-  await new Promise(res => { const hub = $('wheelHub'); const go = () => { hub.onclick = null; clearTimeout(auto); res(); }; hub.onclick = go; const auto = setTimeout(go, quick ? 300 : 3000); });
+  // waits for the player's tap on the hub or anywhere on the wheel — no auto-spin
+  await new Promise(res => { const hub = $('wheelHub'), wrap = $('wheelWrap'); const go = e => { if (e) e.stopPropagation(); hub.onclick = null; wrap.onclick = null; A.init(); res(); }; hub.onclick = go; wrap.onclick = go; });
   $('wheelHub').classList.remove('ready'); $('wheelMsg').textContent = '';
-  const n = M.WHEEL.length, cur = wheel.ang; let target = -wedgeAngle(w.idx) + (Math.random() - .5) * .6 * (2 * Math.PI / n); while (target > cur) target -= 2 * Math.PI;
+  const n = M.WHEEL.length, cur = wheel.ang; let target = wheelStopAngle(w.idx); while (target > cur) target -= 2 * Math.PI;
   const end = target - 5 * 2 * Math.PI, dur = (quick ? 1500 : 5200) * (window.__gorillaSpeed || 1);
   await ape.swipe(() => { A.play('whoosh'); A.play('drum', 1); fxs({ kind: 'swipe', at: performance.now() }); }); // the gorilla's sweep starts the wheel
   const t0 = performance.now(); let lastSeg = null;
   await new Promise(res => { const step = now => { const u = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - u, 3.2); wheel.ang = cur + (end - cur) * e; const seg = Math.floor(-wheel.ang / (2 * Math.PI / n)); if (seg !== lastSeg) { lastSeg = seg; A.play('wheelTick'); } if (u < 1) requestAnimationFrame(step); else res(); }; requestAnimationFrame(step); });
-  wheel.glow = w.idx; let won = 0; const lab = w.wedge;
+  wheel.ang = end; wheel.glow = w.idx; let won = 0; const lab = w.wedge;
+  (window.__wheelStops = window.__wheelStops || []).push({ idx: w.idx, id: w.wedge.id, ang: wheel.ang, under: wedgeUnderPointer(wheel.ang) });
   if (w.locked) { $('wheelMsg').textContent = `CHAINED — ${money(w.win * st.denom)}`; A.play('rattle'); ape.dismiss && ape.dismiss(); await sleep(quick ? 300 : 2200); closeWheel(); await roll('win', disp.win + w.win, 1000, true); return w.win; }
   if (w.mode) { $('wheelMsg').textContent = `${M.MODES[w.mode].name}!`; A.play('jackpot'); await sleep(quick ? 300 : 1600); closeWheel(); return await freeRound(w.mode, F); }
   const c = w.win; $('wheelMsg').textContent = lab.jp ? `${lab.label} JACKPOT ${money(c * st.denom)}` : money(c * st.denom);
@@ -315,7 +327,7 @@ const MODE_FEATS = {
 async function splash(mode) { const s = $('splash'); $('splashTitle').textContent = M.MODES[mode].name.split(' ')[0]; $('splashSub').textContent = `${M.FS_START} FREE SPINS`;
   $('splashFeats').innerHTML = MODE_FEATS[mode].map(([ic, a, b]) => `<div class=feat><i class="ic ${ic}">${/GROW|JP/.test(ic) ? (ic === 'GROW' ? '<svg viewBox="0 0 24 24"><path d="M12 2l7 8h-4v5h-6v-5H5z M5 18h14v4H5z"/></svg>' : '<b>JP</b>') : `<img src="${SY.get(ic)}" alt="">`}</i><b>${a}</b><span>${b}</span></div>`).join('');
   s.className = 'mode-' + mode; s.classList.remove('hidden'); A.play('fanfare', 2);
-  await new Promise(res => { const b = $('startBtn'); const go = () => { b.onclick = null; clearTimeout(auto); res(); }; b.onclick = go; const auto = setTimeout(go, quick ? 400 : 7000); });
+  await new Promise(res => { const b = $('startBtn'); const go = () => { b.onclick = null; A.init(); res(); }; b.onclick = go; }); // waits for the player's tap (no auto-start)
   A.play('click'); s.classList.add('hidden'); }
 async function setRows(n, viaHeave) { if (n === curRows) return;
   const go = () => { curRows = n; reels.setRows(n); $('frame').classList.add('grow'); layout(); A.play(n > 3 ? 'slam' : 'whoosh'); if (n > 3) A.play('crack'); fxs({ kind: 'grow', rows: n, at: performance.now() }); };
@@ -363,7 +375,7 @@ async function playAscent(a) {
   $('splashTitle').textContent = title; $('splashSub').textContent = sub;
   $('splashFeats').innerHTML = (MODE_FEATS[toMode] || []).map(([ic, a2, b]) => `<div class=feat><i class="ic ${ic}">${/GROW|JP/.test(ic) ? (ic === 'GROW' ? '<svg viewBox="0 0 24 24"><path d="M12 2l7 8h-4v5h-6v-5H5z M5 18h14v4H5z"/></svg>' : '<b>JP</b>') : `<img src="${SY.get(ic)}" alt="">`}</i><b>${a2}</b><span>${b}</span></div>`).join('');
   const s = $('splash'); s.className = 'mode-' + toMode; s.classList.remove('hidden'); A.play('fanfare', 3);
-  await new Promise(res => { const b = $('startBtn'); const go = () => { b.onclick = null; clearTimeout(auto); res(); }; b.onclick = go; const auto = setTimeout(go, quick ? 400 : 5000); });
+  await new Promise(res => { const b = $('startBtn'); const go = () => { b.onclick = null; A.init(); res(); }; b.onclick = go; }); // waits for the player's tap (no auto-start)
   A.play('click'); s.classList.add('hidden');
   if ($('hudMode')) $('hudMode').textContent = a.to === 'titan' ? 'TEMPLE TITAN' : M.MODES[toMode].name;
   toast(title, 1400);
@@ -389,6 +401,12 @@ function showPay() { const b = betCents(), u = b / 27; const row = s => `<div><i
   $('menuBody').innerHTML = `<p>Bet ${bet()} credits (${money(b)}). 27 ways: 3 matching symbols on adjacent reels from left to right, any row. Pays shown per way at this bet.</p><div class=pt>${['SB', 'MK', 'TC', 'ID', 'BN', 'RB', 'EM', 'SP'].map(row).join('')}</div>
   <div class=pt><div><img src="${SY.get('WD')}"><b>Wild</b><span>reel 2; gold ×2 ×3 ×5 ×10 badges (and rarer ×8 ×16). A hitting badge is a thunder wild</span></div><div><img src="${SY.get('CN')}"><b>Prize Coins</b><span>3+ pay their values; a coin column can respin up to 5 times</span></div><div><img src="${SY.get('CN')}"><b>Chained Coins</b><span>locked with chains; they pay only if the gorilla smashes them</span></div><div><img src="${SY.get('DR')}"><b>Temple Wheel</b><span>1, 2 or 3 badges can start the Temple Drum Wheel</span></div><div><img src="${SY.get('FI')}"><b>Firefist</b><span>bonus spins: +1 spin</span></div></div>
   <p><b>Temple Drum Wheel.</b> 3 drums open every wedge. With 1 or 2 drums the top wedges are chained (a chained wedge pays ${M.LOCK_X}× bet), unless the gorilla's roar breaks the chains. Wedges: ${money(8 * b)}, ${money(15 * b)}, BRONZE ${money(25 * b)}, SILVER ${money(75 * b)}, GOLD ${money(250 * b)}, TITAN ${money(1000 * b)}, or a bonus round.</p>
+  <div id=jpHelp><p><b>How to win the jackpots.</b> BRONZE, SILVER, GOLD and TITAN are won on the Temple Drum Wheel. The wheel starts when Temple Wheel badges land (3 badges always start it; 1 or 2 sometimes do) or when the Rampage Meter fills (a 2-badge wheel). The more badges, the fewer wedges are chained.</p>
+  <div class=jpl><div class="jpr bronze"><b>BRONZE</b><i>${M.JP.bronze}× bet · ${money(M.JP.bronze * b)}</i><span>Land the BRONZE wedge on any wheel. It is never chained. In INFERNO spins a bronze jackpot coin also pays it. About 1 in 1,100 spins.</span></div>
+  <div class="jpr silver"><b>SILVER</b><i>${M.JP.silver}× bet · ${money(M.JP.silver * b)}</i><span>Land the SILVER wedge on a 2- or 3-badge wheel (chained on a 1-badge wheel). In INFERNO spins a silver jackpot coin also pays it. About 1 in 2,800 spins.</span></div>
+  <div class="jpr gold"><b>GOLD</b><i>${M.JP.gold}× bet · ${money(M.JP.gold * b)}</i><span>Land the GOLD wedge on a 3-badge wheel (chained with 1 or 2 badges). About 1 in 16,600 spins.</span></div>
+  <div class="jpr titan"><b>TITAN</b><i>${M.JP.titan}× bet · ${money(M.JP.titan * b)}</i><span>Land the TITAN wedge, the smallest on the wheel, on a 3-badge wheel (chained with 1 or 2 badges). About 1 in 80,000 spins.</span></div></div>
+  <p>A chained wedge pays ${M.LOCK_X}× bet instead of its prize. Before the wheel spins, the gorilla's roar can <b>awaken</b> it and break the chains, raising a 1-badge wheel to 2 badges or a 2-badge wheel to 3. Jackpots are fixed multiples of your bet (shown on the plaques), play money only. TEMPLE TITAN spins are a bonus round, not the TITAN jackpot.</p></div>
   <p><b>Bonus rounds</b> start with ${M.FS_START} spins (up to 50): <b>JUNGLE</b> stacks and wilds ×2–×16 · <b>FURY</b> adds growing reels up to 7 rows (343 ways) · <b>INFERNO</b> puts coins and jackpot coins on every reel. Mid-round, a <b>Temple Ascent</b> can upgrade Jungle into Fury, Fury into Inferno, or Inferno into <b>Temple Titan</b> — extra maxed Inferno spins.</p>
   <p><b>Rampage Meter.</b> Every drum that lands without a wheel fills the meter; when full the gorilla smashes it and a 2-drum wheel starts. Return to player about 95.4% (play money only).</p>`; }
 // big-win coin shower (photoreal prize coin sprite)

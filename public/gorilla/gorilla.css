@@ -199,3 +199,14 @@ body.graded.mode-inferno #scene .stage::after{opacity:.5;background:#ff2a00}
 body.graded #scene .sceneBg{transition:filter 1.2s;filter:blur(26px) brightness(.55) saturate(1.6)}
 body.bonus #logo{opacity:0;transition:opacity .4s}
 #app.wide .plq{transition:opacity .4s}#app.wide.grown .plq{opacity:0;pointer-events:none}
+
+/* paytable: how to win the jackpots */
+#jpHelp .jpl{display:flex;flex-direction:column;gap:6px;margin:8px 0}
+#jpHelp .jpr{display:grid;grid-template-columns:auto 1fr;column-gap:8px;row-gap:2px;align-items:baseline;padding:6px 8px;border-radius:8px;background:radial-gradient(#2a140b,#0b0503);border-left:5px solid #888}
+#jpHelp .jpr b{letter-spacing:1px}#jpHelp .jpr i{font-style:normal;font-weight:800;color:#ffe9b0;font-variant-numeric:tabular-nums;text-align:right}
+#jpHelp .jpr span{grid-column:1 / -1;font-size:.92em;line-height:1.3;color:#eadfcf}
+#jpHelp .jpr.bronze{border-color:#e08a4a}#jpHelp .jpr.bronze b{color:#ffb27a}
+#jpHelp .jpr.silver{border-color:#d8d8e4}#jpHelp .jpr.silver b{color:#eef0ff}
+#jpHelp .jpr.gold{border-color:#ffd34a}#jpHelp .jpr.gold b{color:#ffd34a}
+#jpHelp .jpr.titan{border-color:#ff5a1a}#jpHelp .jpr.titan b{color:#ff7a3a}
+#jpHelp{scroll-margin-top:14px}

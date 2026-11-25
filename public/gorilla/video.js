@@ -223,9 +223,9 @@ export class VideoApe {
   jolt(s = 1) { this.stage.style.setProperty('--jz', (1 + .035 * s).toFixed(3)); this.stage.classList.remove('jolt'); void this.stage.offsetWidth; this.stage.classList.add('jolt'); }
   reactBill() { A.sample(Math.random() < .5 ? 'grunt1' : 'grunt2', { gain: .8, rate: .9 + Math.random() * .15 }); this.stage.classList.remove('lean'); void this.stage.offsetWidth; this.stage.classList.add('lean'); }
   lightning() { this.flash.classList.remove('go'); void this.flash.offsetWidth; this.flash.classList.add('go'); this.emit('thunder'); }
-  roarSound() { if (!A) return; A.init && A.init(); A.duck && A.duck(4);
-    const s = A.sample && A.sample('roarReal', { loud: true, gain: 1.05 });
-    if (!s) { if (A.decode) A.decode('roarReal').then(() => A.sample && A.sample('roarReal', { loud: true, gain: 1.05 })); A.play && A.play('roar'); }
+  roarSound(tag) { if (!A) return; A.init && A.init(); A.duck && A.duck(4);
+    if (A.roar) return A.roar({ tag: tag || (this.action && this.action.name) || 'clip' });
+    const s = A.sample && A.sample('roarReal', { loud: true, gain: 1.05 }); if (!s) A.play && A.play('roar');
     if (!(A && A.muted)) { window.__takeoverRoar = true; window.__lastRoarAt = performance.now(); } }
   emit(ev, a) { if (this.on && this.on[ev]) this.on[ev](a); }
   // ---------- embers + debris + camera shake ----------

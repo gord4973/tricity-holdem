@@ -1,7 +1,9 @@
 // GORILLA - original synthesized sounds (WebAudio, no samples). window.GorillaAudio
 (function () {
   let ctx = null, master = null, loud = null, loudIn = null, muted = localStorage.getItem('gorillaMute') === '1', noiseBuf = null;
-  function init() { if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return true; } const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
+  // iOS 17+: 'playback' session so the ringer/silent switch and a playing <video> do not silence or interrupt WebAudio
+  try { if (navigator.audioSession && navigator.audioSession.type !== 'playback') navigator.audioSession.type = 'playback'; } catch (e) {}
+  function init() { if (ctx) { if (ctx.state !== 'running' && ctx.state !== 'closed') ctx.resume().catch(() => {}); return true; } const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
     ctx = new AC(); master = ctx.createGain(); master.gain.value = muted ? 0 : .8; const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -8; comp.knee.value = 6; comp.ratio.value = 6; comp.attack.value = .003; comp.release.value = .2; master.connect(comp); comp.connect(ctx.destination);
     // LOUD bus for the gorilla's roars + chestbeat: full gain (no 0.8 master, no -8 dB bus compressor), +1.9 dB drive into a brick-wall limiter at -1 dBFS so it is loud without clipping
     loudIn = ctx.createGain(); loudIn.gain.value = 1.25; const lim = ctx.createDynamicsCompressor(); lim.threshold.value = -1; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = .001; lim.release.value = .12; loud = ctx.createGain(); loud.gain.value = muted ? 0 : 1; loudIn.connect(lim); lim.connect(loud); loud.connect(ctx.destination);
@@ -47,7 +49,8 @@
   };
   // ---- real recorded samples (gorilla roars, chest beats, slams) ----
   const raw = {}, buf = {}, decoding = {}; let ambient = null;
-  function fetchSamples(map) { for (const k in map) if (!raw[k]) raw[k] = fetch(map[k]).then(r => { if (!r.ok) throw new Error(map[k] + ' ' + r.status); return r.arrayBuffer(); }).catch(e => { console.warn('sample', e); return null; }); }
+  const urls = {}, htmlEl = {}; // HTML <audio> fallbacks for roars: unlocked on a tap, used if WebAudio is suspended/interrupted (iOS) when the mouth opens
+  function fetchSamples(map) { for (const k in map) urls[k] = urls[k] || map[k]; for (const k in map) if (!raw[k]) raw[k] = fetch(map[k]).then(r => { if (!r.ok) throw new Error(map[k] + ' ' + r.status); return r.arrayBuffer(); }).catch(e => { console.warn('sample', e); return null; }); }
   function decode(k) { if (buf[k]) return Promise.resolve(buf[k]); if (!ctx || !raw[k]) return Promise.resolve(null); return decoding[k] || (decoding[k] = raw[k].then(ab => ab ? new Promise((res) => ctx.decodeAudioData(ab.slice(0), b => { buf[k] = b; res(b); }, () => res(null))) : null)); }
   function sample(k, o = {}) { if (!ctx || muted) return null; const b = buf[k]; if (!b) { decode(k); return null; } const s = ctx.createBufferSource(), g = ctx.createGain(); s.buffer = b; s.loop = !!o.loop; if (o.rate) s.playbackRate.value = o.rate; g.gain.value = o.gain != null ? o.gain : 1; s.connect(g); g.connect(o.loud && loudIn ? loudIn : master); s.start(now() + (o.delay || 0), Math.max(0, o.offset || 0)); return { src: s, stop: (fade = 0) => { try { if (fade) { g.gain.setTargetAtTime(0, now(), fade / 3); s.stop(now() + fade); } else s.stop(); } catch (e) {} }, g, dur: b.duration / (o.rate || 1) }; }
   let breathT = 0, duckUntil = 0, lastB = '';
@@ -57,7 +60,20 @@
       const k = pickBreath(); if (k) { lastB = k; const grunt = /grunt|huff/.test(k); sample(k, { gain: (grunt ? .35 : .45) + Math.random() * (grunt ? .25 : .4), rate: .86 + Math.random() * .2 });
         if (!grunt && Math.random() < .35) setTimeout(() => { const k2 = pickBreath(); if (k2 && !/grunt/.test(k2) && performance.now() > duckUntil) sample(k2, { gain: .25 + Math.random() * .25, rate: .9 + Math.random() * .15 }); }, 700 + Math.random() * 600); }
       breathe(1700 + Math.random() * 3800 + (Math.random() < .2 ? 2500 + Math.random() * 3000 : 0)); }, ms); }
-  window.GorillaAudio = { init: () => { const ok = init(); if (ok) { for (const k in raw) decode(k); if (window.__gorillaAmbient && !ambient && !muted) GorillaAudio.ambient(true); } return ok; }, fetchSamples, decode, sample, loaded: k => !!buf[k], rawLoaded: () => Promise.all(Object.values(raw)).then(a => a.filter(Boolean).length),
+  function htmlFor(k) { if (!urls[k]) return null; let el = htmlEl[k]; if (!el) { el = htmlEl[k] = new Audio(urls[k]); el.preload = 'auto'; el.playsInline = true; el.__unlocked = false; } return el; }
+  // every tap (not just the first): resume a suspended / iOS-'interrupted' context and unlock the roar <audio> element
+  function unlock() { if (ctx && ctx.state !== 'running' && ctx.state !== 'closed') ctx.resume().catch(() => {});
+    const el = htmlFor('roarReal'); if (el && !el.__unlocked) { el.muted = true; const p = el.play(); if (p && p.then) p.then(() => { el.pause(); el.currentTime = 0; el.muted = false; el.__unlocked = true; }).catch(() => { el.muted = false; }); } }
+  for (const ev of ['pointerdown', 'touchend', 'click', 'keydown']) addEventListener(ev, unlock, { capture: true, passive: true });
+  // the gorilla's roar, guaranteed audible: WebAudio loud bus when the context is running and decoded, else the unlocked <audio> element, else the synth
+  function roar(o = {}) { window.__roarLog = window.__roarLog || []; const rec = via => { window.__roarLog.push({ at: performance.now(), via, state: ctx ? ctx.state : 'none', tag: o.tag || '' }); window.__takeoverRoar = true; window.__lastRoarAt = performance.now(); return via; };
+    if (muted) return null; if (ctx && ctx.state !== 'running') ctx.resume().catch(() => {});
+    const running = ctx && ctx.state === 'running';
+    if (running && buf.roarReal) { const s = sample('roarReal', { loud: true, gain: o.gain || 1.05 }); if (s) return rec('webaudio'); }
+    const el = htmlFor('roarReal'); if (el && (el.__unlocked || !running)) { try { el.pause(); el.currentTime = 0; el.muted = false; el.volume = 1; const p = el.play(); if (p && p.catch) p.catch(e => { window.__roarLog.push({ at: performance.now(), via: 'html-fail', err: e.name }); if (ctx) { try { S.roar(); } catch (x) {} } }); return rec('html'); } catch (e) {} }
+    if (ctx) { if (!buf.roarReal) decode('roarReal'); try { S.roar(); } catch (e) {} return rec(running ? 'synth' : 'synth-suspended'); }
+    return null; }
+  window.GorillaAudio = { roar, unlock, state: () => ctx ? ctx.state : 'none', init: () => { const ok = init(); if (ok) { for (const k in raw) decode(k); if (window.__gorillaAmbient && !ambient && !muted) GorillaAudio.ambient(true); } return ok; }, fetchSamples, decode, sample, loaded: k => !!buf[k], rawLoaded: () => Promise.all(Object.values(raw)).then(a => a.filter(Boolean).length),
     // randomized breathing: one-shot breaths / huffs / grunts with random gaps, pitch and level (no loop), ducked while the gorilla's clips speak
     ambient(on) { window.__gorillaAmbient = on; clearTimeout(breathT); if (on && ctx && !muted) breathe(600); },
     duck(sec) { duckUntil = Math.max(duckUntil, performance.now() + sec * 1000); }, play(name, ...a) { if (!ctx || muted) return; try { S[name](...a); } catch (e) { console.warn(e); } }, get muted() { return muted; },

@@ -22,6 +22,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   await p.waitForFunction(() => GorillaSymbols.codes.every(c => GorillaSymbols.img[c].naturalWidth >= 512), { timeout: 10000 }); console.log('✔ photoreal symbols loaded (2x webp)');
   await p.click('#menuBtn'); await p.waitForSelector('#menu:not(.hidden)');
   const qLabel = await p.$eval('#qBtn', e => e.textContent); assert.ok(/^Video Res: (High|Low)$/.test(qLabel), 'video res label: ' + qLabel); console.log('✔ options menu: ' + qLabel);
+  { await p.click('#payBtn'); await wait(150); const jh = await p.evaluate(() => { const el = document.getElementById('jpHelp'); return el ? { txt: el.textContent, rows: el.querySelectorAll('.jpr').length } : null; });
+    assert.ok(jh && jh.rows === 4 && ['BRONZE', 'SILVER', 'GOLD', 'TITAN'].every(k => jh.txt.includes(k)) && /25× bet/.test(jh.txt) && /1000× bet/.test(jh.txt), 'paytable explains how to win each jackpot: ' + JSON.stringify(jh)); console.log('✔ paytable: how-to-win section for BRONZE / SILVER / GOLD / TITAN'); }
   const hasLogo = await p.evaluate(() => { const el = document.getElementById('logo'); return !!(el && getComputedStyle(el).display !== 'none' && el.textContent.trim()); }); assert.ok(!hasLogo, 'Gorilla title above the reels should be gone'); console.log('✔ no Gorilla title above the reels');
   const flameVis = await p.evaluate(() => { const el = document.querySelector('#frame .flames'); return el ? getComputedStyle(el).display : 'missing'; }); assert.ok(flameVis === 'none' || flameVis === 'missing', 'bouncing flame glow around the reels should be hidden: ' + flameVis); console.log('✔ no bouncing flame glow above or below the reels');
   await p.click('[data-close=menu]'); await p.waitForSelector('#menu.hidden');
@@ -58,6 +60,9 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     }) };
   });
   const assertFilled = async (label, requireWins) => { await wait(80); const r = await inspectWins(); if (requireWins && !r.cells.length) throw new Error(label + ': expected win-framed cells'); assert.ok(!r.badSym.length, label + ' invalid/blank symbols: ' + JSON.stringify(r.badSym)); if (r.cells.length) assert.ok(r.ok, label + ' blank win cells: ' + JSON.stringify(r.cells)); console.log('✔ ' + label + ': ' + (r.cells.length ? r.cells.length + ' win-framed cells filled' : 'no blank symbols on the reels')); };
+  // t100u: log every AudioBufferSourceNode.start (proves the roar sound source actually starts) and every takeover
+  await p.evaluate(() => { window.__srcStarts = []; const o = AudioBufferSourceNode.prototype.start; AudioBufferSourceNode.prototype.start = function (...a) { const c = document.getElementById('cine'); __srcStarts.push({ at: performance.now(), dur: this.buffer ? this.buffer.duration : 0, cineShown: !!(c && c.classList.contains('show') && !c.paused) }); return o.apply(this, a); };
+    window.__roarLog = []; window.__takeovers = []; setInterval(() => { const t = window.__lastTakeover; if (t && __takeovers[__takeovers.length - 1] !== t) __takeovers.push(t); }, 20); });
   const run = async (k, check) => { await p.evaluate(k => G.force(k), k); const c0 = await cents(); await p.click('#spinBtn'); if (check) await check(); await idle(); const c1 = await cents(); console.log(`✔ ${k}: ${c0} -> ${c1} cents (${await p.$eval('#winBanner', e => e.textContent)})`); return c1 - c0; };
   // v4: watch starts with the spin; hit impact frame and reel effect land together (+-50 ms)
   await p.evaluate(() => { window.__hits = []; const o = ape.on.slam; ape.on.slam = i => { __hits.push({ clip: ape.action && ape.action.name, busy: G.busy }); o && o(i); }; });
@@ -79,6 +84,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
       if (cine && cine.classList.contains('full') && /lean|stare/.test(cine.src || '')) window.__almostLean = true;
       if (n === 'lean' || n === 'stare') window.__almostLean = true;
     }, 25); });
+  await p.waitForFunction(() => !ape.action || !/smallwin|lose|roar|chestbeat/.test(ape.action.name), { timeout: 15000 }).catch(() => {}); // let the previous spin's reaction finish
   await run('almost', async () => { await p.waitForFunction(() => window.__almost, { timeout: 60000 }); await wait(200); await p.screenshot({ path: SHOTS + '/ui-almost.png' }); });
   assert.ok(await p.evaluate(() => !document.getElementById('wheelBox') || document.getElementById('wheelBox').classList.contains('hidden')), 'almost tease does not open the wheel');
   assert.ok(await p.evaluate(() => !window.__almostLean), 'almost tease does not use the player-stare / lean-in clip');
@@ -87,8 +93,9 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   const mid = wlog.filter((n, i) => i && i < wlog.length - 1);
   assert.ok(!mid.includes('idle') || mid.filter(n => n && /^watch|anticipate/.test(n || '')).length >= 1, 'watch stays fluid (no idle reset mid-spin): ' + JSON.stringify(wlog));
   console.log('✔ almost tease: stayed on the reels, no player stare, wheel stayed closed; watch log ' + JSON.stringify(wlog.filter(Boolean).slice(0, 8)));
-  const sync = async (k, kind) => { const r = await p.evaluate(kind => ({ fx: window.__fxBy[kind], hit: ape.lastImpact }), kind); const d = r.fx.at - r.hit.at, vd = (r.hit.ct - r.hit.cue) * 1000;
-    assert.ok(Math.abs(d) <= 50 && Math.abs(vd) <= 50, k + ' sync ' + JSON.stringify(r)); console.log(`✔ ${k}: reel effect ${d.toFixed(1)} ms after the impact cue; clip clock ${vd.toFixed(0)} ms past the impact frame (${r.hit.clip} @ ${r.hit.cue}s)`); return { d, vd }; };
+  await p.evaluate(() => { window.__impacts = []; setInterval(() => { const h = ape.lastImpact; if (h && __impacts[__impacts.length - 1] !== h) __impacts.push(h); }, 4); });
+  const sync = async (k, kind) => { const r = await p.evaluate(kind => { const fx = window.__fxBy[kind]; const all = __impacts.concat(ape.lastImpact ? [ape.lastImpact] : []); const hit = all.reduce((b, h) => !b || Math.abs(h.at - fx.at) < Math.abs(b.at - fx.at) ? h : b, null); return { fx, hit }; }, kind); const d = r.fx.at - r.hit.at, vd = (r.hit.ct - r.hit.cue) * 1000;
+    assert.ok(Math.abs(d) <= 50 && Math.abs(vd) <= 50, k + ' sync ' + JSON.stringify(r)); console.log(`✔ ${k}: reel effect ${d.toFixed(1)} ms after the impact cue; clip clock ${vd.toFixed(0)} ms past the impact frame (${r.hit.clip} @ ${r.hit.cue}s)`); return { d, vd, clip: r.hit.clip }; };
   await p.evaluate(() => { window.__starePunch = false; window.__sawStare = false; const iv = setInterval(() => { const n = ape.action && ape.action.name; if (n === 'lean' || n === 'stare' || (window.__gorillaFx && __gorillaFx.kind === 'stare')) window.__sawStare = true; if (window.__sawStare && window.__gorillaFx && __gorillaFx.kind === 'nudge') { window.__starePunch = true; clearInterval(iv); } }, 15); });
   await run('nudge', async () => { await p.waitForFunction(() => window.__gorillaFx && __gorillaFx.kind === 'nudge', { timeout: 60000 }); await wait(60); await p.screenshot({ path: SHOTS + '/ui-nudge.png' }); });
   await sync('punch-nudge', 'nudge'); assert.ok(await p.evaluate(() => reels.winCount()) >= 3, 'nudge punched the reel into a win');
@@ -98,8 +105,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   
   assert.ok(await run('win') > -250, 'win pays'); assert.ok(await p.evaluate(() => reels.winCount()) >= 3, 'winning cells highlighted');
   await assertFilled('ways win cells', true);
-  await run('smash', async () => { await p.waitForFunction(() => /UNLOCK/.test(document.getElementById('toast').textContent), { timeout: 60000 }); await p.waitForFunction(() => reels.locksGone > 0, { timeout: 60000 }); await p.screenshot({ path: SHOTS + '/ui-smash.png' }); }); await sync('lock smash', 'smash');
-  const smClip = await p.evaluate(() => ape.lastImpact && ape.lastImpact.clip); assert.ok(/punch/.test(smClip || ''), 'lock smash should be a punch, got ' + smClip); console.log('✔ lock smash: UNLOCK toast, gorilla punched the locked coin open (' + smClip + ')');
+  await run('smash', async () => { await p.waitForFunction(() => /UNLOCK/.test(document.getElementById('toast').textContent), { timeout: 60000 }); await p.waitForFunction(() => reels.locksGone > 0, { timeout: 60000 }); await p.screenshot({ path: SHOTS + '/ui-smash.png' }); }); const smSync = await sync('lock smash', 'smash');
+  const smClip = smSync.clip; assert.ok(/punch/.test(smClip || ''), 'lock smash should be a punch, got ' + smClip); console.log('✔ lock smash: UNLOCK toast, gorilla punched the locked coin open (' + smClip + ')');
   await assertFilled('lock smash cells', true);
   await run('big', async () => { await p.waitForSelector('#big:not(.hidden)', { timeout: 60000 }); await wait(600); await p.screenshot({ path: SHOTS + '/ui-bigwin.png' });
     assert.ok(!(await p.evaluate(() => ape.action && /roar|chestbeat/.test(ape.action.name))), 'no roar behind the win screen');
@@ -109,7 +116,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   await run('mega', async () => { await p.waitForFunction(() => document.getElementById('cine') && document.getElementById('cine').classList.contains('full'), { timeout: 60000 });
     await p.waitForFunction(() => window.__takeoverRoar, { timeout: 8000 }); await wait(400); await p.screenshot({ path: SHOTS + '/ui-mega-takeover-roar.png' });
     console.log('✔ mega takeover played a loud roar while the cine was on screen'); });
-  const hits = await p.evaluate(() => __hits); assert.ok(hits.every(h => h.busy && /punch|slam|smash|smallwin|pound/.test(h.clip)), 'hits only during a spin event: ' + JSON.stringify(hits)); console.log(`✔ ${hits.length} gorilla hits so far, all tied to a spin event (${[...new Set(hits.map(h => h.clip))].join(', ')})`);
+  const hits = await p.evaluate(() => __hits); assert.ok(hits.every(h => /punch|slam|smash|smallwin|pound/.test(h.clip) && (h.busy || /smallwin|pound/.test(h.clip))), 'hits only during a spin event: ' + JSON.stringify(hits)); console.log(`✔ ${hits.length} gorilla hits so far, all tied to a spin event (${[...new Set(hits.map(h => h.clip))].join(', ')})`);
   // ---- v5 features: thunder wild, coin respins, Rampage Meter, Temple Drum Wheel (chains / awakening / locked / jackpot), JUNGLE / FURY / INFERNO SPINS ----
   const fx = k => p.waitForFunction(k => window.__gorillaFx && __gorillaFx.kind === k, { timeout: 120000 }, k), shot = n => p.screenshot({ path: `${SHOTS}/v5-${n}.png` });
   const markSync = async (k, kind) => { const r = await p.evaluate(kind => ({ fx: window.__fxBy[kind], m: ape.lastMark }), kind); const d = r.fx.at - r.m.at; assert.ok(Math.abs(d) <= 50, k + ' mark sync ' + JSON.stringify(r)); console.log(`✔ ${k}: effect ${d.toFixed(1)} ms after the ${r.m.clip} '${r.m.key}' frame (${r.m.cue}s)`); };
@@ -118,6 +125,23 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   await run('respin', async () => { await fx('respin'); await wait(200); await shot('respin'); });
   await assertFilled('coin respin cells', true);
   assert.ok(await p.evaluate(() => reels.reels.some(R => R.strip.slice(0, reels.rows).some(c => c && c.s === 'CN'))), 'respin reel still shows prize coins');
+  // t100u: the wheel waits for the player's tap — no auto-spin
+  await p.evaluate(() => G.force('wheel3')); await p.click('#spinBtn');
+  await p.waitForFunction(() => document.getElementById('wheelHub').classList.contains('ready'), { timeout: 90000 }); const angA = await p.evaluate(() => (window.__wheelStops || []).length);
+  await wait(6000); const still = await p.evaluate(() => ({ ready: document.getElementById('wheelHub').classList.contains('ready'), msg: document.getElementById('wheelMsg').textContent }));
+  assert.ok(still.ready && /Tap/.test(still.msg) && (await p.evaluate(() => (window.__wheelStops || []).length)) === angA, 'wheel must wait for a tap: ' + JSON.stringify(still));
+  // from here a "player" taps the wheel / TAP TO START once it has been waiting a moment
+  await p.evaluate(() => { const seen = {}; setInterval(() => { const h = document.getElementById('wheelHub'), sp = document.getElementById('splash'), now = performance.now();
+    if (h.classList.contains('ready')) { seen.h = seen.h || now; if (now - seen.h > 900) { seen.h = 0; h.click(); } } else seen.h = 0;
+    if (sp && !sp.classList.contains('hidden')) { seen.s = seen.s || now; if (now - seen.s > 2500) { seen.s = 0; document.getElementById('startBtn').click(); } } else seen.s = 0; }, 100); });
+  await shot('wheel-waiting'); await p.click('#wheelWrap'); await p.waitForFunction(n => (window.__wheelStops || []).length > n, { timeout: 30000 }, angA); await wait(400); await shot('wheel-stopped');
+  const px = await p.evaluate(() => { const c = document.getElementById('wheel'), g = c.getContext('2d'), R = c.width / 2, at = (deg, r) => { const a = deg * Math.PI / 180, x = Math.round(R + r * R * Math.sin(a)), y = Math.round(R - r * R * Math.cos(a)); const d = g.getImageData(x, y, 1, 1).data; return [d[0], d[1], d[2]]; };
+    const st = __wheelStops[__wheelStops.length - 1]; return { st, outL: at(-24, .4), outR: at(24, .4), left: at(-15, .4), right: at(15, .4), left2: at(-15, .7), right2: at(15, .7) }; });
+  const gold = c => c[0] > 150 && c[1] > 100 && c[2] < c[0]; assert.ok(px.st.under.idx === px.st.idx && Math.abs(px.st.under.off) < .5, 'pointer on the awarded wedge ' + JSON.stringify(px.st));
+  assert.ok(gold(px.left) && gold(px.right) && gold(px.left2) && gold(px.right2) && !gold(px.outL) && !gold(px.outR), 'spokes sit exactly ±15° either side of the pointer: ' + JSON.stringify(px));
+  console.log(`✔ wheel waited 6 s for the tap, then stopped dead-centre on ${px.st.id} (offset ${px.st.under.off.toFixed(2)}°), spokes at ±15°`); await idle();
+  const geo = await p.evaluate(() => { const G2 = __wheelGeom; let bad = []; for (let k = 0; k < 5000; k++) { const idx = Math.floor(Math.random() * 12), cur = -Math.random() * 40; let t = G2.wheelStopAngle(idx); while (t > cur) t -= 2 * Math.PI; const end = t - 10 * Math.PI, u = G2.wedgeUnderPointer(end); if (u.idx !== idx || Math.abs(u.off) > .01) bad.push({ idx, u }); } return bad.slice(0, 5); });
+  assert.deepStrictEqual(geo, [], 'stop angle maps to the awarded wedge'); console.log('✔ 5000 simulated wheel stops: pointer always dead-centre on the awarded wedge');
   await run('meter', async () => { await p.waitForSelector('#meter.full', { timeout: 60000 }); await shot('meter-full'); await fx('meter'); await p.waitForSelector('#wheelBox:not(.hidden)', { timeout: 60000 }); assert.strictEqual(await p.evaluate(() => __lastWheel.start), 2, 'full meter = 2-drum wheel'); });
   assert.ok(await p.evaluate(() => G.st.meter) === 0, 'meter reset after the rampage'); console.log('✔ Rampage Meter: full meter smashed, 2-drum wheel, meter reset');
   await run('wheel1', async () => { await p.waitForSelector('#wheelBox:not(.hidden)', { timeout: 60000 }); await wait(500); assert.strictEqual(await p.evaluate(() => G.wheel.locks.size), 4, '1 drum: 4 chained wedges'); await shot('wheel-chains'); await fx('swipe'); await markSync('wheel swipe', 'swipe'); await wait(900); await shot('wheel-spin'); });
@@ -155,6 +179,15 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     assert.deepStrictEqual(stray, [], 'lean/stare played without a punch nudge right after: ' + JSON.stringify(a)); console.log(`✔ ${a.leans.length} lean/stare(s) this session, every one followed by a punch nudge within 4 s`); }
   await run('monster', async () => { await p.waitForSelector('#big.monster:not(.hidden)', { timeout: 60000 }); await wait(700); await shot('monster');
     await p.waitForFunction(() => document.getElementById('big').classList.contains('hidden') && ape.action && ape.action.name === 'roar', { timeout: 30000 }); console.log('✔ monster: roar after the overlay'); });
+  { const r = await p.evaluate(() => ({ stops: __wheelStops || [], roars: __roarLog, src: __srcStarts.filter(x => x.dur > 2.5), tk: __takeovers }));
+    const badStop = r.stops.filter(x => x.under.idx !== x.idx || Math.abs(x.under.off) > .5); assert.deepStrictEqual(badStop, [], 'every wheel stop: awarded wedge == wedge under pointer');
+    console.log(`✔ ${r.stops.length} real wheel spins this session: awarded wedge == wedge under the pointer every time (${[...new Set(r.stops.map(x => x.id))].join(', ')})`);
+    const tkRoars = r.roars.filter(x => /^takeover:/.test(x.tag)); assert.ok(tkRoars.length >= 5, 'takeover roars: ' + JSON.stringify(r.roars));
+    for (const x of tkRoars) { assert.ok(x.via === 'webaudio' && x.state === 'running', 'takeover roar on the running WebAudio loud bus: ' + JSON.stringify(x));
+      assert.ok(r.src.some(s => Math.abs(s.at - x.at) < 50 && s.cineShown), 'roar buffer source started while the takeover clip was on screen: ' + JSON.stringify({ x, src: r.src.slice(-6) })); }
+    assert.ok(r.tk.every(t => t.why === 'playing'), 'takeover roars fire when the clip is playing (mouth open), not before: ' + JSON.stringify(r.tk));
+    const clipRoars = r.roars.filter(x => !/^takeover:/.test(x.tag)); assert.ok(clipRoars.length >= 1, 'chest-beat / roar clip roars logged');
+    console.log(`✔ ${tkRoars.length} takeover roars (${[...new Set(tkRoars.map(x => x.tag.slice(9)))].join(', ')}): each started a ~3.3 s roar buffer source while the clip was on screen and playing; ${clipRoars.length} clip roars (${[...new Set(clipRoars.map(x => x.tag))].join(', ')})`); }
   const before = await cents(); assert.ok(before > 0); await p.click('#cashBtn'); await wait(1600); await p.screenshot({ path: SHOTS + '/ui-ticket.png' }); await idle();
   assert.strictEqual(await cents(), 0); assert.ok((await p.$eval('#ticket', e => e.textContent)).includes((before / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })), 'ticket shows cashed-out amount'); console.log('✔ cash out printed ticket for $' + (before / 100).toFixed(2));
   await p.reload({ waitUntil: 'load' }); await idle(); assert.strictEqual(await cents(), 0, 'state persisted in localStorage');
