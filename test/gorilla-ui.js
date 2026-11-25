@@ -63,17 +63,29 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   await p.evaluate(() => { window.__hits = []; const o = ape.on.slam; ape.on.slam = i => { __hits.push({ clip: ape.action && ape.action.name, busy: G.busy }); o && o(i); }; });
   await p.evaluate(() => { window.__w = null; const t0 = performance.now(); const iv = setInterval(() => { if (ape.action && /^watch/.test(ape.action.name)) { window.__w = performance.now() - t0; clearInterval(iv); } }, 5); G.spin(); });
   await p.waitForFunction(() => window.__w != null, { timeout: 3000 }); const wms = await p.evaluate(() => __w); assert.ok(wms < 100, 'watch starts with the spin: ' + wms); console.log(`✔ watch began ${wms.toFixed(0)} ms after SPIN`); await idle();
-  // two Temple Wheel badges, no trigger: lean-in takeover, no wheel
-  await p.evaluate(() => { window.__almost = false; window.__almostQuake = false; window.__almostFade = false; const iv = setInterval(() => { const app = document.getElementById('app'), cine = document.getElementById('cine'); const on = cine && cine.classList.contains('full'); if (on && app && app.classList.contains('quake')) window.__almostQuake = true; if (app && app.classList.contains('takeover') && on && cine.classList.contains('show')) window.__almostFade = true; if ((window.__gorillaFx && __gorillaFx.kind === 'almost') || document.body.classList.contains('almost') || on) window.__almost = true; if (window.__almostFade) clearInterval(iv); }, 20); });
-  await run('almost', async () => { await p.waitForFunction(() => window.__almost, { timeout: 60000 }); await p.waitForFunction(() => window.__almostFade || (document.getElementById('cine') && document.getElementById('cine').classList.contains('show')), { timeout: 8000 }); await wait(200); await p.screenshot({ path: SHOTS + '/ui-almost.png' }); });
+  // two Temple Wheel badges, no trigger: stay on the reels (anticipate), no player-stare takeover, no wheel
+  await p.evaluate(() => { window.__almost = false; window.__almostLean = false; window.__watchLog = [];
+    const iv = setInterval(() => { const n = ape.action && ape.action.name; if (__watchLog[__watchLog.length - 1] !== n) __watchLog.push(n);
+      if ((window.__gorillaFx && __gorillaFx.kind === 'almost') || document.body.classList.contains('almost')) window.__almost = true;
+      const cine = document.getElementById('cine');
+      if (cine && cine.classList.contains('full') && /lean|stare/.test(cine.src || '')) window.__almostLean = true;
+      if (n === 'lean' || n === 'stare') window.__almostLean = true;
+    }, 25); });
+  await run('almost', async () => { await p.waitForFunction(() => window.__almost, { timeout: 60000 }); await wait(200); await p.screenshot({ path: SHOTS + '/ui-almost.png' }); });
   assert.ok(await p.evaluate(() => !document.getElementById('wheelBox') || document.getElementById('wheelBox').classList.contains('hidden')), 'almost tease does not open the wheel');
-  assert.ok(await p.evaluate(() => window.__almostFade), 'almost takeover cross-fades in (app.takeover + cine.show)');
-  assert.ok(await p.evaluate(() => !window.__almostQuake), 'almost takeover does not quake the cabinet sideways');
-  console.log('✔ almost tease: lean-in faded in, wheel stayed closed, no sideways jump');
+  assert.ok(await p.evaluate(() => !window.__almostLean), 'almost tease does not use the player-stare / lean-in clip');
+  const wlog = await p.evaluate(() => __watchLog);
+  assert.ok(wlog.some(n => n && /^watch/.test(n)), 'watch clips play during the spin: ' + JSON.stringify(wlog));
+  const mid = wlog.filter((n, i) => i && i < wlog.length - 1);
+  assert.ok(!mid.includes('idle') || mid.filter(n => n && /^watch|anticipate/.test(n || '')).length >= 1, 'watch stays fluid (no idle reset mid-spin): ' + JSON.stringify(wlog));
+  console.log('✔ almost tease: stayed on the reels, no player stare, wheel stayed closed; watch log ' + JSON.stringify(wlog.filter(Boolean).slice(0, 8)));
   const sync = async (k, kind) => { const r = await p.evaluate(kind => ({ fx: window.__fxBy[kind], hit: ape.lastImpact }), kind); const d = r.fx.at - r.hit.at, vd = (r.hit.ct - r.hit.cue) * 1000;
     assert.ok(Math.abs(d) <= 50 && Math.abs(vd) <= 50, k + ' sync ' + JSON.stringify(r)); console.log(`✔ ${k}: reel effect ${d.toFixed(1)} ms after the impact cue; clip clock ${vd.toFixed(0)} ms past the impact frame (${r.hit.clip} @ ${r.hit.cue}s)`); return { d, vd }; };
+  await p.evaluate(() => { window.__starePunch = false; window.__sawStare = false; const iv = setInterval(() => { const n = ape.action && ape.action.name; if (n === 'lean' || n === 'stare' || (window.__gorillaFx && __gorillaFx.kind === 'stare')) window.__sawStare = true; if (window.__sawStare && window.__gorillaFx && __gorillaFx.kind === 'nudge') { window.__starePunch = true; clearInterval(iv); } }, 15); });
   await run('nudge', async () => { await p.waitForFunction(() => window.__gorillaFx && __gorillaFx.kind === 'nudge', { timeout: 60000 }); await wait(60); await p.screenshot({ path: SHOTS + '/ui-nudge.png' }); });
   await sync('punch-nudge', 'nudge'); assert.ok(await p.evaluate(() => reels.winCount()) >= 3, 'nudge punched the reel into a win');
+  assert.ok(await p.evaluate(() => window.__starePunch), 'lean/stare into the camera plays immediately before the punch nudge');
+  console.log('✔ stare-then-punch combo on the nudge');
   await assertFilled('nudge win cells', true);
   
   assert.ok(await run('win') > -250, 'win pays'); assert.ok(await p.evaluate(() => reels.winCount()) >= 3, 'winning cells highlighted');
@@ -83,6 +95,11 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   await run('big', async () => { await p.waitForSelector('#big:not(.hidden)', { timeout: 60000 }); await wait(600); await p.screenshot({ path: SHOTS + '/ui-bigwin.png' });
     assert.ok(!(await p.evaluate(() => ape.action && /roar|chestbeat/.test(ape.action.name))), 'no roar behind the win screen');
     await p.waitForFunction(() => document.getElementById('big').classList.contains('hidden') && ape.action && ape.action.name === 'roar', { timeout: 30000 }); await wait(1300); await p.screenshot({ path: SHOTS + '/ui-roar-after.png' }); console.log('✔ roar starts only after the big-win screen closes'); });
+  // mega takeover: loud roarReal (or synth fallback) must fire while the cine is up, mouth open
+  await p.evaluate(() => { window.__takeoverRoar = false; });
+  await run('mega', async () => { await p.waitForFunction(() => document.getElementById('cine') && document.getElementById('cine').classList.contains('full'), { timeout: 60000 });
+    await p.waitForFunction(() => window.__takeoverRoar, { timeout: 8000 }); await wait(400); await p.screenshot({ path: SHOTS + '/ui-mega-takeover-roar.png' });
+    console.log('✔ mega takeover played a loud roar while the cine was on screen'); });
   const hits = await p.evaluate(() => __hits); assert.ok(hits.every(h => h.busy && /punch|slam|smash|smallwin|pound/.test(h.clip)), 'hits only during a spin event: ' + JSON.stringify(hits)); console.log(`✔ ${hits.length} gorilla hits so far, all tied to a spin event (${[...new Set(hits.map(h => h.clip))].join(', ')})`);
   // ---- v5 features: thunder wild, coin respins, Rampage Meter, Temple Drum Wheel (chains / awakening / locked / jackpot), JUNGLE / FURY / INFERNO SPINS ----
   const fx = k => p.waitForFunction(k => window.__gorillaFx && __gorillaFx.kind === k, { timeout: 120000 }, k), shot = n => p.screenshot({ path: `${SHOTS}/v5-${n}.png` });
@@ -107,6 +124,17 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     await fx('fist'); await wait(350); await shot(mode + '-firefist'); await assertFilled(mode + ' firefist cells');
     await p.waitForFunction(() => !document.getElementById('big').classList.contains('hidden') && /TOTAL/.test(document.getElementById('bigTitle').textContent), { timeout: 240000 }); await wait(1500); await shot(mode + '-total');
     const r = await p.evaluate(() => ({ n: __lastRound.spins.length, win: __lastRound.win })); console.log(`  ${mode}: ${r.n} spins, ${r.win} credits`); });
+  await run('ascent', async () => {
+    await fx('lunge'); await p.waitForSelector('#splash:not(.hidden)', { timeout: 60000 }); await p.click('#startBtn');
+    await fx('ascent');
+    await p.waitForFunction(() => /TEMPLE ASCENT/.test((document.getElementById('splashTitle') || {}).textContent || '') || /FURY/.test((document.getElementById('hudMode') || {}).textContent || ''), { timeout: 180000 });
+    await wait(400); await shot('ascent');
+    const cine = await p.evaluate(() => { const c = document.getElementById('cine'); return { full: c && c.classList.contains('full'), takeover: document.getElementById('app').classList.contains('takeover') }; });
+    console.log('  ascent cine state at snap (may already have faded): ' + JSON.stringify(cine));
+    await p.waitForFunction(() => !document.getElementById('big').classList.contains('hidden') && /TOTAL/.test(document.getElementById('bigTitle').textContent), { timeout: 240000 });
+    const r = await p.evaluate(() => ({ n: __lastRound.spins.length, to: __lastRound.ascent && __lastRound.ascent.to, end: __lastRound.endMode })); 
+    assert.ok(r.to === 'fury', 'ascent upgraded Jungle into Fury: ' + JSON.stringify(r));
+    console.log('✔ Temple Ascent: Jungle → Fury, ' + r.n + ' spins'); });
   await run('monster', async () => { await p.waitForSelector('#big.monster:not(.hidden)', { timeout: 60000 }); await wait(700); await shot('monster');
     await p.waitForFunction(() => document.getElementById('big').classList.contains('hidden') && ape.action && ape.action.name === 'roar', { timeout: 30000 }); console.log('✔ monster: roar after the overlay'); });
   const before = await cents(); assert.ok(before > 0); await p.click('#cashBtn'); await wait(1600); await p.screenshot({ path: SHOTS + '/ui-ticket.png' }); await idle();

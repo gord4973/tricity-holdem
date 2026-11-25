@@ -11,7 +11,7 @@ export const CLIPS = { // minor: chains smoothly (waits for / speeds up the clip
   stare: { pri: 2, dur: 6.04, snd: 'stare', minor: 1 }, // leans in and looks straight at the player
   lose: { pri: 1, dur: 4.04, snd: 'lose', minor: 1 },
   smallwin: { pri: 2, dur: 2.58, snd: 'smallwin', impacts: [[.78, .35]] }, // v4: trimmed to the single fist strike
-  chestbeat: { pri: 3, loud: 1, dur: 6.04, snd: 'chestbeat', major: 1, shakeAt: [[1.35, .5], [2.0, .3]], beats: [[1.5, 1], [1.75, .7], [1.96, 1], [2.25, .7], [2.48, 1], [2.75, .75], [3.0, 1], [3.19, .75], [3.38, 1]], dimAt: [[1.4, 2.2]] },
+  chestbeat: { pri: 3, loud: 1, dur: 6.04, snd: 'chestbeat', major: 1, roarAt: [1.4], shakeAt: [[1.35, .5], [2.0, .3]], beats: [[1.5, 1], [1.75, .7], [1.96, 1], [2.25, .7], [2.48, 1], [2.75, .75], [3.0, 1], [3.19, .75], [3.38, 1]], dimAt: [[1.4, 2.2]] },
   roar: { pri: 4, loud: 1, dur: 5.04, snd: 'roar', major: 1, shakeAt: [[1.2, .75], [1.55, .45], [2.05, .55], [2.6, .35]], flashAt: [1.3], dimAt: [[1.15, 2.1]], burstAt: [[1.25, 1.3], [2.05, .8]] },
   punch: { pri: 4, dur: 4.04, snd: 'punch', impacts: [[1.70, 1]], shakeAt: [[1.86, .3]] }, // ONE right-fist smash, fist meets the ledge at 1.70 s
   slam: { pri: 4, file: 'punch', dur: 4.04, snd: 'punch', impacts: [[1.70, 1]], shakeAt: [[1.86, .3]] }, // fallback lock smash (single punch)
@@ -66,7 +66,7 @@ export class VideoApe {
     this.top = 0; this.cur = null; this.action = null; this.pending = null; this.lastIdle = ''; this.z = 1; this.shake = 0;
     this.idleNames = Object.keys(CLIPS).filter(n => CLIPS[n].idle);
     this.ready = new Promise(ok => { this._ok = ok; setTimeout(ok, 8000); });
-    this._startIdle(true); this._stareTimer();
+    this._startIdle(true); this._idleGlanceTimer();
     // warm every clip (sequential blob fetch keeps switching instant; falls back to the URL if it fails)
     this._prefetch();
     // v6 gaze clips: warm left/right looks after the first idle so the first spin can pick any side
@@ -140,7 +140,7 @@ export class VideoApe {
       if (this.pending && (CLIPS[this.pending.name].pri || 0) > c.pri) return Promise.resolve();
       if (this.pending) this.pending.resolve();
       return new Promise(resolve => { this.pending = { name, onCue, resolve, o }; }); }
-    if (a && ac.minor && !o.now && (c.pri || 0) < 4) { // chain after the minor clip on screen
+    if (a && ac.minor && !o.now && !o.blend && (c.pri || 0) < 4) { // chain after the minor clip on screen
       if (this.pending) this.pending.resolve();
       return new Promise(resolve => { this.pending = { name, onCue, resolve, o }; this.hurry(1.0); }); }
     return new Promise(resolve => this._act(name, onCue, resolve, o)); }
@@ -152,7 +152,8 @@ export class VideoApe {
   settle() { const a = this.action; if (a && CLIPS[a.name].minor) this.hurry(1.2); }
   _act(name, onCue, resolve, o = {}) {
     const c = CLIPS[name], speed = window.__gorillaSpeed && window.__gorillaSpeed < 1 ? Math.min(3, 1 / window.__gorillaSpeed) : 1, rate = speed * (o.rate || 1);
-    const prevA = this.action; if (prevA) prevA.finish(true); clearTimeout(this.holdT); this.holding = false;
+    const prevA = this.action, blend = !!(o.blend && prevA && !prevA.virtual);
+    if (prevA && !blend) prevA.finish(true); clearTimeout(this.holdT); this.holding = false;
     let virtual = false, t0 = 0, fired = new Set(), snd = null, done = false, started = false, raf = 0;
     const act = { name, finish: null, t0: performance.now() }; this.action = act; this.root.dataset.clip = name;
     const sound = off => { if (!c.snd) return; snd = A.sample(c.snd, { offset: off, loud: !!c.loud }); if (snd && speed !== 1) { snd.stop(); snd = null; } if (snd) { if (rate !== 1 && snd.src && snd.src.playbackRate) snd.src.playbackRate.value = rate; A.duck && A.duck(((snd.dur || c.dur) - off) / rate + .4); } };
@@ -161,7 +162,7 @@ export class VideoApe {
       if (!preempted) { const p = this.pending; this.pending = null; if (p) this._act(p.name, p.onCue, p.resolve, p.o); else { this.root.dataset.clip = 'idle'; this._startIdle(); } } };
     act.finish = finish;
     const now = () => virtual ? (performance.now() - t0) / 1000 * rate : job.el.currentTime;
-    const goVirtual = () => { if (done || virtual) return; const at = started ? job.el.currentTime : 0; virtual = true; act.virtual = true; t0 = performance.now() - at / rate * 1000; if (!started) { started = true; sound(0); } };
+    const goVirtual = () => { if (done || virtual) return; const at = started ? job.el.currentTime : 0; virtual = true; act.virtual = true; t0 = performance.now() - at / rate * 1000; if (!started) { started = true; sound(0); } if (blend && prevA) prevA.finish(true); };
     const cue = (key, t, fn) => { if (!fired.has(key) && now() >= t) { fired.add(key); fn(); } };
     const step = () => { raf = requestAnimationFrame(step); if (!started || done) return;
       (c.impacts || []).forEach(([t, s], i) => cue('i' + i, t - .008 * rate, () => { this.lastImpact = { clip: name, cue: t, ct: +now().toFixed(3), at: performance.now() }; this.shake = Math.max(this.shake, s); this.burst(s); this.emit('slam', i); onCue && onCue('impact', i); }));
@@ -170,22 +171,25 @@ export class VideoApe {
       (c.burstAt || []).forEach(([t, s], i) => cue('u' + i, t, () => this.burst(s)));
       (c.dimAt || []).forEach(([t, d], i) => { cue('d' + i, t, () => this.dim(1)); cue('e' + i, t + d, () => this.dim(0)); });
       (c.flashAt || []).forEach((t, i) => cue('f' + i, t, () => this.lightning()));
+      (c.roarAt || []).forEach((t, i) => cue('r' + i, t, () => this.roarSound()));
       (c.marks || []).forEach(([t, k], i) => cue('m' + i, t - .008 * rate, () => { this.lastMark = { clip: name, key: k, cue: t, ct: +now().toFixed(3), at: performance.now() }; onCue && onCue(k); }));
       if (virtual && now() >= c.dur) { finish(); } };
     if (this.bad.has(this.file(name))) { started = true; virtual = true; act.virtual = true; t0 = performance.now(); sound(0); raf = requestAnimationFrame(step); act.safety = setTimeout(() => finish(), 14000); return; }
     // minor clips dissolve in slowly from whatever is on screen; major/hit clips cut in faster (hard breaks only for big moments)
-    const fade = c.minor ? (prevA ? .35 : .5) : c.major ? .3 : .22;
-    const job = this._show(name, { fade, onPlaying: j => { started = true; act.el = j.el; j.el.playbackRate = rate; sound(j.el.currentTime); }, onEnd: () => finish(), onFail: () => goVirtual() });
+    // blend: mid-clip crossfade (used to change which reel he is watching without freezing or snapping back to the base pose)
+    const fade = o.fade || (blend ? .55 : c.minor ? (prevA ? .35 : .5) : c.major ? .3 : .22);
+    const job = this._show(name, { fade, onPlaying: j => { started = true; act.el = j.el; j.el.playbackRate = rate; sound(j.el.currentTime);
+      if (blend && prevA) setTimeout(() => prevA.finish(true), fade * 1000); }, onEnd: () => finish(), onFail: () => goVirtual() });
     raf = requestAnimationFrame(step); act.safety = setTimeout(() => finish(), 14000); }
   // watch the spin: start now, and stretch/squeeze the clip so his eyes follow the reels for the whole spin (spinSec)
-  watch(spinSec, side) { // side: 0 left reel, 1 middle, 2 right; omit to pick at random
+  watch(spinSec, side, o = {}) { // side: 0 left reel, 1 middle, 2 right; omit to pick at random
     const n = side === 0 ? 'watch-left' : side === 2 ? 'watch-right' : 'watch';
     const name = (side === 0 || side === 2) && this.bad.has(this.file(n)) ? 'watch' : n;
     const r = spinSec ? Math.max(.8, Math.min(1.5, (CLIPS[name].dur || 4) / (spinSec + 1.1))) : 1;
-    return this.play(name, null, { now: true, rate: r }); }
-  // follow reel 1 → 2 → 3 in one spin: start on the left, then cut to mid and right as each reel stops
-  watchTrack() { return this.watch(0, 0); }
-  watchTo(side) { return this.watch(0, side); }
+    return this.play(name, null, { now: true, blend: !!o.blend, rate: r }); }
+  // one fluid performance across the spin: open on a side, then crossfade to another look (never a hard cut)
+  watchTrack(spinSec, side) { return this.watch(spinSec || 0, side == null ? 0 : side); }
+  watchTo(side) { return this.watch(0, side, { blend: true }); }
   lean() { return this.play('lean', null, { now: true }); }
   anticipate() { return this.play('anticipate', null, { now: true }); }
   stare() { return this.play('stare'); }
@@ -211,14 +215,18 @@ export class VideoApe {
   breath() { return this.play('breath'); }
   dismiss() { return this.play('dismiss', null, { now: true }); }
   look(spinSec) { const r = spinSec ? Math.max(.8, Math.min(1.5, CLIPS.look.dur / (spinSec + .8))) : 1; return this.play('look', null, { now: true, rate: r }); }
-  // random "lean in and stare at you" while the machine sits idle (every 45-90 s)
-  _stareTimer() { clearTimeout(this.stareT); this.stareT = setTimeout(() => { const idle = !this.action && !(this.gameBusy && this.gameBusy()) && !document.hidden;
-      if (idle) this.stare(); this._stareTimer(); }, rnd(45000, 90000) * (window.__gorillaSpeed || 1)); }
+  // occasional glance at the reels or a heavy breath while idle — never a player stare (that is reserved for the punch-nudge)
+  _idleGlanceTimer() { clearTimeout(this.stareT); this.stareT = setTimeout(() => { const idle = !this.action && !(this.gameBusy && this.gameBusy()) && !document.hidden;
+      if (idle) this.play(Math.random() < .55 ? 'look' : 'breath'); this._idleGlanceTimer(); }, rnd(45000, 90000) * (window.__gorillaSpeed || 1)); }
+  _stareTimer() { this._idleGlanceTimer(); } // back-compat
   dim(on) { this.root.classList.toggle('dim', !!on); }
   jolt(s = 1) { this.stage.style.setProperty('--jz', (1 + .035 * s).toFixed(3)); this.stage.classList.remove('jolt'); void this.stage.offsetWidth; this.stage.classList.add('jolt'); }
   reactBill() { A.sample(Math.random() < .5 ? 'grunt1' : 'grunt2', { gain: .8, rate: .9 + Math.random() * .15 }); this.stage.classList.remove('lean'); void this.stage.offsetWidth; this.stage.classList.add('lean'); }
   lightning() { this.flash.classList.remove('go'); void this.flash.offsetWidth; this.flash.classList.add('go'); this.emit('thunder'); }
-  roarSound() { A.sample('roarReal', { loud: true }); }
+  roarSound() { if (!A) return; A.init && A.init(); A.duck && A.duck(4);
+    const s = A.sample && A.sample('roarReal', { loud: true, gain: 1.05 });
+    if (!s) { if (A.decode) A.decode('roarReal').then(() => A.sample && A.sample('roarReal', { loud: true, gain: 1.05 })); A.play && A.play('roar'); }
+    if (!(A && A.muted)) { window.__takeoverRoar = true; window.__lastRoarAt = performance.now(); } }
   emit(ev, a) { if (this.on && this.on[ev]) this.on[ev](a); }
   // ---------- embers + debris + camera shake ----------
   particles() { this.emb = Array.from({ length: 70 }, () => this.newEmber(true)); this.deb = []; }

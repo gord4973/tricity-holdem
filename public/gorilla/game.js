@@ -62,8 +62,17 @@ function playTakeover(o = {}) {
   const fade = 400 * (window.__gorillaSpeed || 1);
   v.classList.remove('mode-jungle', 'mode-fury', 'mode-inferno', 'show');
   $('app').classList.remove('quake'); // drop any leftover cabinet shake so the fade does not start mid-nudge
-  v.src = `/gorilla/media/v5/${clip}-${q}.mp4?v=7`; v.muted = A.muted; v.classList.add('full'); if (o.mode) v.classList.add('mode-' + o.mode); v.classList.remove('hidden');
-  if (o.snd !== false) { A.play(o.snd || 'roar'); if (o.snd !== 'stare') A.play('thunder'); }
+  v.src = `/gorilla/media/v5/${clip}-${q}.mp4?v=7`; v.muted = true; v.classList.add('full'); if (o.mode) v.classList.add('mode-' + o.mode); v.classList.remove('hidden');
+  A.init && A.init();
+  if (o.snd !== false) { // cine is always muted; roars play on the loud WebAudio bus, synced to the open mouth
+    const snd = o.snd || 'roar';
+    if (snd === 'roar' || o.loudRoar) {
+      A.duck && A.duck(4);
+      const s = A.sample && A.sample('roarReal', { loud: true, gain: 1.05 });
+      if (!s) { if (A.decode) A.decode('roarReal').then(() => A.sample && A.sample('roarReal', { loud: true, gain: 1.05 })); A.play('roar'); }
+      if (!A.muted) { window.__takeoverRoar = true; window.__lastRoarAt = performance.now(); }
+    } else A.play(snd);
+    if (snd !== 'stare') A.play('thunder'); }
   return new Promise(res => { let done = false;
     const end = () => { if (done) return; done = true; v.classList.remove('show'); $('app').classList.remove('takeover', 'quake'); v.onclick = null;
       setTimeout(() => { v.pause(); v.classList.add('hidden'); v.classList.remove('full', 'mode-jungle', 'mode-fury', 'mode-inferno'); res(true); }, fade + 40); };
@@ -72,11 +81,13 @@ function playTakeover(o = {}) {
     v.onended = end; v.onerror = end; v.onclick = end;
     if (v.readyState >= 1) go(); else v.onloadedmetadata = go;
     setTimeout(end, dur * (window.__gorillaSpeed || 1) + fade + 500); }); }
-// two Temple Wheel badges landed, no trigger: lean into the camera + sting, then the moment lets go
+// two Temple Wheel badges landed, no trigger: he stays on the reels and leans down at the last one (never a player-stare — that is only for the punch)
 async function almostMiss() {
   $('frame').classList.add('tease', 'almost'); document.body.classList.add('almost');
   A.play('almost', 1.5); fxs({ kind: 'almost', at: performance.now() });
-  await playTakeover({ clip: 'lean', dur: 2600, startAt: 1.05, snd: 'stare' });
+  if (!quick) ape.anticipate();
+  await sleep(quick ? 200 : 1800);
+  if (ape.dismiss) ape.dismiss();
   $('frame').classList.remove('tease', 'almost'); document.body.classList.remove('almost', 'tease'); }
 // ---------------- reels ----------------
 let shown = [0, 1, 2].map(r => [0, 1, 2].map(y => ({ s: M.STRIPS[r][(r * 7 + y) % M.STRIPS[r].length] })));
@@ -91,17 +102,20 @@ async function animateReels(res, mode) {
   A.play('whoosh'); clearMarks(); const fast = quick ? .35 : 1, sp = window.__gorillaSpeed || 1;
   const spinSec = ((.95 + 2 * .38 + (tease ? 2.35 : .22)) * fast + .1 + .34) * sp; // last reel's stop + settle (reels.js timing)
   $('frame').classList.add('spinning');
-  if (!quick) { if (mode && Math.random() < .4 && ape.look) ape.look(spinSec);
-    else if (ape.watchTrack) ape.watchTrack(spinSec); // eyes track reel 1 → 2 → 3 as each one stops
-    else { const hot = [0, 1, 2].filter(r => grid[r].some(c => c.s === 'DR' || c.s === 'CN' || (c.s === 'WD' && c.mult > 1)));
-      const side = nz ? nz.r : (hot.length ? hot[hot.length - 1] : (Math.random() * 3 | 0)); ape.watch(spinSec, side); } }
+  const hot = r => (grid[r] || []).some(c => c && (c.s === 'DR' || c.s === 'CN' || c.s === 'FI' || (c.s === 'WD' && c.mult > 1) || c.locked));
+  const lookStart = nz ? nz.r : ([0, 1, 2].find(hot) ?? 0);
+  if (!quick) { if (ape.watchTrack) ape.watchTrack(spinSec, lookStart); else ape.watch(spinSec, lookStart); }
   await reels.spin(grid, { free: !!mode, fast, tease: [false, false, tease],
     onStop: (r, cells) => { A.play('reelStop', r); if (r === 2 && tease) { A.play('slam'); A.play('crack'); $('app').classList.add('quake'); setTimeout(() => $('app').classList.remove('quake'), 400); }
       cells.forEach((c, y) => { if (c.s === 'DR') A.play('drum', r); else if (c.s === 'CN') A.play(c.locked ? 'rattle' : 'glint', r * 3 + y); else if (c.s === 'WD' || c.s === 'FI') A.play('glint', 6); });
-      if (!quick && ape.watchTo) { if (r === 0) ape.watchTo(1); else if (r === 1 && !tease) ape.watchTo(2); } },
+      if (!quick && ape.watchTo) {
+        if (tease && r === 1) ape.anticipate(); // last reel is crawling: look down at it, not at the player
+        else if (r < 2) ape.watchTo(hot(r) ? r : r + 1);
+        else if (hot(2) && !tease) ape.watchTo(2); } },
     onTease: (r, dur) => { $('frame').classList.add('tease'); document.body.classList.add('tease'); A.play('tease', dur); if (!quick) ape.anticipate(); } });
   $('frame').classList.remove('spinning'); res.teased = tease;
-  if (nz) { await sleep(quick ? 80 : 420); // GORILLA PUNCH: a beat, then one fist; fire column + shake on the impact frame
+  if (nz) { await sleep(quick ? 80 : 280); // stare into the camera, THEN the punch — reserved for this combo only
+    if (!quick) { if (ape.lean) ape.lean(); else if (ape.stare) ape.stare(); fxs({ kind: 'stare', at: performance.now() }); await sleep(1150); }
     let jolt = null; await ape.punch(() => { fxs({ kind: 'nudge', at: performance.now() }); A.play('slam'); A.play('crack'); A.play('thunder'); reels.fireCol(nz.r); shakeDom(); jolt = reels.nudge(nz.r, nz.dir, res.grid[nz.r]); }, nz.r);
     await jolt; await sleep(quick ? 60 : 280); }
   if (res.stack) { await sleep(quick ? 60 : 220); // Totem Stack snap: fire, slam, a hard pop
@@ -155,6 +169,8 @@ function forceOf(kind) {
   if (kind === 'jackpot') { F.force = drums(3); F.tier = 3; F.idx = WIDX('gold'); }
   if (/^(jungle|fury|inferno)$/.test(kind)) { F.force = drums(3); F.tier = 3; F.idx = WIDX(kind); F.rich = true; F.awaken = false; }
   if (kind === 'almost') { F.force = drums(2); F.noTrigger = true; }
+  if (kind === 'ascent') { F.force = drums(3); F.tier = 3; F.idx = WIDX('jungle'); F.awaken = false; F.ascent = true; F.rich = true; }
+  if (kind === 'titanramp') { F.force = drums(3); F.tier = 3; F.idx = WIDX('inferno'); F.awaken = false; F.titan = true; F.rich = true; }
   return F;
 }
 async function spin() {
@@ -172,7 +188,7 @@ async function spin() {
   await animateReels(res, null);
   let total = await resolve(res, null);
   if (res.meter) await meterUpdate(res.meter);
-  if (!total && !res.bonus) { if (res.almost && ape.dismiss) ape.dismiss(); else if (res.teased && Math.random() < .5) ape.stare(); else if (Math.random() < .55) ape.lose(); else ape.settle(); }
+  if (!total && !res.bonus) { if (res.almost && ape.dismiss) ape.dismiss(); else if (Math.random() < .55) ape.lose(); else ape.settle(); }
   if (res.bonus) total += await bonus(res.bonus, F);
   if (total > 0) { st.cents += total * st.denom; st.lastWin = total; save(); await roll('cents', st.cents, 600, false); }
   $('spinBtn').classList.remove('stop'); $('spinBtn').textContent = 'SPIN'; busy = false; quick = false; meters();
@@ -183,8 +199,11 @@ async function spin() {
 async function resolve(res, mode) {
   const locked = res.coins.list.filter(c => res.grid[c.r][c.y].locked);
   if (!mode && res.coins.count >= 3 && locked.length) {
-    if (res.coins.smashed) { const tgt = locked[0], rc = reels.cellRect(tgt.r, tgt.y); await sleep(200);
-      await ape.slam((rc.left + rc.width / 2) / innerWidth, () => { fxs({ kind: 'smash', at: performance.now() }); A.play('slam'); A.play('crack'); reels.smash(); }); await sleep(500); }
+    if (res.coins.smashed) { const tgt = locked[0]; await sleep(quick ? 80 : 280);
+      toast('UNLOCK!', 1100);
+      const hit = () => { fxs({ kind: 'smash', at: performance.now() }); A.play('slam'); A.play('crack'); A.play('thunder'); reels.fireCol(tgt.r); reels.smash(); shakeDom(); };
+      if (ape.punch) await ape.punch(hit, tgt.r); else await ape.slam((reels.cellRect(tgt.r, tgt.y).left + reels.cellRect(tgt.r, tgt.y).width / 2) / innerWidth, hit);
+      await sleep(quick ? 120 : 500); }
     else { await sleep(500); toast('🔒 Locked coins — the gorilla didn’t smash them this time', 1400); }
   }
   if (res.thunder) { const t = res.thunder; await sleep(quick ? 50 : 180); // THUNDER WILD: one short roar, the multiplier stamps on at its peak
@@ -309,27 +328,45 @@ async function fistFly(res) { const hudN = $('hudSpins').getBoundingClientRect()
       requestAnimationFrame(() => { f.style.transform = `translate(${hudN.left + hudN.width / 2 - rc.left - rc.width / 2}px,${hudN.top + hudN.height / 2 - rc.top - rc.height / 2}px) scale(.35) rotate(-25deg)`; f.style.opacity = '.2'; }); setTimeout(() => f.remove(), 900); } });
   await sleep(quick ? 100 : 650); A.play('coin', 9); $('hudSpins').classList.remove('bump'); void $('hudSpins').offsetWidth; $('hudSpins').classList.add('bump'); toast(`🔥 +${res.added} SPIN${res.added > 1 ? 'S' : ''}`, 1100); }
 async function freeRound(mode, F = {}) {
-  const R = M.bonusRound(bet(), rng, mode, { rich: F.rich }); window.__lastRound = R;
+  const R = M.bonusRound(bet(), rng, mode, { rich: F.rich, forceAscent: F.ascent, forceTitan: F.titan, ascentAt: F.ascentAt }); window.__lastRound = R;
   document.body.classList.add('bonus', 'mode-' + mode);
   if (!quick) await playTakeover({ clip: 'rampage-' + mode, mode, dur: 2200, startAt: 1.6 }); // mode-coloured rampage (Jungle cyan, Fury green, Inferno fire)
   await ape.lunge(() => { document.body.classList.add('graded'); A.play('thunder'); fxs({ kind: 'lunge', at: performance.now() }); }); // he leans into the camera as the colour changes
   await sleep(quick ? 100 : 1300);
   await splash(mode);
-  const hud = $('modeHud'); $('hudMode').textContent = M.MODES[mode].name; hud.classList.remove('hidden'); let total = 0, played = 0, left = M.FS_START;
+  const hud = $('modeHud'); $('hudMode').textContent = M.MODES[mode].name; hud.classList.remove('hidden'); let total = 0, played = 0, left = M.FS_START, curMode = mode;
   const upd = (s) => { $('hudSpins').textContent = `${played} OF ${played + left}`; $('hudWays').textContent = (s ? s.waysN : 27) + ' WAYS'; $('hudWin').textContent = money(total * st.denom); }; upd();
   disp.win = 0; meters();
   for (const s of R.spins) { played++; left--; upd({ waysN: curRows ** 3 }); await sleep(quick ? 120 : 550);
     const rows = s.rows[0]; if (rows !== curRows) await setRows(rows, rows > 3); upd(s);
-    await animateReels(s, mode);
+    await animateReels(s, curMode);
     if (s.added) { left += s.added; await fistFly(s); upd(s); }
-    const w = await resolve(s, mode); total += s.win; upd(s); window.__bonusSpin = played;
+    const w = await resolve(s, curMode); total += s.win; upd(s); window.__bonusSpin = played;
+    if (s.ascent) { await playAscent(s.ascent); curMode = s.ascent.to === 'titan' ? 'inferno' : s.ascent.to; left += s.ascent.added || 0; upd(s); }
     await sleep(quick ? 150 : (w ? 700 : 450)); }
   if (curRows !== 3) await setRows(3);
   hud.classList.add('hidden'); clearMarks();
   const t = M.tier(total, bet()); disp.win = 0;
-  await bigWin(t === 'win' || !t ? 'big' : t, total, { title: `${M.MODES[mode].name.split(' ')[0]} TOTAL`, noTier: !/big|mega|monster/.test(t) });
-  document.body.classList.remove('bonus', 'graded', 'mode-' + mode);
+  const endName = curMode === 'inferno' && R.spins.some(s => s.ascent && s.ascent.to === 'titan') ? 'TITAN' : M.MODES[curMode].name.split(' ')[0];
+  await bigWin(t === 'win' || !t ? 'big' : t, total, { title: `${endName} TOTAL`, noTier: !/big|mega|monster/.test(t) });
+  document.body.classList.remove('bonus', 'graded', 'mode-jungle', 'mode-fury', 'mode-inferno');
   return total;
+}
+async function playAscent(a) {
+  fxs({ kind: 'ascent', at: performance.now() });
+  const toMode = a.to === 'titan' ? 'inferno' : a.to;
+  if (!quick) await playTakeover({ clip: 'rampage-' + toMode, mode: toMode, dur: 2800, startAt: 1.6 });
+  document.body.classList.remove('mode-jungle', 'mode-fury', 'mode-inferno');
+  document.body.classList.add('bonus', 'graded', 'mode-' + toMode);
+  const title = a.to === 'titan' ? 'TEMPLE TITAN' : 'TEMPLE ASCENT';
+  const sub = a.to === 'titan' ? `${a.added} TITAN SPINS` : `${M.MODES[toMode].name.split(' ')[0]} SPINS  +${a.added}`;
+  $('splashTitle').textContent = title; $('splashSub').textContent = sub;
+  $('splashFeats').innerHTML = (MODE_FEATS[toMode] || []).map(([ic, a2, b]) => `<div class=feat><i class="ic ${ic}">${/GROW|JP/.test(ic) ? (ic === 'GROW' ? '<svg viewBox="0 0 24 24"><path d="M12 2l7 8h-4v5h-6v-5H5z M5 18h14v4H5z"/></svg>' : '<b>JP</b>') : `<img src="${SY.get(ic)}" alt="">`}</i><b>${a2}</b><span>${b}</span></div>`).join('');
+  const s = $('splash'); s.className = 'mode-' + toMode; s.classList.remove('hidden'); A.play('fanfare', 3);
+  await new Promise(res => { const b = $('startBtn'); const go = () => { b.onclick = null; clearTimeout(auto); res(); }; b.onclick = go; const auto = setTimeout(go, quick ? 400 : 5000); });
+  A.play('click'); s.classList.add('hidden');
+  if ($('hudMode')) $('hudMode').textContent = a.to === 'titan' ? 'TEMPLE TITAN' : M.MODES[toMode].name;
+  toast(title, 1400);
 }
 // ---------------- controls ----------------
 $('spinBtn').onclick = spin; $('billBtn').onclick = insertBill; $('cashBtn').onclick = cashOut; $('reels').onclick = () => { if (busy) { quick = true; reels.stopNow(); } else spin(); };
@@ -352,7 +389,7 @@ function showPay() { const b = betCents(), u = b / 27; const row = s => `<div><i
   $('menuBody').innerHTML = `<p>Bet ${bet()} credits (${money(b)}). 27 ways: 3 matching symbols on adjacent reels from left to right, any row. Pays shown per way at this bet.</p><div class=pt>${['SB', 'MK', 'TC', 'ID', 'BN', 'RB', 'EM', 'SP'].map(row).join('')}</div>
   <div class=pt><div><img src="${SY.get('WD')}"><b>Wild</b><span>reel 2; gold ×2 ×3 ×5 ×10 badges (and rarer ×8 ×16). A hitting badge is a thunder wild</span></div><div><img src="${SY.get('CN')}"><b>Prize Coins</b><span>3+ pay their values; a coin column can respin up to 5 times</span></div><div><img src="${SY.get('CN')}"><b>Chained Coins</b><span>locked with chains; they pay only if the gorilla smashes them</span></div><div><img src="${SY.get('DR')}"><b>Temple Wheel</b><span>1, 2 or 3 badges can start the Temple Drum Wheel</span></div><div><img src="${SY.get('FI')}"><b>Firefist</b><span>bonus spins: +1 spin</span></div></div>
   <p><b>Temple Drum Wheel.</b> 3 drums open every wedge. With 1 or 2 drums the top wedges are chained (a chained wedge pays ${M.LOCK_X}× bet), unless the gorilla's roar breaks the chains. Wedges: ${money(8 * b)}, ${money(15 * b)}, BRONZE ${money(25 * b)}, SILVER ${money(75 * b)}, GOLD ${money(250 * b)}, TITAN ${money(1000 * b)}, or a bonus round.</p>
-  <p><b>Bonus rounds</b> start with ${M.FS_START} spins (up to 50): <b>JUNGLE</b> stacks and wilds ×2–×16 · <b>FURY</b> adds growing reels up to 7 rows (343 ways) · <b>INFERNO</b> puts coins and jackpot coins on every reel.</p>
+  <p><b>Bonus rounds</b> start with ${M.FS_START} spins (up to 50): <b>JUNGLE</b> stacks and wilds ×2–×16 · <b>FURY</b> adds growing reels up to 7 rows (343 ways) · <b>INFERNO</b> puts coins and jackpot coins on every reel. Mid-round, a <b>Temple Ascent</b> can upgrade Jungle into Fury, Fury into Inferno, or Inferno into <b>Temple Titan</b> — extra maxed Inferno spins.</p>
   <p><b>Rampage Meter.</b> Every drum that lands without a wheel fills the meter; when full the gorilla smashes it and a 2-drum wheel starts. Return to player about 95.4% (play money only).</p>`; }
 // big-win coin shower (photoreal prize coin sprite)
 let rainRAF = 0;
@@ -364,7 +401,7 @@ function coinRain(on, tier) { const c = $('coinRain'); cancelAnimationFrame(rain
     rainRAF = requestAnimationFrame(step); }; rainRAF = requestAnimationFrame(step); }
 // debug / test hooks
 window.G = { wheel, get rows() { return curRows; }, st, spin, insertBill, cashOut, get busy() { return busy; }, setDenom: d => { st.denom = d; save(); meters(); }, setBet: i => { st.bet = i; save(); meters(); }, M };
-if (DEBUG) { window.G.force = k => { forceNext = k; }; window.__gorillaSpeed = +(qs.get('speed') || 1); const d = $('dbg'); d.classList.remove('hidden'); d.innerHTML = ['win', 'nudge', 'thunder', 'smash', 'respin', 'big', 'mega', 'monster', 'meter', 'wheel1', 'wheel2', 'wheel3', 'awaken', 'locked', 'jackpot', 'jungle', 'fury', 'inferno', 'almost'].map(k => `<button data-k=${k}>${k}</button>`).join(''); d.onclick = e => { if (e.target.dataset.k) { forceNext = e.target.dataset.k; toast('next spin: ' + forceNext, 900); } }; }
+if (DEBUG) { window.G.force = k => { forceNext = k; }; window.__gorillaSpeed = +(qs.get('speed') || 1); const d = $('dbg'); d.classList.remove('hidden'); d.innerHTML = ['win', 'nudge', 'thunder', 'smash', 'respin', 'big', 'mega', 'monster', 'meter', 'wheel1', 'wheel2', 'wheel3', 'awaken', 'locked', 'jackpot', 'jungle', 'fury', 'inferno', 'almost', 'ascent', 'titanramp'].map(k => `<button data-k=${k}>${k}</button>`).join(''); d.onclick = e => { if (e.target.dataset.k) { forceNext = e.target.dataset.k; toast('next spin: ' + forceNext, 900); } }; }
 // boot
 layout(); renderStatic(); meters(); meterDraw(st.meter); requestAnimationFrame(layout); SY.ready.then(layout);
 document.addEventListener('pointerdown', () => A.init(), { once: true });
