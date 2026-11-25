@@ -11,7 +11,7 @@
     WD: { name: 'Wild (reel 2, multiplies)', kind: 'wild' }, CN: { name: 'Prize Coin', kind: 'coin' }, DR: { name: 'Jungle Drum', kind: 'scatter' }, FI: { name: 'Firefist (+1 spin)', kind: 'fist' },
   };
   // pay per WAY for 3 of a kind, in units of (total bet / 27)
-  const PAY_SCALE = 1.082; // trimmed so a higher lock-smash rate and Temple Ascent still land near 95.3% RTP
+  const PAY_SCALE = 1.076; // wave 3: trimmed from 1.082 so lock-smash punch + Temple Ascent land ~95.3% RTP (120M crypto: 95.28%)
   const PAY0 = { SB: 66.57, MK: 46.01, TC: 34.19, ID: 28.37, BN: 20.55, RB: 16.14, EM: 14.14, SP: 10.73 };
   const PAY = Object.fromEntries(Object.entries(PAY0).map(([k, v]) => [k, +(v * PAY_SCALE).toFixed(2)]));
   const DENOMS = [1, 2, 5, 10, 25, 100]; // cents per credit

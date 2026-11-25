@@ -63,6 +63,14 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   await p.evaluate(() => { window.__hits = []; const o = ape.on.slam; ape.on.slam = i => { __hits.push({ clip: ape.action && ape.action.name, busy: G.busy }); o && o(i); }; });
   await p.evaluate(() => { window.__w = null; const t0 = performance.now(); const iv = setInterval(() => { if (ape.action && /^watch/.test(ape.action.name)) { window.__w = performance.now() - t0; clearInterval(iv); } }, 5); G.spin(); });
   await p.waitForFunction(() => window.__w != null, { timeout: 3000 }); const wms = await p.evaluate(() => __w); assert.ok(wms < 100, 'watch starts with the spin: ' + wms); console.log(`✔ watch began ${wms.toFixed(0)} ms after SPIN`); await idle();
+  // wave 3: no hard cut at reel stops — every watch re-target during a spin is a mid-clip blend, never a finish(true) snap
+  await p.evaluate(() => { window.__plays = []; window.__spinning = false; if (!ape.__wrapped) { const pl = ape.play.bind(ape); ape.play = (n, a, o) => { window.__plays.push({ n, o: o || {}, spin: window.__spinning, t: performance.now() }); return pl(n, a, o); }; ape.__wrapped = true; } });
+  for (let i = 0; i < 3; i++) { await p.evaluate(() => { __plays.length = 0; window.__spinning = true; G.spin(); }); await idle(); await p.evaluate(() => { window.__spinning = false; });
+    const pl = await p.evaluate(() => __plays.filter(x => /^watch/.test(x.n)).map(x => ({ n: x.n, now: !!x.o.now, blend: !!x.o.blend })));
+    const cuts = pl.slice(1).filter(x => x.now && !x.blend); assert.deepStrictEqual(cuts, [], 'hard cut at a reel stop: ' + JSON.stringify(pl));
+    console.log(`✔ spin ${i + 1}: ${pl.length} watch looks, ${Math.max(0, pl.length - 1)} blended re-targets, no hard cuts (${pl.map(x => x.n).join(' → ')})`); }
+  // wave 3: lean/stare into the camera only right before a punch nudge — log every lean/stare from here on
+  await p.evaluate(() => { window.__leans = []; window.__nudges = []; const pl = ape.play; ape.play = (n, a, o) => { if (n === 'lean' || n === 'stare') __leans.push(performance.now()); return pl(n, a, o); }; const iv = setInterval(() => { if (window.__gorillaFx && __gorillaFx.kind === 'nudge' && __nudges[__nudges.length - 1] !== __gorillaFx.at) __nudges.push(__gorillaFx.at); }, 15); });
   // two Temple Wheel badges, no trigger: stay on the reels (anticipate), no player-stare takeover, no wheel
   await p.evaluate(() => { window.__almost = false; window.__almostLean = false; window.__watchLog = [];
     const iv = setInterval(() => { const n = ape.action && ape.action.name; if (__watchLog[__watchLog.length - 1] !== n) __watchLog.push(n);
@@ -90,7 +98,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   
   assert.ok(await run('win') > -250, 'win pays'); assert.ok(await p.evaluate(() => reels.winCount()) >= 3, 'winning cells highlighted');
   await assertFilled('ways win cells', true);
-  await run('smash', async () => { await p.waitForFunction(() => reels.locksGone > 0, { timeout: 60000 }); await p.screenshot({ path: SHOTS + '/ui-smash.png' }); }); await sync('lock smash', 'smash');
+  await run('smash', async () => { await p.waitForFunction(() => /UNLOCK/.test(document.getElementById('toast').textContent), { timeout: 60000 }); await p.waitForFunction(() => reels.locksGone > 0, { timeout: 60000 }); await p.screenshot({ path: SHOTS + '/ui-smash.png' }); }); await sync('lock smash', 'smash');
+  const smClip = await p.evaluate(() => ape.lastImpact && ape.lastImpact.clip); assert.ok(/punch/.test(smClip || ''), 'lock smash should be a punch, got ' + smClip); console.log('✔ lock smash: UNLOCK toast, gorilla punched the locked coin open (' + smClip + ')');
   await assertFilled('lock smash cells', true);
   await run('big', async () => { await p.waitForSelector('#big:not(.hidden)', { timeout: 60000 }); await wait(600); await p.screenshot({ path: SHOTS + '/ui-bigwin.png' });
     assert.ok(!(await p.evaluate(() => ape.action && /roar|chestbeat/.test(ape.action.name))), 'no roar behind the win screen');
@@ -135,6 +144,15 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     const r = await p.evaluate(() => ({ n: __lastRound.spins.length, to: __lastRound.ascent && __lastRound.ascent.to, end: __lastRound.endMode })); 
     assert.ok(r.to === 'fury', 'ascent upgraded Jungle into Fury: ' + JSON.stringify(r));
     console.log('✔ Temple Ascent: Jungle → Fury, ' + r.n + ' spins'); });
+  await run('titanramp', async () => {
+    await fx('lunge'); await p.waitForSelector('#splash:not(.hidden)', { timeout: 60000 }); await p.click('#startBtn');
+    await fx('ascent'); await wait(600); await shot('titan');
+    await p.waitForFunction(() => !document.getElementById('big').classList.contains('hidden') && /TOTAL/.test(document.getElementById('bigTitle').textContent), { timeout: 240000 });
+    const r = await p.evaluate(() => ({ n: __lastRound.spins.length, to: __lastRound.ascent && __lastRound.ascent.to, end: __lastRound.endMode, title: document.getElementById('bigTitle').textContent }));
+    assert.ok(r.to === 'titan' && r.end === 'titan', 'Inferno ascended into Temple Titan: ' + JSON.stringify(r));
+    console.log('✔ Temple Titan: Inferno → Titan, ' + r.n + ' spins (' + r.title + ')'); });
+  { const a = await p.evaluate(() => ({ leans: __leans, nudges: __nudges })); const stray = a.leans.filter(t => !a.nudges.some(n => n > t && n - t < 4000));
+    assert.deepStrictEqual(stray, [], 'lean/stare played without a punch nudge right after: ' + JSON.stringify(a)); console.log(`✔ ${a.leans.length} lean/stare(s) this session, every one followed by a punch nudge within 4 s`); }
   await run('monster', async () => { await p.waitForSelector('#big.monster:not(.hidden)', { timeout: 60000 }); await wait(700); await shot('monster');
     await p.waitForFunction(() => document.getElementById('big').classList.contains('hidden') && ape.action && ape.action.name === 'roar', { timeout: 30000 }); console.log('✔ monster: roar after the overlay'); });
   const before = await cents(); assert.ok(before > 0); await p.click('#cashBtn'); await wait(1600); await p.screenshot({ path: SHOTS + '/ui-ticket.png' }); await idle();
