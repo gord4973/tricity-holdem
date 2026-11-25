@@ -43,9 +43,27 @@ test('bonus rounds: jungle/fury/inferno resolve, 7..50 spins, Firefist adds spin
   const rng = M.mulberry32(7); let maxRows = 0, fists = 0;
   for (const mode of ['jungle', 'fury', 'inferno']) for (let k = 0; k < 150; k++) { const b = M.bonusRound(50, rng, mode); assert.strictEqual(b.mode, mode);
     assert.ok(b.spins.length >= M.FS_START && b.spins.length <= 50); assert.strictEqual(b.win, b.spins.reduce((a, s) => a + s.win, 0));
-    for (const s of b.spins) { const rows = s.rows[0]; assert.ok(rows >= 3 && rows <= 7); assert.strictEqual(s.waysN, s.rows.reduce((a, n) => a * n, 1)); maxRows = Math.max(maxRows, rows); fists += s.added || 0; if (mode === 'jungle') assert.strictEqual(rows, 3); } }
+    let ascended = false;
+    for (const s of b.spins) { const rows = s.rows[0]; assert.ok(rows >= 3 && rows <= 7); assert.strictEqual(s.waysN, s.rows.reduce((a, n) => a * n, 1)); maxRows = Math.max(maxRows, rows); fists += s.added || 0; if (mode === 'jungle' && !ascended) assert.strictEqual(rows, 3); if (s.ascent) ascended = true; } }
   assert.strictEqual(maxRows, 7); assert.ok(fists > 0);
   const rich = M.bonusRound(50, rng, 'inferno', { rich: true }); assert.strictEqual(rich.spins[0].rows[0], 7); assert.strictEqual(rich.spins[0].waysN, 343);
+});
+test('Temple Ascent upgrades Jungle→Fury, Fury→Inferno, Inferno→Temple Titan (math-decided)', () => {
+  const j = M.bonusRound(50, M.mulberry32(1), 'jungle', { forceAscent: true, ascentAt: 2 });
+  assert.ok(j.ascent && j.ascent.to === 'fury' && j.ascent.added === 2);
+  assert.strictEqual(j.spins[2].ascent.to, 'fury');
+  assert.ok(j.spins.slice(0, 3).every(s => s.mode === 'jungle'), 'trigger spin stays Jungle');
+  assert.ok(j.spins.slice(3).some(s => s.mode === 'fury'), 'later spins are Fury');
+  assert.ok(j.spins.slice(3).some(s => s.rows[0] >= 3));
+  assert.ok(j.played >= M.FS_START + 2, 'ascent adds spins: ' + j.played);
+  const f = M.bonusRound(50, M.mulberry32(2), 'fury', { forceAscent: true, ascentAt: 2 });
+  assert.ok(f.ascent && f.ascent.to === 'inferno');
+  assert.ok(f.spins.slice(3).every(s => s.mode === 'inferno'));
+  const ttn = M.bonusRound(50, M.mulberry32(3), 'inferno', { forceTitan: true, ascentAt: 2, rich: true });
+  assert.ok(ttn.ascent && ttn.ascent.to === 'titan' && ttn.ascent.added === 3);
+  assert.strictEqual(ttn.endMode, 'titan');
+  assert.ok(ttn.spins.slice(3).every(s => s.rows[0] === 7 && s.mode === 'inferno'), 'Titan coda is 7-row Inferno');
+  assert.ok(!/kong/i.test(JSON.stringify(j.ascent)), 'original names only');
 });
 test('coin respins cap at 5', () => { const rng = M.mulberry32(3); let n = 0; for (let i = 0; i < 4000; i++) { const s = M.spin(50, rng, { forceRespin: 3 }); if (s.respin) { n++; assert.ok(s.respin.steps.length <= M.RESPIN_MAX); } } assert.ok(n > 0); });
 test('tiers', () => { assert.strictEqual(M.tier(0, 50), ''); assert.strictEqual(M.tier(100, 50), 'win'); assert.strictEqual(M.tier(500, 50), 'big'); assert.strictEqual(M.tier(1250, 50), 'mega'); assert.strictEqual(M.tier(2500, 50), 'monster'); });

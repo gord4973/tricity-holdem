@@ -1,7 +1,7 @@
 // GORILLA v5 - original play-money slot math. Base: 3 reels x 3 rows, 27 ways. Bonus: Temple Drum Wheel -> Jungle / Fury / Inferno Spins
 // (Fury and Inferno grow the reels to 4-7 rows, up to 343 ways). Shared by the browser machine and the Node tests/simulator (UMD).
 // All amounts are in CREDITS. Every gorilla intervention (punch-nudge, thunder wild, lock smash, awakening, growing reels, +1 spins)
-// is decided HERE before anything animates, so the gorilla only acts out a result that is already in the RTP.
+// is decided HERE before anything animates (including Temple Ascent), so the gorilla only acts out a result that is already in the RTP.
 (function (root, factory) { if (typeof module === 'object' && module.exports) module.exports = factory(); else root.GorillaMath = factory(); })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
   // ---- symbols (all original) ----
@@ -11,17 +11,17 @@
     WD: { name: 'Wild (reel 2, multiplies)', kind: 'wild' }, CN: { name: 'Prize Coin', kind: 'coin' }, DR: { name: 'Jungle Drum', kind: 'scatter' }, FI: { name: 'Firefist (+1 spin)', kind: 'fist' },
   };
   // pay per WAY for 3 of a kind, in units of (total bet / 27)
-  const PAY_SCALE = 1.096; // trimmed so a higher punch-nudge rate (~1 in 60) still lands near 95.4% RTP
+  const PAY_SCALE = 1.082; // trimmed so a higher lock-smash rate and Temple Ascent still land near 95.3% RTP
   const PAY0 = { SB: 66.57, MK: 46.01, TC: 34.19, ID: 28.37, BN: 20.55, RB: 16.14, EM: 14.14, SP: 10.73 };
   const PAY = Object.fromEntries(Object.entries(PAY0).map(([k, v]) => [k, +(v * PAY_SCALE).toFixed(2)]));
   const DENOMS = [1, 2, 5, 10, 25, 100]; // cents per credit
   const BETS = [50, 100, 150, 250, 500]; // credits per spin
   // wild multipliers 2x-16x (2/3/5/10 are the common visible badges). A multiplied wild that wins in the base game is a THUNDER WILD (roar, then the stamp).
   const WILD_MULT = { base: [[1, 75], [2, 12], [3, 6], [5, 4], [8, 2], [10, 1], [16, 0.5]], free: [[2, 40], [3, 30], [5, 18], [8, 8], [10, 3], [16, 1]] };
-  const COIN_VAL = [[0.5, 30], [1, 30], [2, 18], [3, 10], [5, 6], [10, 3.5], [25, 1.05], [50, 0.15]]; // base coins, x total bet
+  const COIN_VAL = [[0.5, 34], [1, 32], [2, 20], [3, 10], [5, 5], [10, 2.2], [25, 0.55], [50, 0.08]]; // trimmed high-end weights so a higher lock-smash rate stays near 95.3% RTP; face values unchanged
   const COIN_FREE = [[0.5, 24], [1, 30], [2, 20], [3, 12], [5, 7], [10, 3], [25, 0.8]];
   const COIN_INF = [[0.5, 22], [1, 28], [2, 20], [3, 12], [5, 8], [10, 4], [25, 'bronze', 1.0], [75, 'silver', 0.2]]; // Inferno: jackpot coins
-  const LOCK_P = 0.35, SMASH_P = 0.28; // base: chance a coin lands locked; chance the gorilla smashes the locks on a spin with no wild
+  const LOCK_P = 0.35, SMASH_P = 0.70; // base: chance a coin lands locked; chance the gorilla punches locks open on a 3-coin spin with no wild (raised so the unlock punch shows up ~1 in 45–50)
   const NUDGE_P = 0.11;   // punch-nudge when a losing base spin is one stop from a win (raised so it shows up ~1 in 60)
   const RESPIN_P = 0.30, RESPIN_MAX = 5; // coin respins: each respin lands a new coin with this chance (and goes again), up to 5
   // ---- Temple Drum Wheel: 12 wedges, index 0 at the top, clockwise ----
@@ -40,6 +40,8 @@
   // ---- free spins ----
   const FS_START = 7, FS_MAX = 50, MAX_X = 5000;
   const GROW_P = 0.30, GROW_ROWS = [[4, 50], [5, 28], [6, 15], [7, 7]]; // Fury/Inferno: chance the gorilla heaves the reels taller on a spin
+  // Temple Ascent: once per free-spin round (not the first two spins), the mode can open into a bigger one. Rates are per-round.
+  const ASCENT = { jungle: { p: 0.09, to: 'fury', add: 2 }, fury: { p: 0.07, to: 'inferno', add: 2 }, inferno: { p: 0.05, to: 'titan', add: 3 } };
   const STACK_SYMS = [['SB', 6], ['MK', 8], ['TC', 10], ['ID', 11], ['BN', 15], ['RB', 16], ['EM', 17], ['SP', 17]];
   const STACK_K = [[0, 45], [2, 25], [3, 16], [4, 8], [5, 4], [6, 2]]; // Totem Stacks: cells per 3x3 that turn into one symbol before evaluation
   const MODES = { jungle: { name: 'JUNGLE SPINS', grow: 0, coinsAll: false }, fury: { name: 'FURY SPINS', grow: GROW_P, coinsAll: false }, inferno: { name: 'INFERNO SPINS', grow: GROW_P, coinsAll: true } };
@@ -144,13 +146,23 @@
   }
   // ---- a whole bonus round (decided up front; the machine animates it spin by spin) ----
   // o.rich: debug/screenshots - first spin grows to 7 rows with a Firefist and coins
-  function bonusRound(bet, rng, mode, o = {}) { const M = MODES[mode], spins = []; let total = 0, left = FS_START, played = 0, added = 0, capped = false;
-    while (left > 0 && played < FS_MAX) { const rich = o.rich && played === 0, R = rich ? (M.grow ? 7 : 3) : (M.grow && rng() < M.grow ? pickV(rng, GROW_ROWS) : 3);
-      const force = rich ? g => { g[0][R - 1] = { s: 'FI' }; g[1][R > 3 ? 3 : 1] = { s: 'CN' }; if (mode === 'inferno') { g[0][R > 3 ? 4 : 0] = { s: 'CN' }; g[2][1] = { s: 'CN' }; } } : null;
-      const s = spin(bet, rng, { mode, rows: R, stack: true, force, forceRespin: rich ? 2 : undefined }); left--; played++;
+  function bonusRound(bet, rng, mode, o = {}) { const startMode = mode; let M = MODES[mode], spins = []; let total = 0, left = FS_START, played = 0, added = 0, capped = false, titan = false, ascent = null;
+    const cfg0 = o.forceTitan ? { to: 'titan', add: ASCENT.inferno.add } : ASCENT[mode];
+    let ascendOn = -1;
+    if (cfg0 && (o.forceAscent || o.forceTitan)) ascendOn = o.ascentAt != null ? o.ascentAt : 2;
+    else if (cfg0 && rng() < cfg0.p) ascendOn = 2 + (Math.floor(rng() * 3) % 3); // 3rd–5th spin
+    while (left > 0 && played < FS_MAX) { const growOn = titan || M.grow, rich = o.rich && played === 0, R = ((titan || rich) && growOn) ? 7 : rich ? 3 : (growOn && rng() < M.grow ? pickV(rng, GROW_ROWS) : 3);
+      const force = rich ? g => { g[0][R - 1] = { s: 'FI' }; g[1][R > 3 ? 3 : 1] = { s: 'CN' }; if (mode === 'inferno' || titan) { g[0][R > 3 ? 4 : 0] = { s: 'CN' }; g[2][1] = { s: 'CN' }; } } : null;
+      const spinMode = titan ? 'inferno' : mode;
+      const s = spin(bet, rng, { mode: spinMode, rows: R, stack: true, force, forceRespin: rich ? 2 : undefined }); left--; played++;
       const add = Math.min(s.fists, FS_MAX - played - left); s.added = Math.max(0, add); left += s.added; added += s.added;
-      if (total + s.win >= MAX_X * bet) { s.win = MAX_X * bet - total; capped = true; } total += s.win; s.left = left; s.played = played; s.total = total; spins.push(s); if (capped) break; }
-    return { mode, spins, win: total, played, added, capped }; }
+      if (!ascent && ascendOn >= 0 && played - 1 === ascendOn && cfg0) {
+        s.ascent = { from: startMode, to: cfg0.to, added: cfg0.add };
+        ascent = s.ascent; left += s.ascent.added; added += s.ascent.added;
+        if (s.ascent.to === 'titan') titan = true; else { mode = s.ascent.to; M = MODES[mode]; }
+      }
+      if (total + s.win >= MAX_X * bet) { s.win = MAX_X * bet - total; capped = true; } total += s.win; s.left = left; s.played = played; s.total = total; s.mode = spinMode; spins.push(s); if (capped) break; }
+    return { mode: startMode, endMode: titan ? 'titan' : mode, spins, win: total, played, added, capped, ascent }; }
   // full "play": base spin + wheel + bonus round (what the simulator needs). state = { meter: {n} } persists between spins
   function play(bet, rng, state = { meter: { n: 0 } }) { const s = spin(bet, rng, { meter: state.meter }); let total = s.win, wheel = null, fg = null;
     if (s.bonus) { wheel = spinWheel(bet, rng, s.bonus.tier); total += wheel.win; if (wheel.mode) { fg = bonusRound(bet, rng, wheel.mode); total += fg.win; } }
@@ -159,17 +171,17 @@
   // simulator with a per-feature RTP breakdown
   function simulate(n, rng = cryptoRng(), bet = 50) {
     const st = { meter: { n: 0 } }, B = { ways: 0, nudge: 0, thunder: 0, coins: 0, respinBase: 0, wheelCredit: 0, wheelLocked: 0, jackpot: 0, jungle: 0, fury: 0, inferno: 0, meterWheel: 0 };
-    let won = 0, hits = 0, bonuses = 0, viaMeter = 0, sq = 0, maxX = 0, nudges = 0, thunders = 0, smash = 0, respinsN = 0, awakens = 0, fsSpins = 0, fsRounds = 0, grows = 0, fsN = 0; const tiers = { big: 0, mega: 0, monster: 0 }, wedges = {}, modes = { jungle: 0, fury: 0, inferno: 0 }, tiersW = { 1: 0, 2: 0, 3: 0 };
+    let won = 0, hits = 0, bonuses = 0, viaMeter = 0, sq = 0, maxX = 0, nudges = 0, thunders = 0, smash = 0, respinsN = 0, awakens = 0, fsSpins = 0, fsRounds = 0, grows = 0, fsN = 0, ascents = 0, titans = 0; const tiers = { big: 0, mega: 0, monster: 0 }, wedges = {}, modes = { jungle: 0, fury: 0, inferno: 0 }, tiersW = { 1: 0, 2: 0, 3: 0 }, ascTo = { fury: 0, inferno: 0, titan: 0 };
     for (let i = 0; i < n; i++) { const p = play(bet, rng, st), s = p.spin; won += p.total; const x = p.total / bet; sq += x * x; if (x > maxX) maxX = x; if (p.total > 0) hits++;
       const wayPay = s.ways.reduce((a, w) => a + w.pay, 0); if (s.nudge) { nudges++; B.nudge += wayPay; } else if (s.thunder) { thunders++; B.thunder += wayPay; } else B.ways += wayPay;
       B.coins += s.coins.pay; if (s.respin) { respinsN++; B.respinBase += s.respin.pay; } if (s.coins.smashed) smash++;
       if (s.bonus) { bonuses++; tiersW[s.bonus.tier]++; if (s.bonus.via === 'meter') viaMeter++; const w = p.wheel; if (w.awaken) awakens++; wedges[w.wedge.id + (w.locked ? '-locked' : '')] = (wedges[w.wedge.id + (w.locked ? '-locked' : '')] || 0) + 1;
         let bw = w.win; if (w.locked) B.wheelLocked += w.win; else if (w.wedge.jp) B.jackpot += w.win; else B.wheelCredit += w.win;
-        if (p.fg) { B[p.fg.mode] += p.fg.win; bw += p.fg.win; modes[p.fg.mode]++; fsRounds++; fsSpins += p.fg.played; for (const k of p.fg.spins) { fsN++; if (k.rows[0] > 3) grows++; } }
+        if (p.fg) { B[p.fg.mode] += p.fg.win; bw += p.fg.win; modes[p.fg.mode]++; fsRounds++; fsSpins += p.fg.played; if (p.fg.ascent) { ascents++; ascTo[p.fg.ascent.to] = (ascTo[p.fg.ascent.to] || 0) + 1; if (p.fg.ascent.to === 'titan') titans++; } for (const k of p.fg.spins) { fsN++; if (k.rows[0] > 3) grows++; } }
         if (s.bonus.via === 'meter') B.meterWheel += bw; }
       const t = tier(p.total, bet); if (tiers[t] != null) tiers[t]++; }
     const T = n * bet, rtp = won / T, sd = Math.sqrt(sq / n - rtp * rtp), share = {}; for (const k in B) share[k] = B[k] / T;
-    return { spins: n, rtp, hitRate: hits / n, sd, bonusEvery: n / bonuses, meterEvery: viaMeter ? n / viaMeter : null, maxX, nudgeEvery: n / nudges, thunderEvery: n / thunders, smashRate: smash / n, respinEvery: n / respinsN, awakenRate: awakens / bonuses, avgFreeSpins: fsSpins / fsRounds, growRate: grows / fsN, share, tiers, wedges, modes, wheelTiers: tiersW };
+    return { spins: n, rtp, hitRate: hits / n, sd, bonusEvery: n / bonuses, meterEvery: viaMeter ? n / viaMeter : null, maxX, nudgeEvery: n / nudges, thunderEvery: n / thunders, smashRate: smash / n, smashEvery: smash ? n / smash : null, respinEvery: n / respinsN, awakenRate: awakens / bonuses, avgFreeSpins: fsSpins / fsRounds, growRate: grows / fsN, ascentEvery: ascents ? fsRounds / ascents : null, ascentRate: fsRounds ? ascents / fsRounds : 0, titans, ascTo, share, tiers, wedges, modes, wheelTiers: tiersW };
   }
-  return { NUDGE_P, waysWin, SYM, PAY, PAY_SCALE, DENOMS, BETS, WILD_MULT, COIN_VAL, COIN_FREE, COIN_INF, COIN_SCALE, JP, WHEEL, LOCKS, LOCK_X, AWAKEN, TRIG, METER_MAX, MODES, FS_START, GROW_ROWS, RESPIN_MAX, STRIPS, FREE_STRIPS, MODE_STRIPS, COUNTS, spin, spinWheel, bonusRound, play, simulate, tier, ways, mulberry32, cryptoRng };
+  return { NUDGE_P, SMASH_P, LOCK_P, waysWin, SYM, PAY, PAY_SCALE, DENOMS, BETS, WILD_MULT, COIN_VAL, COIN_FREE, COIN_INF, COIN_SCALE, JP, WHEEL, LOCKS, LOCK_X, AWAKEN, TRIG, METER_MAX, MODES, FS_START, GROW_ROWS, ASCENT, RESPIN_MAX, STRIPS, FREE_STRIPS, MODE_STRIPS, COUNTS, spin, spinWheel, bonusRound, play, simulate, tier, ways, mulberry32, cryptoRng };
 });
