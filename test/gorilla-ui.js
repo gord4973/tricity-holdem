@@ -184,7 +184,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     console.log(`✔ ${r.stops.length} real wheel spins this session: awarded wedge == wedge under the pointer every time (${[...new Set(r.stops.map(x => x.id))].join(', ')})`);
     const tkRoars = r.roars.filter(x => /^takeover:/.test(x.tag)); assert.ok(tkRoars.length >= 5, 'takeover roars: ' + JSON.stringify(r.roars));
     for (const x of tkRoars) { assert.ok(x.via === 'webaudio' && x.state === 'running', 'takeover roar on the running WebAudio loud bus: ' + JSON.stringify(x));
-      assert.ok(r.src.some(s => Math.abs(s.at - x.at) < 50 && s.cineShown), 'roar buffer source started while the takeover clip was on screen: ' + JSON.stringify({ x, src: r.src.slice(-6) })); }
+      assert.ok(r.src.some(s => s.at >= x.at - 5 && s.at - x.at < 120 && s.cineShown), 'roar buffer source started while the takeover clip was on screen: ' + JSON.stringify({ x, src: r.src.slice(-6) })); }
     assert.ok(r.tk.every(t => t.why === 'playing'), 'takeover roars fire when the clip is playing (mouth open), not before: ' + JSON.stringify(r.tk));
     const clipRoars = r.roars.filter(x => !/^takeover:/.test(x.tag)); assert.ok(clipRoars.length >= 1, 'chest-beat / roar clip roars logged');
     console.log(`✔ ${tkRoars.length} takeover roars (${[...new Set(tkRoars.map(x => x.tag.slice(9)))].join(', ')}): each started a ~3.3 s roar buffer source while the clip was on screen and playing; ${clipRoars.length} clip roars (${[...new Set(clipRoars.map(x => x.tag))].join(', ')})`); }

@@ -53,32 +53,57 @@ function layout() {
   reels.resize(); }
 let mediaFiles = [];
 fetch('/gorilla/media/manifest.json').then(r => r.ok ? r.json() : { files: [] }).then(j => { mediaFiles = j.files || []; for (const c of SY.codes) if (mediaFiles.includes(`sym-${c}.png`)) SY.useCustom(c, `/gorilla/media/sym-${c}.png`); }).catch(() => {});
-function playMedia(name) { if (!mediaFiles.includes(name) || quick) return Promise.resolve(false); const v = $('cine'); return new Promise(res => { let done = false; const end = () => { if (done) return; done = true; v.pause(); v.classList.add('hidden'); v.onclick = null; res(true); };
+function playMedia(name) { if (!mediaFiles.includes(name) || quick) return Promise.resolve(false); const v = $('cine'); return new Promise(res => { let done = false; const end = () => { if (done) return; done = true; if (!tkActive) { v.pause(); v.classList.add('hidden'); v.onclick = null; } res(true); };
   v.src = '/gorilla/media/' + name; v.muted = A.muted; v.classList.remove('hidden'); v.onended = end; v.onerror = end; v.onclick = end; v.play().catch(end); setTimeout(end, 15000); }); }
-// full-screen cinematic takeover (bonus trigger, mode intros, almost-tease, mega/monster). skippable; cross-fades so the cabinet does not jump sideways
+// full-screen cinematic takeover (bonus trigger, mode intros, almost-tease, mega/monster). skippable; cross-fades so the cabinet does not jump sideways.
+// t101u fix: every callback is bound to ONE takeover (seq token) and checks `done`, so a late loadedmetadata / animation frame / stale hide timer can never
+// re-darken the cabinet after the takeover has ended (that left #app.takeover on = black screen, splash invisible and untappable). Always resolves.
+const warmed = new Set(); function warmClip(clip) { const q = (ape && ape.res === 'sd') ? 'sd' : 'hd', u = `/gorilla/media/v5/${clip}-${q}.mp4?v=7`; if (warmed.has(u)) return; warmed.add(u); fetch(u).then(r => r.ok ? r.blob() : null).catch(() => warmed.delete(u)); }
+let tkSeq = 0, tkActive = null; window.__tkLog = [];
 function playTakeover(o = {}) {
   if (quick) return Promise.resolve(false);
-  const v = $('cine'), q = (ape && ape.res === 'sd') ? 'sd' : 'hd', startAt = o.startAt == null ? 1.8 : o.startAt, dur = o.dur || 2800, clip = o.clip || 'rampage';
-  const fade = 400 * (window.__gorillaSpeed || 1);
+  const v = $('cine'), app = $('app'), q = (ape && ape.res === 'sd') ? 'sd' : 'hd', startAt = o.startAt == null ? 1.8 : o.startAt, dur = o.dur || 2800, clip = o.clip || 'rampage';
+  const sp = window.__gorillaSpeed || 1, fade = 400 * sp, my = ++tkSeq;
+  if (tkActive) tkActive.end('superseded');
+  v.onloadedmetadata = v.onended = v.onerror = v.onclick = null;
   v.classList.remove('mode-jungle', 'mode-fury', 'mode-inferno', 'show');
-  $('app').classList.remove('quake'); // drop any leftover cabinet shake so the fade does not start mid-nudge
+  app.classList.remove('quake'); // drop any leftover cabinet shake so the fade does not start mid-nudge
   v.src = `/gorilla/media/v5/${clip}-${q}.mp4?v=7`; v.muted = true; v.classList.add('full'); if (o.mode) v.classList.add('mode-' + o.mode); v.classList.remove('hidden');
-  A.init && A.init();
+  try { A.init && A.init(); } catch (e) {}
   // cine is always muted; the roar fires when the clip is actually on screen with the mouth open (not when the takeover is requested:
   // on a phone the clip can take a second or more to load, and a roar fired up front was over before the gorilla appeared)
   const snd = o.snd === false ? null : (o.snd || 'roar'); let roared = false;
-  const roarNow = why => { if (roared || !snd) return; roared = true; window.__lastTakeover = { clip, at: performance.now(), why, ct: v.currentTime, shown: v.classList.contains('show') };
+  const roarNow = why => { if (roared || !snd) return; roared = true; try { window.__lastTakeover = { clip, at: performance.now(), why, ct: v.currentTime, shown: v.classList.contains('show') };
     if (snd === 'roar' || o.loudRoar) { A.duck && A.duck(4); A.roar ? A.roar({ tag: 'takeover:' + clip }) : A.play('roar'); } else A.play(snd);
-    if (snd !== 'stare') A.play('thunder'); };
-  return new Promise(res => { let done = false;
-    const end = () => { if (done) return; done = true; roarNow('end'); v.classList.remove('show'); $('app').classList.remove('takeover', 'quake'); v.onclick = null;
-      setTimeout(() => { v.pause(); v.classList.add('hidden'); v.classList.remove('full', 'mode-jungle', 'mode-fury', 'mode-inferno'); res(true); }, fade + 40); };
-    const go = () => { try { v.currentTime = startAt; } catch (e) {} v.play().then(() => { requestAnimationFrame(() => roarNow('playing')); setTimeout(end, dur * (window.__gorillaSpeed || 1) + fade); }).catch(() => { roarNow('play-failed'); end(); });
-      requestAnimationFrame(() => requestAnimationFrame(() => { $('app').classList.add('takeover'); v.classList.add('show'); }));
-      setTimeout(() => roarNow('timeout'), 1200); };
-    v.onended = end; v.onerror = end; v.onclick = end;
+    if (snd !== 'stare') A.play('thunder'); } catch (e) { console.warn('takeover roar', e); } };
+  return new Promise(res => { let done = false, started = false, playing = false, shown = false; const timers = [], t0 = performance.now();
+    const later = (f, ms) => { timers.push(setTimeout(f, ms)); };
+    const end = why => { if (done) return; done = true; timers.forEach(clearTimeout); if (tkActive && tkActive.my === my) tkActive = null;
+      if (tkSeq === my) v.onloadedmetadata = v.onended = v.onerror = v.onclick = null;
+      window.__tkLog.push({ clip, why: typeof why === 'string' ? why : (why && why.type) || 'end', ms: Math.round(performance.now() - t0), playing, shown });
+      roarNow('end');
+      if (tkSeq === my) { v.classList.remove('show'); app.classList.remove('takeover', 'quake'); }
+      setTimeout(() => { if (tkSeq === my && !tkActive) { try { v.pause(); } catch (e) {} v.classList.add('hidden'); v.classList.remove('full', 'mode-jungle', 'mode-fury', 'mode-inferno'); } res(true); }, fade + 40); };
+    tkActive = { my, end, t0, max: dur * sp + fade + 6000 };
+    const both = () => { if (!done && playing && shown) roarNow('playing'); }; // roar only once the clip is both playing and faded in
+    const go = () => { if (done || started) return; started = true; v.onloadedmetadata = null; try { v.currentTime = startAt; } catch (e) {}
+      let p; try { p = v.play(); } catch (e) { p = Promise.reject(e); }
+      // fade in only once the clip is really playing, so a slow phone never shows a black frame while it loads
+      Promise.resolve(p).then(() => { if (done) return; playing = true;
+        requestAnimationFrame(() => requestAnimationFrame(() => { if (done) return; app.classList.add('takeover'); v.classList.add('show'); shown = true; both(); }));
+        later(() => end('clip'), dur * sp + fade); later(() => roarNow('timeout'), 1200); }).catch(() => end('play-failed')); };
+    v.onended = () => end('ended'); v.onerror = () => end('error'); v.onclick = () => end('tap');
     if (v.readyState >= 1) go(); else v.onloadedmetadata = go;
-    setTimeout(end, dur * (window.__gorillaSpeed || 1) + fade + 6000); }); } // safety only; the clip's own timer starts once it is playing
+    later(() => { if (!playing) end('stall'); }, 6000 * Math.max(1, sp)); // never loaded / never started: skip the clip, the game goes on
+    later(() => end('safety'), dur * sp + fade + 6000); }); } // hard cap; the clip's own timer starts once it is playing
+// watchdog: the cabinet can never be left dark. If #app.takeover / a visible #cine outlives its takeover, clear it.
+function clearTakeoverScreen(why) { const v = $('cine'), app = $('app'); if (tkActive) { tkActive.end(why); return; }
+  if (app.classList.contains('takeover') || (v.classList.contains('full') && !v.classList.contains('hidden'))) { app.classList.remove('takeover', 'quake'); v.classList.remove('show'); try { v.pause(); } catch (e) {} v.classList.add('hidden'); v.classList.remove('full', 'mode-jungle', 'mode-fury', 'mode-inferno');
+    window.__tkLog.push({ why: 'watchdog:' + why }); window.glog && window.glog('takeover-watchdog', { why }); } }
+let tkOrphanSince = 0;
+setInterval(() => { const app = $('app'), v = $('cine'), dark = app.classList.contains('takeover') || (v.classList.contains('full') && !v.classList.contains('hidden'));
+  if (tkActive && performance.now() - tkActive.t0 > tkActive.max + 1500) { tkActive.end('watchdog-overrun'); return; }
+  if (dark && !tkActive) { if (!tkOrphanSince) tkOrphanSince = performance.now(); else if (performance.now() - tkOrphanSince > 1200) { tkOrphanSince = 0; clearTakeoverScreen('orphan'); } } else tkOrphanSince = 0; }, 500);
 // two Temple Wheel badges landed, no trigger: he stays on the reels and leans down at the last one (never a player-stare — that is only for the punch)
 async function almostMiss() {
   $('frame').classList.add('tease', 'almost'); document.body.classList.add('almost');
@@ -162,6 +187,7 @@ function forceOf(kind) {
   if (kind === 'respin') F.respin = 3;
   if (kind === 'meter') F.meter = true;
   if (/^wheel[123]$/.test(kind)) { const n = +kind[5]; F.force = drums(n); F.tier = n; }
+  { const m = /^w([123]):(\d+)$/.exec(kind); if (m) { F.force = drums(+m[1]); F.tier = +m[1]; F.idx = +m[2]; F.awaken = false; } }
   if (kind === 'awaken') { F.force = drums(1); F.tier = 1; F.awaken = true; F.idx = WIDX('inferno'); }
   if (kind === 'locked') { F.force = drums(1); F.tier = 1; F.awaken = false; F.idx = WIDX('silver'); }
   if (kind === 'jackpot') { F.force = drums(3); F.tier = 3; F.idx = WIDX('gold'); }
@@ -183,11 +209,16 @@ async function spin() {
   let o = opts(), res = M.spin(bet(), rng, o);
   if (fk === 'nudge') for (let i = 0; i < 500 && !(res.nudge && !M.waysWin(res.grid.map((c, r) => r === res.nudge.r ? res.nudge.pre : c))); i++) { o = { forceNudge: true, meter: { ...mt } }; res = M.spin(bet(), rng, o); } // debug/test only
   st.meter = o.meter.n; save();
-  await animateReels(res, null);
-  let total = await resolve(res, null);
-  if (res.meter) await meterUpdate(res.meter);
-  if (!total && !res.bonus) { if (res.almost && ape.dismiss) ape.dismiss(); else if (Math.random() < .55) ape.lose(); else ape.settle(); }
-  if (res.bonus) total += await bonus(res.bonus, F);
+  let total = 0;
+  try {
+    await animateReels(res, null);
+    total = await resolve(res, null);
+    if (res.meter) await meterUpdate(res.meter);
+    if (!total && !res.bonus) { if (res.almost && ape.dismiss) ape.dismiss(); else if (Math.random() < .55) ape.lose(); else ape.settle(); }
+    if (res.bonus) total += await bonus(res.bonus, F);
+  } catch (e) { // never leave the player on a dark, frozen cabinet: log it, put the screen back, keep what was won
+    console.error('gorilla spin error', e); window.__spinErrors = (window.__spinErrors || 0) + 1; window.glog && window.glog('spin-error', { msg: String(e && e.message || e).slice(0, 200) });
+    recoverScreen(); total = Math.max(total, (window.__lastWheel && window.__lastWheel.win) || 0, disp.win || 0); }
   if (total > 0) { st.cents += total * st.denom; st.lastWin = total; save(); await roll('cents', st.cents, 600, false); }
   $('spinBtn').classList.remove('stop'); $('spinBtn').textContent = 'SPIN'; busy = false; quick = false; meters();
   if (ape.loadBonus) ape.loadBonus(); // bonus clips download in the background after the first spin
@@ -289,6 +320,7 @@ async function bonus(b, F = {}) {
   if (ape.loadBonus) ape.loadBonus();
   const w = M.spinWheel(bet(), rng, b.tier, { forceIdx: F.idx, forceAwaken: F.awaken });
   window.__lastWheel = w;
+  if (w.mode) warmClip('rampage-' + w.mode);
   fxs({ kind: 'bonus', at: performance.now() });
   await playTakeover({ dur: 2600, startAt: 1.8 });
   await eruption();
@@ -300,7 +332,7 @@ async function bonus(b, F = {}) {
     $('wheelMsg').textContent = wheel.locks.size ? `${wheel.locks.size} wedges still chained` : 'Every wedge is open'; await sleep(quick ? 200 : 1500); }
   $('wheelMsg').textContent = 'Tap the wheel'; $('wheelHub').classList.add('ready');
   // waits for the player's tap on the hub or anywhere on the wheel — no auto-spin
-  await new Promise(res => { const hub = $('wheelHub'), wrap = $('wheelWrap'); const go = e => { if (e) e.stopPropagation(); hub.onclick = null; wrap.onclick = null; A.init(); res(); }; hub.onclick = go; wrap.onclick = go; });
+  await new Promise(res => { const hub = $('wheelHub'), wrap = $('wheelWrap'); let fired = false; const go = e => { if (e) e.stopPropagation(); if (fired) return; fired = true; hub.onclick = null; wrap.onclick = null; try { A.init(); } catch (x) {} res(); }; hub.onclick = go; wrap.onclick = go; });
   $('wheelHub').classList.remove('ready'); $('wheelMsg').textContent = '';
   const n = M.WHEEL.length, cur = wheel.ang; let target = wheelStopAngle(w.idx); while (target > cur) target -= 2 * Math.PI;
   const end = target - 5 * 2 * Math.PI, dur = (quick ? 1500 : 5200) * (window.__gorillaSpeed || 1);
@@ -318,6 +350,8 @@ async function bonus(b, F = {}) {
   return c;
 }
 function closeWheel() { $('wheelBox').classList.add('hidden'); wheelLoop(false); }
+function recoverScreen() { clearTakeoverScreen('recover'); closeWheel(); for (const id of ['splash', 'big', 'modeHud']) $(id) && $(id).classList.add('hidden'); coinRain(false);
+  document.body.classList.remove('bonus', 'graded', 'mode-jungle', 'mode-fury', 'mode-inferno', 'almost'); if (curRows !== 3) { curRows = 3; reels.setRows(3); layout(); } }
 // ---------------- bonus rounds: JUNGLE / FURY / INFERNO SPINS ----------------
 const MODE_FEATS = {
   jungle: [['FI', 'FIREFIST', '+1 SPIN'], ['CN', 'COINS', 'REEL 2'], ['SB', 'TOTEM', 'STACKS'], ['WD', 'WILDS', '×2–×16']],
