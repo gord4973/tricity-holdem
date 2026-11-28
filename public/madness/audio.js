@@ -28,7 +28,7 @@
   const arp = (notes, t, step, dur, peak, type = 'square') => notes.forEach((n, i) => osc(type, N(n), 0, t + i * step, dur, peak));
   const S = {
     click() { osc('square', 1800, 900, now(), .04, .07); },
-    spin() { const t = now(), n = noise(t, .45, .22, 'bandpass', 500, 2); n.f.frequency.exponentialRampToValueAtTime(3000, t + .4); osc('sawtooth', 70, 160, t, .35, .12); },
+    spin() {}, // t140u: the old spin-start clip (reelSpin) was a mechanical ratchet/clack at the start of every spin; stops and lining-up are unchanged
     reelStop(i = 0) { const t = now(); osc('sine', 120 - i * 6, 42, t, .16, .32); osc('square', 180 - i * 12, 60, t, .06, .12); noise(t, .05, .22, 'lowpass', 1600); if (verb) noise(t, .08, .06, 'bandpass', 900, 2, verb); },
     tick() { osc('square', 2400, 0, now(), .02, .04); },
     win(n = 0) { const t = now(); arp([72, 76, 79, 84].map(x => x + (n % 3) * 2), t, .07, .18, .1, 'triangle'); },
@@ -112,7 +112,7 @@
   // event -> recorded clips. Return a truthy value when a clip played; otherwise the synth version plays.
   const R = {
     click: () => smp('click', { gain: .8 }),
-    spin: () => smp('reelSpin', { gain: .8 }) && (smp('whoosh', { gain: .45 }), 1),
+    spin: () => 1, // t140u: do not play reelSpin+whoosh at spin start
     reelStop: (i = 0, heavy) => smp(heavy ? 'reelStopHeavy' : 'reelStop', { rate: 1 - i * .03, verb: .15 }),
     tick: () => smp('tick', { gain: .5, rate: rnd(.95, 1.1) }),
     win: (n = 0) => { const r = smp('coins', { gain: .8, rate: 1 + (n % 3) * .05 }); if (r) S.win(n); return r; },
