@@ -61,3 +61,23 @@ test('RTP ~95% with frequent small wins and regular bonuses (2M seeded spins)', 
   console.log(`  RTP ${(r.rtp * 100).toFixed(2)}%  hit ${(r.hitRate * 100).toFixed(1)}%  wheel 1/${r.wheelEvery.toFixed(0)}  charge 1/${r.chargeEvery.toFixed(0)}  drift 1/${r.driftEvery.toFixed(0)}  avg km ${r.avgKm.toFixed(1)}  full ${(r.fullChargeRate * 100).toFixed(1)}%`);
   assert.ok(r.rtp > .90 && r.rtp < 1.0, 'rtp ' + r.rtp); assert.ok(r.hitRate > .40, 'hit rate'); assert.ok(r.wheelEvery > 40 && r.wheelEvery < 110, 'wheel freq'); assert.ok(r.chargeEvery < 500, 'charge freq');
 });
+test('t115u: 243-ways evaluator matches brute-force line enumeration; win cells are exactly the contributing tiles (incl. wilds)', () => {
+  const rng = M.mulberry32(115), syms = ['RV', 'EC', 'OU', 'EV', 'PH', 'WD', 'FL', 'PL'];
+  for (let n = 0; n < 20000; n++) {
+    const grid = [0, 1, 2, 3, 4].map(r => [0, 1, 2].map(() => { const s = syms[Math.floor(rng() * syms.length)]; return s === 'WD' ? { s, mult: [1, 2, 3][Math.floor(rng() * 3)] } : { s }; }));
+    const got = M.evalWays(grid, 1);
+    // brute force: every symbol, every length 3..5, count left-anchored adjacent paths (each path = one row per reel)
+    let want = 0; const wantCells = {};
+    for (const s of M.CARS) { let best = null;
+      for (let len = 5; len >= 3 && !best; len--) { let total = 0; const cells = new Set();
+        const walk = (r, mult, path) => { if (r === len) { total += mult; path.forEach(([rr, y]) => cells.add(rr + ',' + y)); return; }
+          grid[r].forEach((c, y) => { if (c.s === s || c.s === 'WD') walk(r + 1, mult * (c.s === 'WD' ? (c.mult || 1) : 1), [...path, [r, y]]); }); };
+        walk(0, 1, []);
+        // longest only: a way counts at its full length; a length-L way must not extend to reel L
+        if (total > 0 && (len === 5 || !grid[len].some(c => c.s === s || c.s === 'WD'))) best = { len, total, cells }; }
+      if (best) { want += M.PAY[s][best.len - 3] * best.total; wantCells[s] = best.cells; } }
+    assert.ok(Math.abs(got.win - want) < 1e-9, `grid ${JSON.stringify(grid)} got ${got.win} want ${want}`);
+    for (const w of got.ways) { const c = new Set(w.cells.map(([r, y]) => r + ',' + y)); assert.deepStrictEqual([...c].sort(), [...wantCells[w.s]].sort(), 'cells for ' + w.s);
+      for (let r = 0; r < w.len; r++) assert.ok(w.cells.some(([rr]) => rr === r), 'every reel up to the way length has a highlighted tile'); }
+  }
+});

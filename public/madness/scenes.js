@@ -29,14 +29,13 @@
     open('RALLY RACE', 'PICK YOUR CAR — FINISH 1ST FOR ' + (30) + '× BET');
     const st = { phase: 'grid', t0: 0, pick: -1, prog: [0, 0, 0, 0], places: null, lights: 0, cam: 0, flash: 0 };
     const scroll = { x: 0 };
-    S.draw = (g, W, H, now) => { const sky = g.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#1b0730'); sky.addColorStop(.35, '#3a0d2a'); sky.addColorStop(.36, '#2a2f3a'); sky.addColorStop(1, '#0c0d12'); g.fillStyle = sky; g.fillRect(0, 0, W, H);
-      const top = H * .3, bot = H * .74, laneH = (bot - top) / 4; const speed = st.phase === 'race' ? 26 : st.phase === 'finish' ? 6 : 0; scroll.x = (scroll.x + speed * sp() ** -1) % 80;
-      // grandstand + crowd
-      g.fillStyle = '#2b1838'; g.fillRect(0, top - H * .08, W, H * .08); for (let i = 0; i < 90; i++) { const x = ((i * 37 + scroll.x * 2) % (W + 20)) - 10, y = top - H * .075 + (i % 3) * H * .022; g.fillStyle = ['#ff2040', '#ffd84a', '#22c3ff', '#fff'][i % 4]; g.globalAlpha = .55 + .45 * Math.sin(now / 120 + i); g.fillRect(x, y + (st.phase === 'race' ? Math.sin(now / 80 + i) * 2 : 0), 4, 5); } g.globalAlpha = 1;
-      // lanes
-      for (let l = 0; l <= 4; l++) { const y = top + l * laneH; g.fillStyle = l === 0 || l === 4 ? '#fff' : 'rgba(255,255,255,.5)'; if (l === 0 || l === 4) g.fillRect(0, y - 2, W, 3); else for (let x = -80 + scroll.x; x < W; x += 80) g.fillRect(x, y - 1, 40, 2); }
-      // kerbs
-      for (let x = -80 + scroll.x * 1.0; x < W; x += 40) { g.fillStyle = ((x / 40) | 0) % 2 ? '#ff2040' : '#fff'; g.fillRect(x, bot + 2, 40, 8); g.fillRect(x, top - 10, 40, 8); }
+    S.draw = (g, W, H, now) => { const speed = st.phase === 'race' ? 26 : st.phase === 'finish' ? 6 : 0; scroll.x = (scroll.x + speed * sp() ** -1) % 80; scroll.px = (scroll.px || 0) + speed * 1.6;
+      // photo-real circuit (grandstand + asphalt), scrolling with motion blur while racing
+      const ph = F().photo('bg-rally'); g.fillStyle = '#111'; g.fillRect(0, 0, W, H); const m = F().cover(g, ph, W, H, { scroll: scroll.px });
+      if (speed > 10) { g.globalAlpha = .35; F().cover(g, ph, W, H, { scroll: scroll.px - 14 }); g.globalAlpha = .2; F().cover(g, ph, W, H, { scroll: scroll.px - 28 }); g.globalAlpha = 1; }
+      const top = m.ok ? m.y(.475) : H * .3, bot = m.ok ? m.y(.885) : H * .74, laneH = (bot - top) / 4;
+      g.fillStyle = 'rgba(255,255,255,.35)'; for (let l = 1; l < 4; l++) { const y = top + l * laneH; for (let x = -80 + scroll.x; x < W; x += 80) g.fillRect(x, y - 1, 40, 2); }
+      const vg = g.createLinearGradient(0, 0, 0, H); vg.addColorStop(0, 'rgba(0,0,0,.35)'); vg.addColorStop(.2, 'rgba(0,0,0,0)'); vg.addColorStop(.85, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.6)'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
       // finish line (comes in from the left near the end)
       const lead = Math.max(...st.prog), camP = st.phase === 'grid' || st.phase === 'lights' ? 0 : Math.min(lead, 1.02) - .12, worldX = p => W * .62 - (p - camP) * W * 2.6;
       const fx = worldX(1); if (fx > -30 && fx < W + 30) { for (let r = 0; r < 4 * 3; r++) for (let c = 0; c < 2; c++) { g.fillStyle = (r + c) % 2 ? '#000' : '#fff'; g.fillRect(fx - 12 + c * 12, top + r * (bot - top) / 12, 12, (bot - top) / 12); } }
@@ -81,17 +80,13 @@
     open('S-AWC CHALLENGE', 'PICK A TRAIL AT EACH STAGE · 5 STAGES TO THE SUMMIT');
     const st = { terrain: R.stages[0].terrain, drive: 0, stuck: 0, rescue: 0, total: 0, stage: 0, summit: false, t: 0, bump: 0 };
     let scrollX = 0;
-    S.draw = (g, W, H, now) => { const c = TCOL[st.terrain] || TCOL.GRAVEL; const sky = g.createLinearGradient(0, 0, 0, H * .6); sky.addColorStop(0, st.terrain === 'SNOW' ? '#4a6a9a' : '#1a2a4a'); sky.addColorStop(1, st.terrain === 'SAND' ? '#f0a050' : '#7a5a7a'); g.fillStyle = sky; g.fillRect(0, 0, W, H);
-      // mountains
-      g.fillStyle = 'rgba(20,20,40,.7)'; g.beginPath(); g.moveTo(0, H * .55); for (let x = 0; x <= W; x += 20) g.lineTo(x, H * .38 + Math.sin((x + scrollX * .2) / 70) * 30 + Math.sin((x + scrollX * .2) / 23) * 10); g.lineTo(W, H * .6); g.lineTo(0, H * .6); g.fill();
-      // pines / cacti along the ridge (parallax)
-      for (let i = 0; i < 14; i++) { const x = ((i * 71 - scrollX * .55) % (W + 60) + W + 60) % (W + 60) - 30, base = H * .58 + Math.sin(i * 1.7) * 8, h = 34 + (i * 13) % 26;
-        if (st.terrain === 'SAND') { g.fillStyle = '#2f5a2a'; g.fillRect(x - 3, base - h * .8, 6, h * .8); g.fillRect(x - 11, base - h * .55, 8, 4); g.fillRect(x - 11, base - h * .7, 4, 14); }
-        else { g.fillStyle = st.terrain === 'SNOW' ? '#24435a' : '#1d3a26'; g.beginPath(); g.moveTo(x, base - h); g.lineTo(x - h * .32, base); g.lineTo(x + h * .32, base); g.fill(); if (st.terrain === 'SNOW') { g.fillStyle = '#fff'; g.beginPath(); g.moveTo(x, base - h); g.lineTo(x - h * .12, base - h * .62); g.lineTo(x + h * .12, base - h * .62); g.fill(); } } }
+    S.draw = (g, W, H, now) => { const c = TCOL[st.terrain] || TCOL.GRAVEL;
+      const spd = st.drive ? 7 : st.stuck ? .4 : 0; scrollX += spd;
+      // photo-real terrain for each stage (gravel / mud / snow / rocks / sand), scrolling as you drive
+      g.fillStyle = '#111'; g.fillRect(0, 0, W, H); const m = F().cover(g, F().photo('bg-' + String(st.terrain || 'GRAVEL').toLowerCase()), W, H, { scroll: scrollX * 1.2, fy: .6 });
+      const base = m.ok ? Math.min(H * .86, m.y(.8)) : H * .66; const gy = x => base + Math.sin((x - scrollX) / 55) * 6 + Math.sin((x - scrollX) / 17) * 2;
+      const vg = g.createLinearGradient(0, 0, 0, H); vg.addColorStop(0, 'rgba(0,0,0,.55)'); vg.addColorStop(.3, 'rgba(0,0,0,.05)'); vg.addColorStop(1, 'rgba(0,0,0,.25)'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
       if (st.summit) { g.fillStyle = '#fff'; g.fillRect(W * .2, H * .2, 3, 50); g.fillStyle = '#ff2040'; g.fillRect(W * .2 + 3, H * .2, 30, 18); }
-      const spd = st.drive ? 7 : st.stuck ? .4 : 0; scrollX += spd; const gy = x => H * .66 + Math.sin((x - scrollX) / 55) * 10 + Math.sin((x - scrollX) / 17) * 4;
-      g.fillStyle = c[0]; g.beginPath(); g.moveTo(0, H); for (let x = 0; x <= W; x += 8) g.lineTo(x, gy(x)); g.lineTo(W, H); g.fill();
-      g.fillStyle = c[1]; for (let i = 0; i < 40; i++) { const x = ((i * 53 - scrollX * 1.0) % W + W) % W, y = gy(x) + 10 + (i % 5) * 14; g.fillRect(x, y, 6, 3); }
       const w = W * .55, cx = W * .48, y = gy(cx) + 4 + (st.drive ? Math.sin(now / 50) * 3 : 0) + (st.stuck ? Math.sin(now / 25) * 2 : 0);
       const tilt = (gy(cx + 30) - gy(cx - 30)) / 60 * .6 + (st.stuck ? Math.sin(now / 40) * .02 : 0);
       if (st.rescue) { g.save(); g.globalAlpha = .5 + .5 * Math.sin(now / 80); g.strokeStyle = '#22c3ff'; g.lineWidth = 6; g.shadowColor = '#22c3ff'; g.shadowBlur = 30; g.beginPath(); g.ellipse(cx, y - w * .15, w * .6, w * .25, 0, 0, 7); g.stroke(); g.restore(); }
@@ -121,13 +116,14 @@
   function charge(R, env) { return guarded(120000, R, async () => {
     open('PHEV CHARGE', 'TAP TO CHARGE · EVERY km = 1 CREDIT × BET · 72 km MAX');
     const st = { km: 0, shown: 0, flow: 0, surge: 0, full: 0, pulses: [], flick: 0, regen: 0 };
-    S.draw = (g, W, H, now) => { const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, st.surge ? '#3a0006' : '#020a1a'); bg.addColorStop(.62, st.surge ? '#200004' : '#06142a'); bg.addColorStop(.63, '#1a1d26'); bg.addColorStop(1, '#07080c'); g.fillStyle = bg; g.fillRect(0, 0, W, H);
-      // station canopy lights
-      for (let i = 0; i < 6; i++) { g.fillStyle = `rgba(120,220,255,${.15 + .1 * Math.sin(now / 300 + i)})`; g.fillRect(i * W / 6 + 10, H * .12, W / 6 - 20, 4); }
-      const carW = W * .8, cx = W * .44, cy = H * .6, I = F().cars.phev, ch = I.naturalWidth ? carW * I.naturalHeight / I.naturalWidth : carW * .33;
-      // charger post
-      const px = W * .92, py = H * .6; g.fillStyle = '#2a3446'; g.fillRect(px - 16, py - H * .22, 32, H * .22); g.fillStyle = st.full ? '#30e060' : st.surge ? '#ff2040' : '#22c3ff'; g.shadowColor = g.fillStyle; g.shadowBlur = 18; g.fillRect(px - 10, py - H * .2, 20, 30); g.shadowBlur = 0;
-      g.fillStyle = '#fff'; g.font = '900 10px Russo,sans-serif'; g.textAlign = 'center'; g.fillText('EV', px, py - H * .2 + 19);
+    S.draw = (g, W, H, now) => { g.fillStyle = '#02060e'; g.fillRect(0, 0, W, H);
+      // photo-real night charging station (pedestal + canopy are in the photo)
+      const m = F().cover(g, F().photo('bg-charge'), W, H, { fx: .62, fy: .55 });
+      if (st.surge) { g.fillStyle = 'rgba(120,0,10,.35)'; g.fillRect(0, 0, W, H); }
+      const carW = W * .74, cx = m.ok ? Math.min(W * .42, m.x(.5)) : W * .44, cy = m.ok ? m.y(.74) : H * .6, I = F().cars.phev, ch = I.naturalWidth ? carW * I.naturalHeight / I.naturalWidth : carW * .33;
+      const px = m.ok ? m.x(.86) : W * .92, py = m.ok ? m.y(.5) + H * .12 : H * .6; // cable holster on the pedestal
+      // pedestal LED reacts to the charge state
+      if (m.ok) { g.save(); g.globalCompositeOperation = 'lighter'; const lc = st.full ? '48,224,96' : st.surge ? '255,32,64' : '34,195,255', lx = m.x(.72), ly = m.y(.32); const lg = g.createRadialGradient(lx, ly, 0, lx, ly, W * .18); lg.addColorStop(0, `rgba(${lc},${.35 + .25 * Math.sin(now / 200)})`); lg.addColorStop(1, `rgba(${lc},0)`); g.fillStyle = lg; g.fillRect(lx - W * .2, ly - W * .2, W * .4, W * .4); g.restore(); }
       // glow under the car while charging
       if (st.flow) { const gl = g.createRadialGradient(cx, cy, 10, cx, cy, carW * .6); gl.addColorStop(0, 'rgba(34,195,255,.45)'); gl.addColorStop(1, 'rgba(34,195,255,0)'); g.fillStyle = gl; g.fillRect(0, cy - carW * .4, W, carW * .6); }
       F().drawCar(g, 'phev', cx, cy, carW, { glow: st.full ? '#30e060' : st.flow ? '#22c3ff' : null });

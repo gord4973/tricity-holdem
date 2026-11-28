@@ -162,13 +162,13 @@ async function animateReels(res, mode) {
 function markWins(res) { const cells = new Set(); for (const w of res.ways) for (const [r, y] of w.cells) cells.add(r + ',' + y);
   if (res.jackpot) res.grid.forEach((col, r) => cells.add(r + ',1'));
   if (res.trigger || res.retrig) res.grid.forEach((col, r) => col.forEach((c, y) => { if (c.s === 'FL' || (res.trigger && res.trigger.type === 'charge' && c.s === 'PL')) cells.add(r + ',' + y); }));
-  if (cells.size) reels.setWin(cells); return cells.size; }
+  if (cells.size) reels.setWin(cells, res.ways); return cells.size; }
 // returns credits won on this spin (base or free)
 async function resolve(res, mode) {
   const n = markWins(res); let win = res.win;
   if (res.jackpot) { await jackpotWin('grand', res.jackpot.win, 'FIVE OUTLANDER PHEVs ON THE CENTRE ROW'); return win; }
   if (win > 0) { const ways = res.ways.length; A.play('win', ways); const best = res.ways.slice().sort((a, b) => b.pay - a.pay)[0];
-    const wb = $('winBanner'); wb.textContent = `${best.len}× ${M.SYM[best.s].name.toUpperCase()}${best.mult > 1 ? ' ×' + best.mult : ''}${res.prog > 1 ? ' · MULT ×' + res.prog : ''} · WIN ${fmt(win)}`; wb.classList.remove('hidden');
+    const wb = $('winBanner'); wb.textContent = `${best.len}× ${M.SYM[best.s].name.toUpperCase()}${res.ways.length > 1 ? ' +' + (res.ways.length - 1) + ' MORE' : ''}${best.mult > 1 ? ' ×' + best.mult : ''}${res.prog > 1 ? ' · MULT ×' + res.prog : ''} · WIN ${fmt(win)}`; wb.classList.remove('hidden');
     const t = M.tier(win, bet()); if (t === 'win') await roll('win', disp.win + win, Math.min(1400, 400 + win / bet() * 120), true); else { await bigWin(win, t); disp.win += win; meters(); }
     await sleep(quick ? 150 : mode ? 500 : 650); }
   else if (n) await sleep(400);

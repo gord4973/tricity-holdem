@@ -4,6 +4,17 @@
   const CAR_FILES = { rvr: 'rvr', ec: 'eclipse-cross', out: 'outlander', ev: 'eclipse-sportback', phev: 'outlander-phev' };
   const cars = {}; for (const k in CAR_FILES) { const i = new Image(); i.decoding = 'async'; i.src = `/madness/art/car-${CAR_FILES[k]}.webp?v=1`; cars[k] = i; }
   const ok = i => i && i.complete && i.naturalWidth > 0;
+  // photo-real backgrounds (generated, see madness-notes/gen + photo.py)
+  const photos = {}; const photo = n => { let i = photos[n]; if (!i) { i = photos[n] = new Image(); i.decoding = 'async'; i.src = `/madness/photo/${n}.webp?v=1`; } return i; };
+  ['bg-tunnel', 'bg-rally', 'bg-charge', 'bg-gravel', 'bg-mud', 'bg-snow', 'bg-rocks', 'bg-sand'].forEach(photo);
+  // draw a photo "cover"-fitted (optionally zoomed about (fx,fy) and scrolled horizontally with mirrored tiling); returns a mapper from
+  // photo fractions (u,v) to screen x,y so scenes can place things on the photo's road/track/charger
+  function cover(g, img, W, H, o = {}) { const z = o.zoom || 1, fx = o.fx == null ? .5 : o.fx, fy = o.fy == null ? .5 : o.fy;
+    const iw = ok(img) ? img.naturalWidth : 9, ih = ok(img) ? img.naturalHeight : 16, s = Math.max(W / iw, H / ih) * z, dw = iw * s, dh = ih * s;
+    const ox = W * fx - dw * fx, oy = H * fy - dh * fy;
+    if (ok(img)) { if (o.scroll) { let x0 = ox - ((o.scroll % (2 * dw)) + 2 * dw) % (2 * dw); for (let k = 0; x0 < W; k++, x0 += dw) { if (k % 2) { g.save(); g.translate(x0 + dw, oy); g.scale(-1, 1); g.drawImage(img, 0, 0, dw, dh); g.restore(); } else g.drawImage(img, x0, oy, dw, dh); } }
+      else g.drawImage(img, ox, oy, dw, dh); }
+    return { x: u => ox + u * dw, y: v => oy + v * dh, s, dw, dh, ok: ok(img) }; }
   const topCar = new Image(); topCar.decoding = 'async'; topCar.src = '/madness/photo/topdown-phev.webp?v=1'; // photo-real top-down PHEV for DRIFT WILD
   const rnd = (a, b) => a + Math.random() * (b - a);
   const speed = () => window.__madSpeed || 1;
@@ -19,15 +30,10 @@
   function stageInit(cv) { stage.cv = cv; stage.g = cv.getContext('2d'); for (let i = 0; i < 70; i++) stage.stars.push({ x: Math.random(), y: Math.random() * .5, s: Math.random() * 1.6 + .3, p: Math.random() * 6 }); requestAnimationFrame(stageLoop); }
   function stageLoop(now) { requestAnimationFrame(stageLoop); if (stage.paused || document.hidden) return; if (now - stage.last < 30) return; const dt = Math.min(80, now - (stage.last || now)); stage.last = now;
     const { W, H, d } = fit(stage.cv), g = stage.g; g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, W, H); const k = stage.k, roadY = stage.roadY || H * .4;
-    // sky + stars
-    for (const s of stage.stars) { g.globalAlpha = .4 + .4 * Math.sin(now / 600 + s.p); g.fillStyle = '#fff'; g.fillRect(s.x * W, s.y * roadY, s.s, s.s); } g.globalAlpha = 1;
     // searchlights
     for (let i = 0; i < 2; i++) { const a = Math.sin(now / 2200 + i * 2) * .5 - Math.PI / 2, x0 = W * (i ? .82 : .18); g.save(); g.translate(x0, roadY); g.rotate(a + Math.PI / 2); const gr = g.createLinearGradient(0, 0, 0, -H * .7); gr.addColorStop(0, stage.mode === 'nitro' ? 'rgba(40,190,255,.25)' : stage.mode === 'turbo' ? 'rgba(255,140,0,.22)' : 'rgba(255,40,70,.2)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.beginPath(); g.moveTo(-6, 0); g.lineTo(-W * .16, -H * .7); g.lineTo(W * .16, -H * .7); g.lineTo(6, 0); g.fill(); g.restore(); }
-    // skyline
-    g.fillStyle = '#12081a'; let x = 0, seed = 7; while (x < W) { seed = (seed * 9301 + 49297) % 233280; const bw = 18 * k + (seed / 233280) * 30 * k, bh = 20 * k + ((seed * 7) % 233280) / 233280 * 70 * k; g.fillRect(x, roadY - bh, bw - 2, bh); x += bw; }
-    g.fillStyle = 'rgba(255,200,80,.25)'; for (let i = 0; i < 40; i++) { const wx = (i * 97) % W, wy = roadY - 8 * k - ((i * 53) % 60) * k; if (Math.sin(now / 1500 + i) > -.2) g.fillRect(wx, wy, 2, 3); }
     // road
-    const rh = 34 * k; const gr = g.createLinearGradient(0, roadY - rh * .2, 0, roadY + rh); gr.addColorStop(0, '#2a2a34'); gr.addColorStop(1, '#0b0b10'); g.fillStyle = gr; g.fillRect(0, roadY - rh * .2, W, rh * 1.2);
+    const rh = 34 * k; const gr = g.createLinearGradient(0, roadY - rh * .2, 0, roadY + rh); gr.addColorStop(0, 'rgba(30,30,38,.55)'); gr.addColorStop(1, 'rgba(8,8,12,.75)'); g.fillStyle = gr; g.fillRect(0, roadY - rh * .2, W, rh * 1.2);
     const sp = (stage.attract ? .5 : .18) * k, off = (now * sp) % (40 * k); g.fillStyle = '#ffd84a'; for (let xx = -40 * k + off; xx < W; xx += 40 * k) g.fillRect(xx, roadY + rh * .35, 20 * k, 2.5 * k);
     g.fillStyle = 'rgba(255,255,255,.5)'; g.fillRect(0, roadY - rh * .2, W, 1.5);
     // cruisers (right -> left)
@@ -58,7 +64,7 @@
   const COLORS = ['#ff2040', '#ffd84a', '#22c3ff', '#ffffff', '#ff8a00', '#30e060'];
   function emit(ms, tick) { P.emitters.push({ until: performance.now() + ms, tick }); fxStart(); }
   const MadFXObj = {
-    cars, drawCar, fit,
+    cars, drawCar, fit, photo, cover,
     stageInit, setRoad(y, k) { stage.roadY = y; stage.k = k; }, setAttract(on) { stage.attract = on; }, setMode(m) { stage.mode = m || ''; }, pauseStage(p) { stage.paused = p; },
     fxInit,
     coinRain(ms = 2500, n = 3) { emit(ms, (now, W) => { for (let i = 0; i < n; i++) add({ t: 'coin', x: rnd(0, W), y: -20, vx: rnd(-1, 1), vy: rnd(2, 6), g: .18, s: rnd(7, 13), r: rnd(0, 6), vr: rnd(.1, .3), life: 1, decay: .004 }); }); },
@@ -98,10 +104,14 @@
     flyBy(k = 'phev', ms = 1400, y) { const t0 = performance.now(), D = ms * speed(); P.hooks.push((now, g, W, H) => { const u = (now - t0) / D, w = W * .7, x = W + w / 2 - u * (W + w * 1.2), yy = y != null ? y : H * .72; if (u >= 1) return false;
       MadFXObj.smoke(x + w * .45, yy - 10, 2); drawCar(g, k, x, yy, w, { flame: 1.5, glow: '#ff3048' }); return true; }); fxStart(); },
     // cinematic speed tunnel (runs on the cine canvas until stop())
-    tunnel(cv, o = {}) { const g = cv.getContext('2d'), t0 = performance.now(), lines = [...Array(140)].map(() => ({ a: rnd(0, 6.283), z: rnd(.05, 1), w: rnd(1, 3) })); let alive = true; const col = o.color || '#ff2040';
-      const loop = now => { if (!alive) return; requestAnimationFrame(loop); const { W, H, d } = fit(cv); g.setTransform(d, 0, 0, d, 0, 0); const t = (now - t0) / 1000, cx = W / 2, cy = H * .45, R = Math.hypot(W, H) * .6;
-        const bg = g.createRadialGradient(cx, cy, 10, cx, cy, R); bg.addColorStop(0, '#fff'); bg.addColorStop(.06, col); bg.addColorStop(.35, '#1a0010'); bg.addColorStop(1, '#000'); g.fillStyle = bg; g.fillRect(0, 0, W, H);
-        for (const L of lines) { L.z -= .022 * (1 + t); if (L.z <= .02) { L.z = 1; L.a = rnd(0, 6.283); } const r1 = R * (1 - L.z) ** 2, r2 = R * (1 - L.z + .06) ** 2; g.strokeStyle = `rgba(255,255,255,${.25 + (1 - L.z) * .6})`; g.lineWidth = L.w * (1.5 - L.z); g.beginPath(); g.moveTo(cx + Math.cos(L.a) * r1, cy + Math.sin(L.a) * r1); g.lineTo(cx + Math.cos(L.a) * r2, cy + Math.sin(L.a) * r2); g.stroke(); }
+    tunnel(cv, o = {}) { const g = cv.getContext('2d'), t0 = performance.now(), I = photo('bg-tunnel'), lines = [...Array(70)].map(() => ({ a: rnd(0, 6.283), z: rnd(.05, 1), w: rnd(1, 2.5) })); let alive = true; const col = o.color || '#ff2040';
+      const loop = now => { if (!alive) return; requestAnimationFrame(loop); const { W, H, d } = fit(cv); g.setTransform(d, 0, 0, d, 0, 0); const t = (now - t0) / 1000, cx = W / 2, cy = H * .47, R = Math.hypot(W, H) * .6;
+        g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+        // photo-real tunnel, rushing forward (zoom), tinted to the feature colour
+        const z = 1 + (t * .35) % .6, zf = (t * .35) % .6 / .6; g.globalAlpha = 1; cover(g, I, W, H, { zoom: z, fx: .5, fy: .47 }); g.globalAlpha = zf; cover(g, I, W, H, { zoom: z / 1.6, fx: .5, fy: .47 }); g.globalAlpha = 1;
+        g.globalCompositeOperation = 'color'; g.fillStyle = col; g.globalAlpha = .45; g.fillRect(0, 0, W, H); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+        const vg = g.createRadialGradient(cx, cy, R * .2, cx, cy, R); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.75)'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
+        g.globalCompositeOperation = 'lighter'; for (const L of lines) { L.z -= .03 * (1 + t); if (L.z <= .02) { L.z = 1; L.a = rnd(0, 6.283); } const r1 = R * (1 - L.z) ** 2, r2 = R * (1 - L.z + .08) ** 2; g.strokeStyle = `rgba(255,240,220,${.15 + (1 - L.z) * .5})`; g.lineWidth = L.w * (1.5 - L.z); g.beginPath(); g.moveTo(cx + Math.cos(L.a) * r1, cy + Math.sin(L.a) * r1); g.lineTo(cx + Math.cos(L.a) * r2, cy + Math.sin(L.a) * r2); g.stroke(); } g.globalCompositeOperation = 'source-over';
         if (o.car) { const u = Math.min(1, t / 1.6), w = W * (.1 + u * u * 1.1); drawCar(g, o.car, cx + Math.sin(t * 30) * u * 3, cy + w * .32, w, { flame: 1 + u, glow: col }); }
         if (o.bolt && Math.sin(t * 13) > .6) { g.strokeStyle = '#bff4ff'; g.lineWidth = 4; g.shadowColor = '#22c3ff'; g.shadowBlur = 20; g.beginPath(); let x = rnd(0, W), y = 0; g.moveTo(x, y); while (y < H) { x += rnd(-40, 40); y += rnd(20, 60); g.lineTo(x, y); } g.stroke(); g.shadowBlur = 0; } };
       requestAnimationFrame(loop); return () => { alive = false; }; },

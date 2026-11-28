@@ -7,7 +7,7 @@ html, body { margin: 0; height: 100%; background: #000; color: #fff; overflow: h
 button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
 .hidden { display: none !important; }
 #app { --k: 1; position: relative; margin: 0 auto; width: var(--appW, 100vw); height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden;
-  background: radial-gradient(120% 60% at 50% 18%, #3a0a1c 0%, #14040c 45%, #050208 100%); padding-top: env(safe-area-inset-top); }
+  background: linear-gradient(rgba(5,2,8,.15), rgba(5,2,8,.35) 55%, rgba(5,2,8,.8)), url(/madness/photo/bg-cabinet.webp?v=1) center 30%/cover, #050208; padding-top: env(safe-area-inset-top); }
 #stage { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
 #fx { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 40; pointer-events: none; }
 /* ---- header ---- */
@@ -68,8 +68,9 @@ button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulat
 #frame.mode-madness { animation: rainbow 2s linear infinite; }
 @keyframes rainbow { 0% { box-shadow: 0 0 0 2px #000, 0 0 34px #ff2040; } 33% { box-shadow: 0 0 0 2px #000, 0 0 34px #ffd000; } 66% { box-shadow: 0 0 0 2px #000, 0 0 34px #20c0ff; } 100% { box-shadow: 0 0 0 2px #000, 0 0 34px #ff2040; } }
 .shakeX { animation: shakeX .45s; } @keyframes shakeX { 20% { transform: translate(-6px, 2px); } 40% { transform: translate(6px, -2px); } 60% { transform: translate(-4px, 1px); } 80% { transform: translate(3px, 0); } }
-#winBanner { position: absolute; left: 50%; bottom: calc(var(--pad) + 4px); transform: translateX(-50%); padding: calc(4px * var(--k)) calc(14px * var(--k)); border-radius: 30px; white-space: nowrap;
-  background: linear-gradient(#ffe46a, #e69200); color: #3a1200; font: 400 calc(16px * var(--k)) Russo, sans-serif; box-shadow: 0 0 18px #ffb000, 0 2px 0 #7a3d00; animation: pop .35s; z-index: 3; }
+/* t115u: the win banner sits ABOVE the reel window (over the meter strip) so it never hides a tile */
+#winBanner { position: absolute; left: 50%; bottom: calc(100% + 1px); transform: translateX(-50%); padding: calc(3px * var(--k)) calc(12px * var(--k)); border-radius: 30px; white-space: nowrap; max-width: 98%; overflow: hidden; text-overflow: ellipsis;
+  background: linear-gradient(#ffe46a, #e69200); color: #3a1200; font: 400 calc(14px * var(--k)) Russo, sans-serif; box-shadow: 0 0 18px #ffb000, 0 2px 0 #7a3d00; animation: pop .35s; z-index: 6; }
 @keyframes pop { from { transform: translateX(-50%) scale(.4); opacity: 0; } }
 #attract { position: absolute; inset: var(--pad); display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: calc(10px * var(--k)); background: rgba(0,0,0,.55); z-index: 4; text-align: center; pointer-events: none; }
 #attractTxt { font: 400 calc(22px * var(--k)) Russo, sans-serif; color: #ffd84a; text-shadow: 0 0 14px #ff3048; padding: 0 10px; animation: attractIn 3s ease-in-out infinite; }
@@ -110,8 +111,9 @@ button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulat
 #cineSub { position: absolute; left: 0; right: 0; top: calc(40% + 60px * var(--k)); text-align: center; font: 800 italic calc(20px * var(--k)) Barlow, sans-serif; color: var(--cineC, #ffd84a); letter-spacing: .12em; }
 #cine.show #cineTitle { animation: slam .5s cubic-bezier(.2, 1.6, .4, 1) both .25s; } #cine.show #cineSub { animation: slam .5s cubic-bezier(.2, 1.6, .4, 1) both .55s; }
 @keyframes slam { from { transform: skewX(-10deg) scale(3); opacity: 0; } to { transform: skewX(-10deg) scale(1); opacity: 1; } }
-#big { z-index: 45; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle, rgba(60,0,10,.75), rgba(0,0,0,.92)); }
-#big .burst { position: absolute; width: 160vmax; height: 160vmax; left: 50%; top: 45%; margin: -80vmax 0 0 -80vmax; background: repeating-conic-gradient(rgba(255,200,0,.18) 0 8deg, transparent 8deg 18deg); animation: rot 12s linear infinite; }
+#big { z-index: 45; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle, rgba(40,0,6,.45), rgba(0,0,0,.85)), url(/madness/photo/bg-bigwin.webp?v=1) center/cover; animation: bigZoom 6s ease-out both; }
+@keyframes bigZoom { from { background-size: auto, 140% auto; } to { background-size: auto, cover; } }
+#big .burst { position: absolute; width: 160vmax; height: 160vmax; left: 50%; top: 45%; margin: -80vmax 0 0 -80vmax; background: repeating-conic-gradient(rgba(255,210,90,.10) 0 8deg, transparent 8deg 18deg); animation: rot 12s linear infinite; }
 @keyframes rot { to { transform: rotate(360deg); } }
 #bigTitle { position: relative; font: 400 min(calc(54px * var(--k)), calc(var(--appW) * .1)) Russo, sans-serif; padding: 0 4%; transform: skewX(-10deg); background: linear-gradient(#fff7a0, #ffc400 45%, #ff3a1a); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 4px 0 #3a0008) drop-shadow(0 0 20px #ff6a00); animation: slam .6s cubic-bezier(.2, 1.6, .4, 1) both; text-align: center; }
 #bigAmt { position: relative; font: 400 calc(48px * var(--k)) Russo, sans-serif; color: #fff; text-shadow: 0 0 20px #ffb000, 0 3px 0 #000; margin-top: 6px; }
@@ -161,3 +163,6 @@ button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulat
 #dbg button { font-size: 10px; padding: 2px 4px; background: #000; border: 1px solid #555; border-radius: 4px; }
 #rotate { display: none; } body.rotate #rotate { display: flex; position: fixed; inset: 0; z-index: 100; background: #000; align-items: center; justify-content: center; text-align: center; } body.rotate #rotate div { display: flex; flex-direction: column; gap: 8px; } body.rotate #rotate b { font: 400 22px Russo, sans-serif; }
 #safeProbe { position: fixed; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); visibility: hidden; pointer-events: none; }
+
+/* free spins: photo-real speed tunnel behind the cabinet */
+#app.free { background: linear-gradient(rgba(5,2,8,.25), rgba(5,2,8,.55) 55%, rgba(5,2,8,.85)), url(/madness/photo/bg-tunnel.webp?v=1) center 30%/cover, #050208; }
