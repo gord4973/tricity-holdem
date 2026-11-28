@@ -33,11 +33,12 @@ reels.setGrid(shown);
 FX.stageInit($('stage')); FX.pauseStage(true); FX.fxInit($('fx')); const SH = window.MadShow; SH.init($('showCv'));
 // ---------------- layout (portrait cabinet) ----------------
 let rowsVis = 3;
+const reelsHeight = rows => Math.min(Math.round(rows * (layout.colW || 60) / 1.25), Math.round(innerHeight * .5)); // t143u: 5 rows (3,125 ways) must still leave room for the top display
 function layout() {
   const vw = innerWidth, vh = innerHeight, land = vw > vh * 1.05, coarse = matchMedia('(pointer: coarse)').matches; document.body.classList.toggle('rotate', land && coarse);
   const app = $('app'), W = Math.min(vw, Math.round(vh * .78)), H = vh, k = Math.max(.8, Math.min(2.0, Math.min(W / 390, H / 844))), wide = W / H > .62;
   const fw = Math.round(wide ? W * .92 : W - 2 * Math.round(5 * k)), pad = Math.round(7 * k), rw = fw - 2 * pad, gap = Math.max(2, rw * .008), colW = (rw - 4 * gap) / 5;
-  let reelsH = Math.round(rowsVis * colW / 1.25); layout.colW = colW; // t135u: rowsVis = 3, or 4 in NITRO (animated in between)
+  layout.colW = colW; let reelsH = reelsHeight(rowsVis); // t135u: rowsVis = 3, or 4 in NITRO (animated in between)
   const v = { '--appW': W + 'px', '--k': k.toFixed(3), '--fw': fw + 'px', '--pad': pad + 'px', '--reelsH': reelsH + 'px' };
   for (const n in v) app.style.setProperty(n, v[n]); app.classList.toggle('wide', wide);
   requestAnimationFrame(() => { reels.resize(); const a = app.getBoundingClientRect(), f = $('frame').getBoundingClientRect(); FX.setRoad(f.top - a.top - 47 * k, k); app.style.setProperty('--frameTop', (f.top - a.top) + 'px'); app.style.setProperty('--showH', Math.round(f.top - a.top + 6) + 'px'); });
@@ -126,6 +127,7 @@ function forceOf(kind) {
   if (/^(turbo|nitro|rally|offroad)$/.test(kind)) wheelTo(kind);
   if (kind === 'madspins') wheelTo('madness', 3, { rich: true });
   if (kind === 'gearup') wheelTo('turbo', 3, { opts: { forceGearUp: true } });
+  if (/^grow(turbo|nitro|madness)?$/.test(kind)) wheelTo(kind.slice(4) || 'turbo', 3, { opts: { forceGrow: true } }); // t143u: first free spin lands 3 flags -> the reels grow one more row
   if (kind === 'rally1') wheelTo('rally', 3, { opts: { forcePlace: 1, forceNitro: true } });
   if (kind === 'summit') wheelTo('offroad', 3, { opts: { forceStuck: -1 } });
   if (kind === 'rescue') wheelTo('offroad', 3, { opts: { forceStuck: 1, forceRescue: true } });
@@ -389,15 +391,15 @@ function wheel(tier, F, via) { return new Promise(async (resolveWheel) => {
 }); }
 function shakeWheel() { const e = $('wheelWrap'); e.classList.remove('shakeX'); void e.offsetWidth; e.classList.add('shakeX'); }
 // ---------------- free spins ----------------
-const MODE_INFO = { turbo: { c: '#ff8a00', car: 'ec', feats: 'Wilds carry ×2 – ×10 multipliers<br>3 flags = +5 spins · may GEAR UP to NITRO' }, nitro: { c: '#22c3ff', car: 'ev', feats: 'REELS GROW TO 5×4 = 1,024 WAYS<br>Multiplier wilds + DRIFT WILD reels<br>3 flags = +5 spins · may GEAR UP to MADNESS' }, madness: { c: '#ff2040', car: 'phev', feats: 'Multiplier wilds + DRIFT WILD reels<br>Win multiplier climbs ×1 → ×10 with every win' } };
+const MODE_INFO = { turbo: { c: '#ff8a00', car: 'ec', feats: 'Wilds carry ×2 – ×10 multipliers<br>3 flags = +5 spins AND +1 ROW · may GEAR UP to NITRO' }, nitro: { c: '#22c3ff', car: 'ev', feats: 'REELS GROW TO 5×4 = 1,024 WAYS<br>Multiplier wilds + DRIFT WILD reels<br>3 flags = +5 spins AND +1 ROW (5×5 = 3,125 ways) · may GEAR UP to MADNESS' }, madness: { c: '#ff2040', car: 'phev', feats: 'Multiplier wilds + DRIFT WILD reels<br>Win multiplier climbs ×1 → ×10 with every win<br>3 flags = +5 spins AND +1 ROW (5×4 = 1,024 ways)' } };
 function splash(mode, n) { return new Promise(res => { const s = $('splash'), info = MODE_INFO[mode]; s.style.setProperty('--modeC', info.c); $('splashTitle').textContent = M.MODES[mode].name.split(' ')[0]; $('splashSub').textContent = `${n} FREE SPINS`; $('splashFeats').innerHTML = info.feats + '<p class=how>HOW IT WORKS: your free spins play by themselves — no bet needed. Wins add up in BONUS WIN at the top. Tap START when ready.</p>'; s.classList.remove('hidden');
   let done = false; const go = () => { if (done) return; done = true; s.classList.add('hidden'); $('startBtn').onclick = null; s.onclick = null; A.play('rev', 1); res(); }; setTimeout(() => { $('startBtn').onclick = go; s.onclick = go; }, 300); setTimeout(go, (quick ? 1500 : 9000) * SPD()); }); }
 // t135u: NITRO SPINS grow the reels to 5x4 (1,024 ways): the cabinet stretches a row taller (top display gives up the space), then shrinks back
 async function setRows(n, instant) { if (reels.rows === n && rowsVis === n) return; const from = rowsVis; reels.beginRows(n);
-  if (!instant) { A.play(n > from ? 'turbo' : 'blowoff'); if (n > from) { A.play('impact'); toast('REELS GROW! 5×4 · 1,024 WAYS', 1600); $('frame').classList.add('grow'); } }
+  if (!instant) { A.play(n > from ? 'turbo' : 'blowoff'); if (n > from) { A.play('impact'); toast(`REELS GROW! 5×${n} · ${(n ** 5).toLocaleString()} WAYS`, 1600); $('frame').classList.add('grow'); } }
   const D = instant ? 0 : 750 * SPD(), t0 = performance.now();
   await new Promise(res => { const f = now => { const u = D ? Math.min(1, (now - t0) / D) : 1, e = u < .5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2; rowsVis = from + (n - from) * e;
-    $('app').style.setProperty('--reelsH', Math.round(rowsVis * (layout.colW || 60) / 1.25) + 'px'); reels.resize();
+    $('app').style.setProperty('--reelsH', reelsHeight(rowsVis) + 'px'); reels.resize();
     if (u < 1) requestAnimationFrame(f); else res(); }; if (D) requestAnimationFrame(f); else f(performance.now()); });
   rowsVis = n; reels.endRows(n); layout(); $('frame').classList.remove('grow'); if (!instant && n > from) { try { shake(); } catch (e) {} A.play('reelStop', 0, true); }
   window.__rows = n; }
@@ -406,15 +408,18 @@ async function freeRound(R, F) {
   const mode0 = R.mode, info = MODE_INFO[mode0];
   await cinematic({ title: M.MODES[mode0].name + '!', sub: `${M.FS_START[mode0]} FREE SPINS`, color: info.c, car: info.car, dur: 2200 });
   await splash(mode0, M.FS_START[mode0]);
-  let mode = mode0, won = 0, total = M.FS_START[mode0]; setModeLook(mode); A.music(true); await setRows(M.rowsOf(mode));
+  let mode = mode0, won = 0, total = M.FS_START[mode0]; setModeLook(mode); A.music(true); let extra = 0; await setRows(M.rowsOf(mode));
   const hud = (i) => { $('hudSpins').textContent = `${i} OF ${total}`; $('hudWin').textContent = fmt(won); };
   try {
     for (let i = 0; i < R.spins.length; i++) { const s = R.spins[i];
-      if (R.gearUp && R.gearUp.at === i) { fxs({ kind: 'gearup', to: R.gearUp.to }); A.play('gear'); await cinematic({ title: 'GEAR UP!', sub: M.MODES[R.gearUp.to].name + ` · +${R.gearUp.add} SPINS`, color: MODE_INFO[R.gearUp.to].c, car: MODE_INFO[R.gearUp.to].car, dur: 2000 }); mode = R.gearUp.to; total += R.gearUp.add; setModeLook(mode); await setRows(M.rowsOf(mode)); }
+      if (R.gearUp && R.gearUp.at === i) { fxs({ kind: 'gearup', to: R.gearUp.to }); A.play('gear'); await cinematic({ title: 'GEAR UP!', sub: M.MODES[R.gearUp.to].name + ` · +${R.gearUp.add} SPINS`, color: MODE_INFO[R.gearUp.to].c, car: MODE_INFO[R.gearUp.to].car, dur: 2000 }); mode = R.gearUp.to; total += R.gearUp.add; setModeLook(mode); await setRows(M.rowsOf(mode) + extra); }
       hud(i + 1); $('hudMult').textContent = '×' + (s.prog || 1); A.play('spin');
       quick = false; await animateReels(s, mode); // t136u: a STOP tap only hurries the free spin it was tapped on
       const w = await resolve(s, mode); won += w; window.__bonusWin = (window.__bonusWin || 0) + w; hud(i + 1);
       if (s.retrig) { total += s.retrig; fxs({ kind: 'retrig' }); A.play('fanfare'); toast(`+${s.retrig} SPINS!`, 1300); hud(i + 1); await sleep(900); }
+      if (s.grow) { // t143u: 3 flags in a free spin = the reels grow ONE more row for the rest of the round (once per round)
+        extra = 1; window.__grow = (window.__grow || 0) + 1; fxs({ kind: 'grow', rows: s.grow.to }); A.play('fanfare');
+        await sleep(quick ? 150 : 450); await setRows(s.grow.to); toast(`3 FLAGS! +1 ROW · 5×${s.grow.to} · ${(s.grow.to ** 5).toLocaleString()} WAYS`, 2000); await sleep(quick ? 150 : 600); }
       await sleep(quick ? 80 : 250); }
   } finally { A.music(false); setModeLook(null); curMode = null; clearWinBanner(); await setRows(3); }
   if (won > 0) { if (!(await bonusWin(won, `${M.MODES[R.finalMode].name} TOTAL · ${R.played} SPINS`))) await bigWin(won, 'total', `${M.MODES[R.finalMode].name} TOTAL · ${R.played} SPINS`); }
@@ -432,7 +437,7 @@ window.__attract = { enter: () => { busy || enterAttract(); }, exit: exitAttract
 // ---------------- menu / paytable ----------------
 function showPay() { const b = bet(), cell = (s, n) => { const u = M.wayPay(s, n, b); const x = M.PAY[s][n - 3]; return `<td><b>${fmt(u)}</b><small>${+x.toFixed(2)}× bet · ${cr(u).toLocaleString()} cr</small></td>`; };
   let h = `<div class=payhead>PAYS PER WINNING WAY AT YOUR CURRENT BET<br><b>${betCr()} credits × ${denomTxt(st.denom)} = ${money(betCents())}</b></div>
-  <p>243 ways (1,024 ways in NITRO SPINS, 5×4): matching symbols on adjacent reels from the left pay, anywhere on each reel. Each separate path through matching tiles is one WAY, so 2 RVRs on reel 2 = 2 ways (pays ×2). A MADNESS WILD with ×2 / ×3 multiplies its ways. The win banner shows exactly this: <i>5× RVR · 1 WAY = ${fmt(M.wayPay('RV', 5, b))}</i>.</p>
+  <p>243 ways (1,024 ways in NITRO SPINS, 5×4; 3 flags in any free spin grow the reels one more row, up to 3,125 ways): matching symbols on adjacent reels from the left pay, anywhere on each reel. Each separate path through matching tiles is one WAY, so 2 RVRs on reel 2 = 2 ways (pays ×2). A MADNESS WILD with ×2 / ×3 multiplies its ways. The win banner shows exactly this: <i>5× RVR · 1 WAY = ${fmt(M.wayPay('RV', 5, b))}</i>.</p>
   <table class=paytab><tr><th></th><th>Symbol</th><th>3</th><th>4</th><th>5</th></tr>`;
   for (const s of M.PAYSYMS.slice().reverse()) h += `<tr class="${M.SYM[s].kind}"><td><img src="/madness/art/${s}.webp?v=4" alt=""></td><td>${M.SYM[s].name}</td>${[3, 4, 5].map(n => cell(s, n)).join('')}</tr>`;
   h += `</table><p>5 of a kind on one way: PHEV ${M.PAY.PH[2]}× bet, Outlander ${M.PAY.OU[2]}×, Sportback EV ${M.PAY.EV[2]}×, Eclipse Cross ${M.PAY.EC[2]}×, RVR ${M.PAY.RV[2]}×. Values above change with your bet and denomination. <b>5 Outlander PHEVs on the centre row = PHEV GRAND (${usd(M.JP.grand * b)})</b>.</p><h3>Specials</h3><p><img src="/madness/art/WD.webp" alt=""> MADNESS WILD (reels 2-4) substitutes for every symbol; in base play it can carry ×2/×3, in free spins ×2 – ×10. Multipliers on one way multiply.</p>
@@ -441,7 +446,7 @@ function showPay() { const b = bet(), cell = (s, n) => { const u = M.wayPay(s, n
 function showRules() { $('menuBody').innerHTML = `<h3>DRIFT WILD</h3><p>Any spin, a car can drift across reel 2, 3 or 4 in a cloud of tyre smoke and turn the whole reel WILD. A drift wild always lands at least one win.</p>
   <h3>BOOST GAUGE</h3><p>The round BOOST gauge in the top display fills with every checkered flag that lands without a wheel. Full BOOST = a free Madness Wheel. <b>New:</b> 3 BOOST GAUGE symbols (reels 2, 3, 4) fill the gauge instantly and launch the BOOSTED WHEEL with no locked wedges. The flag fill keeps going either way.</p>
   <h3>MADNESS WHEEL</h3><p>12 wedges: TURBO / NITRO / MADNESS SPINS, RALLY RACE, S-AWC CHALLENGE, PHEV CHARGE, 10× and 25× bet, and the RVR MINI (${M.JP.mini}×), ECLIPSE MINOR (${M.JP.minor}×), OUTLANDER MAJOR (${M.JP.major}×) and PHEV GRAND (${M.JP.grand}×) jackpots. With 3 flags the GRAND, MAJOR and MADNESS wedges are locked (5× bet); 4 flags lock only the GRAND; 5 flags unlock everything. REV UP can smash the locks before the spin.</p>
-  <h3>FREE SPINS</h3><p>TURBO (8): multiplier wilds. NITRO (8): the reels grow to 5×4 for 1,024 ways, + drift wild reels. MADNESS (10): + a win multiplier that climbs to ×10. 3 flags = +5 spins. GEAR UP can upgrade the round mid-way.</p>
+  <h3>FREE SPINS</h3><p>TURBO (8): multiplier wilds. NITRO (8): the reels grow to 5×4 for 1,024 ways, + drift wild reels. MADNESS (10): + a win multiplier that climbs to ×10. 3 flags = +5 spins <b>and the reels GROW one more row</b> for the rest of the round (5×3 → 5×4 = 1,024 ways; NITRO 5×4 → 5×5 = 3,125 ways). It happens once per round. GEAR UP can upgrade the round mid-way.</p>
   <h3>RALLY RACE</h3><p>Pick one of four cars and watch the race. 1st = 30× (NITRO FINISH doubles it to 60×), 2nd = 15×, 3rd = 8×, 4th = 4× bet.</p>
   <h3>S-AWC CHALLENGE</h3><p>Five trail stages. Each cleared stage pays 2× – 10× bet. Get STUCK and it ends — but S-AWC can rescue you once. Clear all 5 for a 20× SUMMIT bonus.</p>
   <h3>PHEV CHARGE</h3><p>The Outlander PHEV plugs in. Tap to charge in bursts of 3 – 9 km (REGEN BOOST doubles a burst). A POWER SURGE can stop the charge. Every km pays 1× your bet; a FULL CHARGE is 72 km = 72× bet.</p>`; }

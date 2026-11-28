@@ -141,3 +141,23 @@ test('t138u/t139u: 3 BOOST GAUGES (reels 2-4) launch the BOOSTED WHEEL (no locks
   assert.ok(got && got.trigger.tier === 1, 'meter wheel still tier 1');
   for (let seed = 1; seed <= 200; seed++) { const w = M.spinWheel(1, M.mulberry32(seed), M.BOOST_TIER, { forceRevUp: false }); assert.ok(!w.locked); }
 });
+
+test('t143u: 3 flags in a free spin grow the reels ONE more row for the rest of the round (max +1); rounds keep their value', () => {
+  for (const mode of ['turbo', 'nitro', 'madness']) {
+    const base = M.rowsOf(mode), rng = M.mulberry32(143 + base); let grew = 0;
+    for (let i = 0; i < 4000; i++) { const R = M.bonusRound(1, rng, mode); let extra = 0, seen = 0;
+      R.spins.forEach((s, k) => { const mr = M.rowsOf(s.modeNow); assert.strictEqual(s.rows, mr + extra, 'rows = mode rows + grown row'); assert.strictEqual(s.grid[0].length, s.rows);
+        if (s.grow) { seen++; assert.ok(s.flags >= 3 && !extra); assert.strictEqual(s.grow.to, s.rows + 1); extra = 1; assert.strictEqual(R.grow, s.grow); }
+        else if (s.flags >= 3 && !extra) assert.fail('3 flags before growth must grow'); });
+      assert.ok(seen <= 1, 'at most one grow per round'); if (seen) grew++; else assert.strictEqual(R.grow, null); }
+    assert.ok(grew > 40 && grew < 1000, mode + ' grows in ' + grew + '/4000 rounds'); }
+  // forced: first spin lands 3 flags -> second spin has 4 rows (turbo) / 5 rows = 3,125 ways (nitro)
+  const T = M.bonusRound(1, M.mulberry32(5), 'turbo', { forceGrow: true, forceGearUp: false }), N = M.bonusRound(1, M.mulberry32(5), 'nitro', { forceGrow: true });
+  assert.ok(T.spins[0].grow && T.spins[0].rows === 3 && T.spins[0].grow.to === 4 && T.spins[1].rows === 4 && T.spins[1].grid[2].length === 4);
+  assert.ok(N.spins[0].grow && N.spins[0].rows === 4 && N.spins[1].rows === 5 && N.spins[1].grid[0].length === 5 && Math.pow(5, 5) === 3125);
+  // RTP stays ~95% and the per-round values stay where they were
+  const r = M.simulate(2000000, M.mulberry32(20261127)); assert.ok(r.rtp > .93 && r.rtp < .97, 'rtp ' + r.rtp);
+  const mean = (mode, n = 40000) => { const g = M.mulberry32(77); let s = 0; for (let i = 0; i < n; i++) s += M.bonusRound(1, g, mode).win; return s / n; };
+  const t = mean('turbo'), n = mean('nitro'), m = mean('madness', 30000);
+  assert.ok(t > 9.5 && t < 13.5, 'turbo round ' + t); assert.ok(n > 34 && n < 47, 'nitro round ' + n); assert.ok(m > 125 && m < 195, 'madness round ' + m);
+});

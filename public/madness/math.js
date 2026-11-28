@@ -25,9 +25,9 @@
   const BETS = [1, 2, 3, 5, 10]; // credits per spin (243 ways)
   const JP = { mini: 20, minor: 50, major: 200, grand: 1000 }; // x bet: MINI (RVR) / MINOR (ECLIPSE) / MAJOR (OUTLANDER) / GRAND (PHEV)
   const JP_NAME = { mini: 'RVR MINI', minor: 'ECLIPSE MINOR', major: 'OUTLANDER MAJOR', grand: 'PHEV GRAND' };
-  const WILD_MULT = { base: [[1, 82], [2, 13], [3, 5]], turbo: [[1, 30], [2, 40], [3, 20], [5, 8], [10, 2]], nitro: [[1, 85], [2, 12], [3, 3]] }; // t135u: NITRO plays 5x4 (1,024 ways) - milder wild multipliers + fewer drift reels keep its round value where it was
+  const WILD_MULT = { base: [[1, 82], [2, 13], [3, 5]], turbo: [[1, 36], [2, 40], [3, 16], [5, 7], [10, 1]], nitro: [[1, 85], [2, 12], [3, 3]] }; // t135u: NITRO plays 5x4 (1,024 ways) - milder wild multipliers + fewer drift reels keep its round value where it was
   const DRIFT_P = 0.023;            // base: a car drifts across one of reels 2-4 and leaves it fully WILD
-  const FS_DRIFT = { turbo: 0, nitro: 0.10, madness: 0.32 };
+  const FS_DRIFT = { turbo: 0, nitro: 0.075, madness: 0.31 };
   const FS_START = { turbo: 8, nitro: 8, madness: 10 }, FS_RETRIG = 5, FS_MAX = 50, MADNESS_MULT_MAX = 10;
   const GEAR_UP = { turbo: { p: 0.10, to: 'nitro', add: 2 }, nitro: { p: 0.08, to: 'madness', add: 2 } }; // mid-round upgrade, once per round
   const MODES = { turbo: { name: 'TURBO SPINS', wildMult: true, drift: 0, prog: false }, nitro: { name: 'NITRO SPINS', wildMult: true, drift: FS_DRIFT.nitro, prog: false, rows: 4 }, madness: { name: 'MADNESS SPINS', wildMult: true, drift: FS_DRIFT.madness, prog: true } };
@@ -66,11 +66,11 @@
     { KY: 22, TI: 22, RV: 19, EC: 20, EV: 3, OU: 3, PH: 3, FL: 4, PL: 4 },
   ];
   const FREE_COUNTS = [
-    { KY: 9, TI: 28, RV: 3, EC: 20, EV: 30, OU: 3, PH: 3, FL: 4 },
-    { KY: 23, TI: 4, RV: 20, EC: 3, EV: 3, OU: 22, PH: 17, FL: 4, WD: 4 },
-    { KY: 26, TI: 22, RV: 22, EC: 13, EV: 3, OU: 3, PH: 3, FL: 4, WD: 4 },
-    { KY: 22, TI: 3, RV: 20, EC: 3, EV: 10, OU: 22, PH: 12, FL: 4, WD: 4 },
-    { KY: 26, TI: 22, RV: 19, EC: 20, EV: 3, OU: 3, PH: 3, FL: 4 },
+    { KY: 10, TI: 28, RV: 3, EC: 20, EV: 30, OU: 3, PH: 3, FL: 3 },
+    { KY: 24, TI: 4, RV: 20, EC: 3, EV: 3, OU: 22, PH: 17, FL: 3, WD: 4 },
+    { KY: 27, TI: 22, RV: 22, EC: 13, EV: 3, OU: 3, PH: 3, FL: 3, WD: 4 },
+    { KY: 23, TI: 3, RV: 20, EC: 3, EV: 10, OU: 22, PH: 12, FL: 3, WD: 4 },
+    { KY: 27, TI: 22, RV: 19, EC: 20, EV: 3, OU: 3, PH: 3, FL: 3 },
   ];
   function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
   function buildStrip(counts, seed) {
@@ -101,7 +101,7 @@
   // opts: mode ('turbo'|'nitro'|'madness' = free spin), meter {n}, force(grid) debug override, forceDrift (reel), noDrift, forceTrigger, noTrigger, progMult
   const rowsOf = mode => (mode && MODES[mode] && MODES[mode].rows) || 3;
   function spin(bet, rng, opts = {}) {
-    const mode = opts.mode || null, free = !!mode, strips = free ? FREE_STRIPS : STRIPS, grid = [], stops = [], rows = rowsOf(mode); // t135u: NITRO = 5x4 (1,024 ways)
+    const mode = opts.mode || null, free = !!mode, strips = free ? FREE_STRIPS : STRIPS, grid = [], stops = [], rows = opts.rows || rowsOf(mode); // t135u: NITRO = 5x4 (1,024 ways)
     for (let r = 0; r < 5; r++) { const L = strips[r].length, st = Math.floor(rng() * L); stops.push(st); grid.push([...Array(rows).keys()].map(y => ({ s: strips[r][(st + y) % L] }))); }
     if (opts.force) opts.force(grid);
     const wtab = free ? (WILD_MULT[mode] || WILD_MULT.turbo) : WILD_MULT.base;
@@ -150,18 +150,22 @@
   }
   // ---- free spins round (TURBO / NITRO / MADNESS) with retriggers and one possible GEAR UP ----
   function bonusRound(bet, rng, mode0, opts = {}) {
-    let mode = mode0, left = FS_START[mode0], played = 0, win = 0, prog = 1, gearUp = null; const spins = [];
+    let mode = mode0, left = FS_START[mode0], played = 0, win = 0, prog = 1, gearUp = null, extra = 0, grow = null; const spins = [];
     const g = GEAR_UP[mode0], gearAt = (opts.forceGearUp || (g && rng() < g.p)) ? 2 + Math.floor(rng() * Math.max(1, FS_START[mode0] - 3)) : -1;
     while (left > 0 && played < FS_MAX) {
       if (played === gearAt && GEAR_UP[mode]) { const G = GEAR_UP[mode]; gearUp = { at: played, from: mode, to: G.to, add: G.add }; mode = G.to; left += G.add; }
-      const s = spin(bet, rng, { mode, progMult: MODES[mode].prog ? prog : 1, force: opts.rich && played === 0 ? richForce : null });
+      // t143u: 3 flags in a free spin grow the reels by ONE more row for the rest of the round (max +1 per round): 5x3 -> 5x4 (243 -> 1,024 ways), NITRO 5x4 -> 5x5 (3,125 ways)
+      const s = spin(bet, rng, { mode, rows: rowsOf(mode) + extra, progMult: MODES[mode].prog ? prog : 1, force: opts.rich && played === 0 ? richForce : (opts.forceGrow && played === 0 ? growForce : null) });
+      s.rows = rowsOf(mode) + extra;
       left--; played++;
+      if (s.flags >= 3 && !extra) { extra = 1; grow = { at: played - 1, from: s.rows, to: s.rows + 1 }; s.grow = grow; }
       if (s.retrig) left = Math.min(left + s.retrig, FS_MAX - played);
       s.left = left; s.modeNow = mode; spins.push(s); win += s.win;
       if (MODES[mode].prog && s.win > 0 && prog < MADNESS_MULT_MAX) prog++;
     }
-    return { mode: mode0, finalMode: mode, spins, played, win, gearUp };
+    return { mode: mode0, finalMode: mode, spins, played, win, gearUp, grow };
   }
+  const growForce = g => { for (const r of [0, 2, 4]) g[r][0] = { s: 'FL' }; };
   const richForce = g => { for (let r = 0; r < 5; r++) g[r][1] = { s: r === 2 ? 'WD' : 'EV' }; };
   // ---- Rally Race ----
   function rally(bet, rng, opts = {}) {
