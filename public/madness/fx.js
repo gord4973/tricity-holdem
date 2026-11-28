@@ -24,7 +24,11 @@
     g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.ellipse(0, -h * .02, w * .48, h * .07, 0, 0, 7); g.fill();
     if (o.flame) { const fl = o.flame; for (let i = 0; i < 3; i++) { const L = w * (.12 + Math.random() * .18) * fl; const gr = g.createLinearGradient(w * .48, 0, w * .48 + L, 0); gr.addColorStop(0, 'rgba(120,220,255,.95)'); gr.addColorStop(.4, 'rgba(255,170,40,.8)'); gr.addColorStop(1, 'rgba(255,40,0,0)'); g.fillStyle = gr; g.beginPath(); g.moveTo(w * .46, -h * .3); g.lineTo(w * .48 + L, -h * .26 + rnd(-2, 2)); g.lineTo(w * .46, -h * .2); g.fill(); } }
     if (o.glow) { g.shadowColor = o.glow; g.shadowBlur = 24; }
-    g.drawImage(I, -w / 2, -h, w, h); g.restore(); return h; }
+    g.drawImage(I, -w / 2, -h, w, h); g.shadowBlur = 0;
+    // t130u wheels turn with the car's travel (o.track: state object; o.wx: world x when the camera follows; o.wspin: extra wheelspin; o.wheel: {a, o} fixed)
+    if (window.MadWheels) { let a = 0, om = 0; if (o.track) { a = MadWheels.step(o.track, o.wx != null ? o.wx : x, o.wx != null ? 0 : y, w, o.wspin || 0); om = o.track.wo; } else if (o.wheel) { a = o.wheel.a; om = o.wheel.o; }
+      if (o.flip) { a = -a; om = -om; } if (o.track || o.wheel) MadWheels.draw(g, I, -w / 2, -h, w, h, a, om); }
+    g.restore(); return h; }
   // ---------------- showroom / track behind the cabinet ----------------
   const stage = { cv: null, g: null, t0: performance.now(), cruisers: [], stars: [], attract: false, mode: '', paused: false, last: 0, roadY: 0, k: 1 };
   function stageInit(cv) { stage.cv = cv; stage.g = cv.getContext('2d'); for (let i = 0; i < 70; i++) stage.stars.push({ x: Math.random(), y: Math.random() * .5, s: Math.random() * 1.6 + .3, p: Math.random() * 6 }); requestAnimationFrame(stageLoop); }
@@ -42,7 +46,7 @@
     for (let i = stage.cruisers.length - 1; i >= 0; i--) { const c = stage.cruisers[i]; c.x -= c.v * dt; const w = (c.lane ? 108 : 92) * k, y = roadY + (c.lane ? rh * .95 : rh * .45);
       // headlight beam
       const hg = g.createLinearGradient(c.x - w * .5, 0, c.x - w * 1.6, 0); hg.addColorStop(0, 'rgba(255,250,210,.45)'); hg.addColorStop(1, 'rgba(255,250,210,0)'); g.fillStyle = hg; g.beginPath(); g.moveTo(c.x - w * .46, y - w * .14); g.lineTo(c.x - w * 1.6, y - w * .28); g.lineTo(c.x - w * 1.6, y + w * .02); g.lineTo(c.x - w * .46, y - w * .08); g.fill();
-      drawCar(g, c.k, c.x, y, w, { flame: c.flame ? 1 : 0 }); if (c.x < -w) stage.cruisers.splice(i, 1); }
+      drawCar(g, c.k, c.x, y, w, { flame: c.flame ? 1 : 0, track: c }); if (c.x < -w) stage.cruisers.splice(i, 1); }
   }
   // ---------------- particle overlay ----------------
   const P = { cv: null, g: null, list: [], running: false, emitters: [], hooks: [] };
@@ -101,8 +105,8 @@
         if (u >= 1 && !done) { done = true; res(); return false; } return true; }); fxStart();
       setTimeout(() => { if (!done) { done = true; if (!mid) { mid = true; try { onMid && onMid(); } catch (e) {} } res(); } }, D + 1500); }); },
     // car blasting across the screen (big wins / transitions)
-    flyBy(k = 'phev', ms = 1400, y) { const t0 = performance.now(), D = ms * speed(); P.hooks.push((now, g, W, H) => { const u = (now - t0) / D, w = W * .7, x = W + w / 2 - u * (W + w * 1.2), yy = y != null ? y : H * .72; if (u >= 1) return false;
-      MadFXObj.smoke(x + w * .45, yy - 10, 2); drawCar(g, k, x, yy, w, { flame: 1.5, glow: '#ff3048' }); return true; }); fxStart(); },
+    flyBy(k = 'phev', ms = 1400, y) { const tr = {}, t0 = performance.now(), D = ms * speed(); P.hooks.push((now, g, W, H) => { const u = (now - t0) / D, w = W * .7, x = W + w / 2 - u * (W + w * 1.2), yy = y != null ? y : H * .72; if (u >= 1) return false;
+      MadFXObj.smoke(x + w * .45, yy - 10, 2); drawCar(g, k, x, yy, w, { flame: 1.5, glow: '#ff3048', track: tr }); return true; }); fxStart(); },
     // cinematic speed tunnel (runs on the cine canvas until stop())
     tunnel(cv, o = {}) { const g = cv.getContext('2d'), t0 = performance.now(), I = photo('bg-tunnel'), lines = [...Array(70)].map(() => ({ a: rnd(0, 6.283), z: rnd(.05, 1), w: rnd(1, 2.5) })); let alive = true; const col = o.color || '#ff2040';
       const loop = now => { if (!alive) return; requestAnimationFrame(loop); const { W, H, d } = fit(cv); g.setTransform(d, 0, 0, d, 0, 0); const t = (now - t0) / 1000, cx = W / 2, cy = H * .47, R = Math.hypot(W, H) * .6;
@@ -112,7 +116,7 @@
         g.globalCompositeOperation = 'color'; g.fillStyle = col; g.globalAlpha = .45; g.fillRect(0, 0, W, H); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
         const vg = g.createRadialGradient(cx, cy, R * .2, cx, cy, R); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.75)'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
         g.globalCompositeOperation = 'lighter'; for (const L of lines) { L.z -= .03 * (1 + t); if (L.z <= .02) { L.z = 1; L.a = rnd(0, 6.283); } const r1 = R * (1 - L.z) ** 2, r2 = R * (1 - L.z + .08) ** 2; g.strokeStyle = `rgba(255,240,220,${.15 + (1 - L.z) * .5})`; g.lineWidth = L.w * (1.5 - L.z); g.beginPath(); g.moveTo(cx + Math.cos(L.a) * r1, cy + Math.sin(L.a) * r1); g.lineTo(cx + Math.cos(L.a) * r2, cy + Math.sin(L.a) * r2); g.stroke(); } g.globalCompositeOperation = 'source-over';
-        if (o.car) { const u = Math.min(1, t / 1.6), w = W * (.1 + u * u * 1.1); drawCar(g, o.car, cx + Math.sin(t * 30) * u * 3, cy + w * .32, w, { flame: 1 + u, glow: col }); }
+        if (o.car) { const u = Math.min(1, t / 1.6), w = W * (.1 + u * u * 1.1); drawCar(g, o.car, cx + Math.sin(t * 30) * u * 3, cy + w * .32, w, { flame: 1 + u, glow: col, wheel: { a: -t * 28 % 6.283, o: -.6 } }); }
         if (o.bolt && Math.sin(t * 13) > .6) { g.strokeStyle = '#bff4ff'; g.lineWidth = 4; g.shadowColor = '#22c3ff'; g.shadowBlur = 20; g.beginPath(); let x = rnd(0, W), y = 0; g.moveTo(x, y); while (y < H) { x += rnd(-40, 40); y += rnd(20, 60); g.lineTo(x, y); } g.stroke(); g.shadowBlur = 0; } };
       requestAnimationFrame(loop); return () => { alive = false; }; },
   };

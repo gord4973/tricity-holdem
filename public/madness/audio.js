@@ -91,7 +91,7 @@
     wheelSpin: 1.3, whoosh: .9, whoosh2: 1 };
   const ALL = Object.keys(GAIN);
   // loaded right after the first tap (what a base spin needs); everything else streams in afterwards, a few at a time
-  const CORE = ['reelSpin', 'reelStop', 'reelStopHeavy', 'click', 'tick', 'coin', 'coins', 'whoosh', 'rev', 'rev2', 'screechShort', 'limiter', 'engineLoop', 'chaching', 'drift', 'turbo', 'fanfare', 'crowd', 'fireworks', 'impact', 'whoosh2', 'horn', 'chime', 'spark', 'plug', 'plugIn'];
+  const CORE = ['reelSpin', 'reelStop', 'reelStopHeavy', 'click', 'tick', 'coin', 'coins', 'whoosh', 'rev', 'rev2', 'screechShort', 'limiter', 'engineLoop', 'chaching', 'drift', 'turbo', 'fanfare', 'crowd', 'fireworks', 'impact', 'whoosh2', 'horn', 'chime', 'spark', 'plug', 'plugIn', 'surge', 'powerUp', 'blowoff', 'beep', 'unlock', 'humLoop', 'fanfareBig', 'limiter', 'burnout', 'screech'];
   const buf = {}, loading = {}; let sbus = null, preloaded = false;
   Object.assign(diag, { total: ALL.length, loaded: 0, failed: [], errors: [], fmt: {}, http: {}, samples: 0 });
   const canAAC = (() => { try { const a = document.createElement('audio'); return !!(a.canPlayType && a.canPlayType('audio/mp4; codecs="mp4a.40.2"').replace(/no/, '')); } catch (e) { return false; } })();
@@ -144,8 +144,22 @@
     pick: () => { const r = smp('click', { gain: .7 }); S.pick(); return r || 1; },
     gear: () => smp('gear', { gain: .8 }) && (smp('rev2', { gain: .9, delay: .25 }), smp('turbo', { gain: .9, delay: .9 }), 1),
     // t127u 'lining up' on a reel stop: revs climb higher and louder with every reel in the chain, plus a rising tone; 5 in a row adds a crowd lift
-    lineUp: (n = 2, rank = 0) => { const k = n - 2; const r = smp('reelStop', { gain: .8, rate: 1.05 + k * .05 }); if (!r) S.reelStop(n - 1); smp('rev2', { gain: .45 + k * .18, rate: .92 + k * .13, dur: .55 + k * .15, offset: .2 });
-      const t = now(); osc('triangle', N(67 + k * 4 + Math.min(rank, 6)), 0, t, .22 + k * .05, .09 + k * .02); osc('sine', N(79 + k * 4), 0, t + .06, .25, .05 + k * .015); if (n >= 4) smp('whoosh2', { gain: .4 }); if (n >= 5) smp('crowd', { gain: .5, dur: 1.4 }); return r || 1; },
+    // t127u/t131u 'lining up' on a reel stop: a bright bell that climbs a step per matching reel (like Gorilla) + revs climbing higher and louder; 4 adds a whoosh, 5 a crowd lift
+    lineUp: (n = 2, rank = 0) => { const k = Math.max(0, Math.min(3, n - 2)), t = now(), st = [0, 4, 7, 12][k]; const r = smp('reelStop', { gain: .7, rate: 1.05 + k * .05 }); if (!r) S.reelStop(n - 1);
+      smp('chime', { gain: .9 + k * .15, rate: Math.pow(2, (st + 2) / 12), dur: .9 }); smp('rev2', { gain: .6 + k * .2, rate: .95 + k * .14, dur: .5 + k * .15, offset: .2 });
+      osc('triangle', N(76 + st), 0, t, .35 + k * .05, .16 + k * .03); osc('sine', N(88 + st), 0, t + .05, .3, .08 + k * .02); if (n >= 4) smp('whoosh2', { gain: .5 }); if (n >= 5) smp('crowd', { gain: .6, dur: 1.4 }); diag.lineUps = (diag.lineUps || 0) + 1; return r || 1; },
+    // t131u each symbol's own win sound; lvl 0 = win, 1 = big, 2 = mega, 3 = madness (scales the layers and the volume)
+    symWin: (sym, lvl = 0) => { const L = Math.max(0, Math.min(3, lvl | 0)), G = .8 + .12 * L, o = (n, x = {}) => smp(n, Object.assign({}, x, { gain: (x.gain == null ? 1 : x.gain) * G })); let r;
+      switch (sym) {
+        case 'TI': r = o('screech', { verb: .2 }); if (L) o('burnout', { gain: .6, delay: .4 }); break;                                   // performance tire: screeching tires
+        case 'PH': r = o('surge', { gain: .9, dur: 2.2 }); o('powerUp', { gain: .7, delay: .1 }); o('chime', { gain: .8, delay: .9 }); o(L ? 'fanfareBig' : 'fanfare', { gain: .7, delay: .7 }); break; // PHEV: electric surge + premium fanfare
+        case 'OU': r = o('rev', { gain: 1.1, rate: .88, verb: .25 }); if (L) o('limiter', { gain: .7, delay: .9 }); break;                 // Outlander: big V6-style roar
+        case 'EV': r = o('whoosh2', { gain: .9, rate: .8 }); o('humLoop', { gain: .8, rate: 1.7, dur: 1.4, delay: .1 }); o('zap', { gain: .45, rate: 1.4, delay: .35 }); if (L) o('powerUp', { gain: .6, rate: 1.3, delay: .4 }); break; // Sportback EV: futuristic electric whoosh + hum
+        case 'EC': r = o('turbo', { gain: .9 }); o('blowoff', { gain: .9, delay: .75 }); o('rev2', { gain: .6, delay: .95 }); break;      // Eclipse Cross: turbo spool + blow-off + rev
+        case 'RV': r = o('horn', { gain: .75, dur: .45 }); o('horn', { gain: .75, dur: .35, delay: .5 }); o('rev2', { gain: .8, delay: .9 }); break; // RVR: horn toot-toot + rev
+        case 'KY': r = o('beep', { gain: .8, rate: 1.3 }); o('beep', { gain: .8, rate: 1.3, delay: .2 }); o('unlock', { gain: .8, delay: .45 }); break; // smart key: fob chirp-chirp + unlock
+        default: r = o('coins'); }
+      if (L >= 2) o('crowd', { gain: .6, delay: .5 }); (diag.symWins = diag.symWins || []).push(sym); if (diag.symWins.length > 40) diag.symWins.shift(); return r || 1; },
     phLand: (n = 0) => smp('horn', { gain: .45, rate: 1.1 }) && (smp('chime', { gain: .35, rate: 1.2 }), 1),
     // t129u CHARGE plug lands: connector clunk snapping in + zap/crackle + rising power-up hum; the 2nd and 3rd plug zap harder and hum higher
     plugLand: (k = 1) => { k = Math.max(1, Math.min(3, k)); const r = smp('plugIn', { gain: .8 + k * .12, rate: 1 + (k - 1) * .09 });

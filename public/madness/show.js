@@ -39,6 +39,8 @@
     // motion ghosts
     if (fast) { g.save(); for (let i = 1; i <= 3; i++) { g.globalAlpha = .16 / i; g.drawImage(img, x + i * w * .06 * Math.min(2, a.v * 3), y, w, h); } g.restore(); }
     g.drawImage(img, x, y, w, h);
+    // t130u wheels turn with the car's travel on screen (hero dive included); a.wspin adds wheelspin (launch/burnout)
+    if (window.MadWheels) { const wa = MadWheels.step(a, x, y, w, a.wspin || 0); MadWheels.draw(g, img, x, y, w, h, wa, a.wo); }
     // tail lights + exhaust flame
     g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = 'rgba(255,30,40,.9)'; g.shadowColor = '#ff0020'; g.shadowBlur = 12; g.fillRect(x + w * .93, y + h * .32, w * .04, h * .07);
     if (a.flame) { const fl = (.6 + Math.random() * .4) * a.flame, fx = x + w * .97, fy = y + h * .78; const gr = g.createLinearGradient(fx, 0, fx + w * .25 * fl, 0); gr.addColorStop(0, 'rgba(120,180,255,.95)'); gr.addColorStop(.4, 'rgba(255,170,40,.8)'); gr.addColorStop(1, 'rgba(255,60,0,0)');
@@ -119,7 +121,7 @@
   function colX(r) { try { const c = window.reels.cellRect(r, 0); fit(); return c.left + c.width / 2 - S.rect.left; } catch (e) { return S.W * (r + .5) / 5; } }
   const Show = {
     init(cv) { S.cv = cv; S.g = cv.getContext('2d'); S.k = () => parseFloat(getComputedStyle(document.getElementById('app')).getPropertyValue('--k')) || 1; requestAnimationFrame(loop); ev('init'); },
-    get state() { return { state: S.state, gantry: S.gantry.mode, zoom: +S.cam.z.toFixed(3), red: +S.red.toFixed(2), speed: +S.speed.toFixed(2), meter: +S.tmeter.toFixed(2), actors: S.actors.map(a => a.k + (a.hero ? '*' : '')), frames: S.frames, events: S.events.slice(-20) }; },
+    get state() { return { state: S.state, gantry: S.gantry.mode, zoom: +S.cam.z.toFixed(3), red: +S.red.toFixed(2), speed: +S.speed.toFixed(2), meter: +S.tmeter.toFixed(2), actors: S.actors.map(a => a.k + (a.hero ? '*' : '')), wheels: S.actors.map(a => ({ k: a.k, x: +(a._wx || 0).toFixed(1), y: +(a._wy || 0).toFixed(1), wa: +(a.wa || 0).toFixed(3), wo: +(a.wo || 0).toFixed(3), w: +((a._box && a._box.w) || 0).toFixed(1) })), frames: S.frames, events: S.events.slice(-20) }; },
     spin() { S.state = 'spin'; S.gantry = { mode: 'green', t: performance.now() }; S.tspeed = 1; S.cam.tz = 1.12; S.cam.kick = 3; S.tred = 0; S.hero = null; S.texts.length = 0; S.actors.forEach(a => { if (a.hero) a.dead = true; }); launchAll(3); if (Math.random() < .3) try { window.MadAudio.play('passby', .35); } catch (e) {} ev('spin'); },
     reelStop(r, cells) { const x = colX(r), y = S.H - 6, heavy = cells && cells.some(c => /PH|WD|FL|PL/.test(c.s)); S.cam.kick += heavy ? 5 : 2; puff(x, y, heavy ? 16 : 8); if (heavy) sparks(x, y, 18, cells.some(c => c.s === 'PL') ? '#22c3ff' : '#ffd84a');
       S.flashes.push({ x, y: y - 10, r: S.H * (heavy ? .7 : .45), t0: performance.now(), ms: heavy ? 500 : 320, c: heavy ? '255,240,200' : '200,220,255' }); S.actors.forEach(a => a.flash = heavy ? 1 : .5); if (r === 4) { S.tspeed = 0; S.cam.tz = 1.04; if (S.gantry.mode !== 'win') S.gantry = { mode: 'off', t: performance.now() }; S.state = 'idle'; } ev('stop', { r, heavy }); },
@@ -127,11 +129,11 @@
       else { try { S.engine && S.engine.stop(); } catch (e) {} S.engine = null; } ev('tease', { on }); },
     win(sym, amtText, tier) { const v = view(), k = IMG[sym] ? sym : ({ KY: 'EC', TI: 'RV' }[sym] || 'PH'); S.state = 'win'; S.tred = 0; S.gantry = { mode: 'win', t: performance.now() }; S.actors.forEach(a => { if (!a.hero) a.v = Math.max(a.v, .5); });
       const big = tier && tier !== 'win', W = S.W, H = S.H, t0 = performance.now(), base = Math.min(W * .5, H * 1.5);
-      const a = spawn(k, { hero: true, lane: 1, x: W + 20, w: base, flame: 1, trail: null, trailC: { RV: '#3fe06a', EC: '#ff9a3a', OU: '#4a8cff', EV: '#22d8ff', PH: '#ffd84a' }[k] });
+      const a = spawn(k, { hero: true, lane: 1, x: W + 20, w: base, flame: 1, trail: null, trailC: { RV: '#2ab4ff', EC: '#ff9a3a', OU: '#4a8cff', EV: '#3fe06a', PH: '#ffd84a' }[k] });
       S.hero = a; S.cam.tz = big ? 1.18 : 1.1;
       a.script = (a, now, dt, v) => { const u = (now - t0) / 1000, cx = W / 2 - base / 2;
         if (u < .55) { a.x = W + 20 - (W + 20 - cx) * ease(u / .55); a.flame = 1; }
-        else if (u < .62) { if (!a.braked) { a.braked = 1; puff(a.x + base * .8, laneY(v, 1) - 6, 18); puff(a.x + base * .2, laneY(v, 1) - 6, 12); S.cam.kick += 6; try { window.MadAudio.play('screech', .6); } catch (e) {} } }
+        else if (u < .62) { if (!a.braked) { a.braked = 1; puff(a.x + base * .8, laneY(v, 1) - 6, 18); puff(a.x + base * .2, laneY(v, 1) - 6, 12); S.cam.kick += 6; /* t131u: no generic tyre screech - each symbol has its own win sound (game.js symWin) */ } }
         else if (u < 1.5) { if (Math.floor(u * 6) % 2 === 0) a.flash = 1; if (!a.said) { a.said = 1; const bb = (() => { try { return document.getElementById('brand').getBoundingClientRect().bottom - S.rect.top; } catch (e) { return 0; } })(), fs = Math.round(Math.min(W * .1, H * .2)); S.texts.push({ s: amtText, x: W / 2, y: Math.max(H * .34, bb + fs * .75), size: Math.round(Math.min(W * .1, H * .2)), c: a.trailC, t0: now, ms: 2600 }); } }
         else if (u < 2.3) { // dive into the reels
           const p = (u - 1.5) / .8; a.y = laneY(v, 1) + p * p * H * .9; a.scale = 1 - p * .35; a.trail = a.trail || []; a.trail.push([a.x + base * .5 * (a.scale || 1), (a.y || 0) - 4]); if (a.trail.length > 16) a.trail.shift(); a.flame = 1; }

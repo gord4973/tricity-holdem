@@ -6,7 +6,7 @@
   const sp = () => window.__madSpeed || 1;
   const sleep = ms => new Promise(r => setTimeout(r, ms * sp()));
   const rnd = (a, b) => a + Math.random() * (b - a);
-  const RACERS = [{ k: 'rvr', name: 'RVR', c: '#11b8a6' }, { k: 'ec', name: 'ECLIPSE CROSS', c: '#ff7a1a' }, { k: 'ev', name: 'SPORTBACK EV', c: '#00c8ff' }, { k: 'phev', name: 'OUTLANDER PHEV', c: '#e0182d' }];
+  const RACERS = [{ k: 'rvr', name: 'RVR', c: '#2ab4ff' }, { k: 'ec', name: 'ECLIPSE CROSS', c: '#ff7a1a' }, { k: 'ev', name: 'SPORTBACK EV', c: '#3fe06a' }, { k: 'phev', name: 'OUTLANDER PHEV', c: '#e0182d' }];
   const ORD = ['', '1ST', '2ND', '3RD', '4TH'];
   // ---------------- scene controller ----------------
   const S = { draw: null, alive: false, raf: 0, seq: 0 };
@@ -40,8 +40,8 @@
     const scroll = { x: 0 };
     S.draw = (g, W, H, now) => { const speed = st.phase === 'race' ? 26 : st.phase === 'finish' ? 6 : 0; scroll.x = (scroll.x + speed * sp() ** -1) % 80; scroll.px = (scroll.px || 0) + speed * 1.6;
       // photo-real circuit (grandstand + asphalt), scrolling with motion blur while racing
-      const ph = F().photo('bg-rally'); g.fillStyle = '#111'; g.fillRect(0, 0, W, H); const m = F().cover(g, ph, W, H, { scroll: scroll.px });
-      if (speed > 10) { g.globalAlpha = .35; F().cover(g, ph, W, H, { scroll: scroll.px - 14 }); g.globalAlpha = .2; F().cover(g, ph, W, H, { scroll: scroll.px - 28 }); g.globalAlpha = 1; }
+      const ph = F().photo('bg-rally'); g.fillStyle = '#111'; g.fillRect(0, 0, W, H); const m = F().cover(g, ph, W, H, { scroll: -scroll.px });
+      if (speed > 10) { g.globalAlpha = .35; F().cover(g, ph, W, H, { scroll: -(scroll.px - 14) }); g.globalAlpha = .2; F().cover(g, ph, W, H, { scroll: -(scroll.px - 28) }); g.globalAlpha = 1; }
       const top = m.ok ? m.y(.475) : H * .3, bot = m.ok ? m.y(.885) : H * .74, laneH = (bot - top) / 4;
       g.fillStyle = 'rgba(255,255,255,.35)'; for (let l = 1; l < 4; l++) { const y = top + l * laneH; for (let x = -80 + scroll.x; x < W; x += 80) g.fillRect(x, y - 1, 40, 2); }
       const vg = g.createLinearGradient(0, 0, 0, H); vg.addColorStop(0, 'rgba(0,0,0,.35)'); vg.addColorStop(.2, 'rgba(0,0,0,0)'); vg.addColorStop(.85, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.6)'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
@@ -53,7 +53,7 @@
       // cars
       const w = Math.min(W * .3, laneH * 2.3);
       for (let i = 0; i < 4; i++) { const y = top + (i + 1) * laneH - laneH * .12, x = worldX(st.prog[i]) + (st.phase === 'race' ? Math.sin(now / 90 + i) * 1.5 : 0); const mine = i === st.pick;
-        F().drawCar(g, RACERS[i].k, x, y, w, { flame: st.phase === 'race' && (st.boost && st.boost[i]) ? 1.6 : st.phase === 'race' ? .6 : 0, glow: mine ? '#ffd84a' : null });
+        F().drawCar(g, RACERS[i].k, x, y, w, { track: (st.wt = st.wt || [])[i] || (st.wt[i] = {}), wx: -st.prog[i] * W * 2.6, wspin: st.phase === 'lights' && st.lights > 5 ? -.25 : 0, flame: st.phase === 'race' && (st.boost && st.boost[i]) ? 1.6 : st.phase === 'race' ? .6 : 0, glow: mine ? '#ffd84a' : null });
         g.fillStyle = RACERS[i].c; g.font = `900 ${Math.round(laneH * .2)}px Russo,sans-serif`; g.textAlign = 'center'; { const lab = (mine ? '★ YOU · ' : '') + RACERS[i].name, tw = g.measureText(lab).width; g.fillText(lab, Math.max(tw / 2 + 6, Math.min(W - tw / 2 - 6, x)), y - w * .36); }
         if (st.places && st.phase === 'done') { g.fillStyle = '#ffd84a'; g.font = `900 ${Math.round(laneH * .32)}px Russo,sans-serif`; g.fillText(ORD[st.places[i]], x + w * .62, y - w * .12); } }
       // speed lines
@@ -95,14 +95,14 @@
     S.draw = (g, W, H, now) => { const c = TCOL[st.terrain] || TCOL.GRAVEL;
       const spd = st.drive ? 7 : st.stuck ? .4 : 0; scrollX += spd;
       // photo-real terrain for each stage (gravel / mud / snow / rocks / sand), scrolling as you drive
-      g.fillStyle = '#111'; g.fillRect(0, 0, W, H); const m = F().cover(g, F().photo('bg-' + String(st.terrain || 'GRAVEL').toLowerCase()), W, H, { scroll: scrollX * 1.2, fy: .6 });
+      g.fillStyle = '#111'; g.fillRect(0, 0, W, H); const m = F().cover(g, F().photo('bg-' + String(st.terrain || 'GRAVEL').toLowerCase()), W, H, { scroll: -scrollX * 1.2, fy: .6 });
       const base = m.ok ? Math.min(H * .86, m.y(.8)) : H * .66; const gy = x => base + Math.sin((x - scrollX) / 55) * 6 + Math.sin((x - scrollX) / 17) * 2;
       const vg = g.createLinearGradient(0, 0, 0, H); vg.addColorStop(0, 'rgba(0,0,0,.55)'); vg.addColorStop(.3, 'rgba(0,0,0,.05)'); vg.addColorStop(1, 'rgba(0,0,0,.25)'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
       if (st.summit) { g.fillStyle = '#fff'; g.fillRect(W * .2, H * .2, 3, 50); g.fillStyle = '#ff2040'; g.fillRect(W * .2 + 3, H * .2, 30, 18); }
       const w = W * .55, cx = W * .48, y = gy(cx) + 4 + (st.drive ? Math.sin(now / 50) * 3 : 0) + (st.stuck ? Math.sin(now / 25) * 2 : 0);
       const tilt = (gy(cx + 30) - gy(cx - 30)) / 60 * .6 + (st.stuck ? Math.sin(now / 40) * .02 : 0);
       if (st.rescue) { g.save(); g.globalAlpha = .5 + .5 * Math.sin(now / 80); g.strokeStyle = '#22c3ff'; g.lineWidth = 6; g.shadowColor = '#22c3ff'; g.shadowBlur = 30; g.beginPath(); g.ellipse(cx, y - w * .15, w * .6, w * .25, 0, 0, 7); g.stroke(); g.restore(); }
-      F().drawCar(g, 'out', cx, y, w, { tilt, flame: st.rescue ? 1.2 : 0 });
+      F().drawCar(g, 'out', cx, y, w, { tilt, flame: st.rescue ? 1.2 : 0, track: st.wt || (st.wt = {}), wx: -scrollX, wspin: st.stuck ? -.45 : 0 });
       if ((st.drive || st.stuck) && Math.random() < .9) for (let k = 0; k < (st.stuck ? 3 : 1); k++) { g.fillStyle = c[2]; const px = cx + w * rnd(-.35, .4), py = y - rnd(0, 30); g.globalAlpha = .8; g.beginPath(); g.arc(px + rnd(0, 30), py, rnd(2, 6), 0, 7); g.fill(); g.globalAlpha = 1; }
       // stage progress dots
       for (let i = 0; i < 5; i++) { const x = W / 2 + (i - 2) * 34, yy = H * .2; g.fillStyle = i < st.stage ? '#30e060' : i === st.stage ? '#ffd84a' : 'rgba(255,255,255,.25)'; g.beginPath(); g.arc(x, yy, 10, 0, 7); g.fill(); g.fillStyle = '#000'; g.font = '900 11px Russo,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(i + 1, x, yy + 1); }
