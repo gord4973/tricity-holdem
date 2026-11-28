@@ -172,11 +172,11 @@ async function resolve(res, mode) {
   return win; }
 function meterPulse(m) { meters(); if (m.full) { toast('MADNESS METER FULL!', 1500); A.play('turbo'); } }
 // ---------------- big wins ----------------
-const TIER_TXT = { big: 'BIG WIN', mega: 'MEGA WIN', madness: 'MITSUBISHI MADNESS!' };
+const TIER_TXT = { big: 'BIG WIN', mega: 'MEGA WIN', madness: 'MITSUBISHI MADNESS!', total: 'BONUS TOTAL' };
 function bigWin(amount, tier, sub) { return new Promise(async res => { const b = $('big'); fxs({ kind: 'big', tier, amount });
   b.className = tier; $('bigTitle').textContent = TIER_TXT[tier] || 'BIG WIN'; $('bigSub').textContent = sub || ''; $('bigAmt').textContent = '0.00'; b.classList.remove('hidden');
-  A.play('bigWin'); if (tier !== 'big') { A.play('fanfare'); FX.fireworks(3000); } FX.coinRain(tier === 'madness' ? 4200 : 2600, tier === 'big' ? 2 : 4); FX.flyBy(tier === 'madness' ? 'phev' : tier === 'mega' ? 'ev' : 'ec', 1600);
-  let done = false; const t0 = performance.now(), ms = (tier === 'madness' ? 4200 : tier === 'mega' ? 3200 : 2200) * SPD() * (quick ? .2 : 1);
+  A.play('bigWin'); if (tier !== 'big' && tier !== 'total') { A.play('fanfare'); FX.fireworks(3000); } FX.coinRain(tier === 'madness' ? 4200 : 2600, tier === 'big' ? 2 : 4); FX.flyBy(tier === 'madness' ? 'phev' : tier === 'mega' ? 'ev' : 'ec', 1600);
+  let done = false; const t0 = performance.now(), ms = (tier === 'madness' ? 4200 : tier === 'mega' ? 3200 : tier === 'total' ? 1400 : 2200) * SPD() * (quick ? .2 : 1);
   const fin = () => { if (done) return; done = true; b.onclick = null; $('bigAmt').textContent = fmt(amount); setTimeout(() => { b.classList.add('hidden'); res(); }, 350 * SPD()); };
   const step = now => { if (done) return; const u = Math.min(1, (now - t0) / ms); $('bigAmt').textContent = fmt(amount * u); if (Math.random() < .3) A.play('coin', Math.random() * 7 | 0); if (u < 1) requestAnimationFrame(step); else setTimeout(fin, 1300 * SPD()); };
   requestAnimationFrame(step); setTimeout(() => { b.onclick = fin; }, 500); setTimeout(fin, ms + 6000); }); }
@@ -214,8 +214,9 @@ function drawWheel(rot, locks, hot) { const cv = $('wheel'), g = cv.getContext('
   M.WHEEL.forEach((w, i) => { const a0 = -Math.PI / 2 + (i - .5) * a, c = wcol(w), gr = g.createRadialGradient(0, 0, R * .2, 0, 0, R); gr.addColorStop(0, c[1]); gr.addColorStop(.7, c[0]); gr.addColorStop(1, c[1]);
     g.fillStyle = gr; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R, a0, a0 + a); g.closePath(); g.fill(); g.strokeStyle = '#ffd84a'; g.lineWidth = 3; g.stroke();
     if (hot === i) { g.fillStyle = `rgba(255,255,255,${.3 + .3 * Math.sin(performance.now() / 80)})`; g.fill(); }
-    g.save(); g.rotate(a0 + a / 2); g.translate(R * .6, 0); g.rotate(Math.PI / 2); g.fillStyle = w.jp === 'grand' ? '#3a0a00' : '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    const parts = w.label.split(' '); g.font = `900 ${parts.length > 1 ? 30 : 34}px Russo,sans-serif`; g.shadowColor = '#000'; g.shadowBlur = 4; parts.forEach((p, k) => g.fillText(p, 0, (k - (parts.length - 1) / 2) * 34)); g.shadowBlur = 0; g.restore();
+    g.save(); g.rotate(a0 + a / 2); g.fillStyle = w.jp === 'grand' ? '#3a0a00' : '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; // radial labels, reading outwards
+    const parts = w.label.split(' '), maxW = R * .56; let fs = 34; g.font = `900 ${fs}px Russo,sans-serif`; while (fs > 14 && Math.max(...parts.map(p => g.measureText(p).width)) > maxW) { fs--; g.font = `900 ${fs}px Russo,sans-serif`; }
+    g.shadowColor = '#000'; g.shadowBlur = 4; parts.forEach((p, k) => g.fillText(p, R * .62, (k - (parts.length - 1) / 2) * fs * 1.05)); g.shadowBlur = 0; g.restore();
     if (locks && locks.includes(w.id)) { g.save(); g.fillStyle = 'rgba(0,0,0,.62)'; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R, a0, a0 + a); g.closePath(); g.fill(); g.rotate(a0 + a / 2); g.translate(R * .8, 0); g.rotate(Math.PI / 2); g.font = '44px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('🔒', 0, 0); g.restore(); } });
   for (let i = 0; i < n; i++) { const aa = -Math.PI / 2 + (i - .5) * a; g.fillStyle = '#fff6b0'; g.beginPath(); g.arc(Math.cos(aa) * (R + 2), Math.sin(aa) * (R + 2), 6, 0, 7); g.fill(); }
   g.restore(); }
@@ -262,7 +263,7 @@ async function freeRound(R, F) {
       if (s.retrig) { total += s.retrig; fxs({ kind: 'retrig' }); A.play('fanfare'); toast(`+${s.retrig} SPINS!`, 1300); hud(i + 1); await sleep(900); }
       await sleep(quick ? 80 : 250); }
   } finally { A.music(false); setModeLook(null); curMode = null; reels.clearWin(); $('winBanner').classList.add('hidden'); }
-  if (won > 0) await bigWin(won, M.tier(won, bet()) === 'win' ? 'big' : M.tier(won, bet()), `${M.MODES[R.finalMode].name} TOTAL · ${R.played} SPINS`);
+  if (won > 0) await bigWin(won, M.tier(won, bet()) === 'win' ? 'total' : M.tier(won, bet()), `${M.MODES[R.finalMode].name} TOTAL · ${R.played} SPINS`);
   return won; }
 // ---------------- recovery ----------------
 function recoverScreen() { try { clearCine('recover'); } catch (e) {} for (const id of ['wheelBox', 'splash', 'big']) $(id).classList.add('hidden'); try { SC.close(); } catch (e) {} setModeLook(null); curMode = null; $('frame').classList.remove('spinning', 'tease'); A.music(false); reels.setGrid(shown); }
@@ -301,7 +302,7 @@ $('payBtn').addEventListener('click', showPay); $('rulesBtn').addEventListener('
 document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => $(b.dataset.close).classList.add('hidden')));
 addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); spin(); } });
 meters();
-window.G = { st, M, spin, insertBill, cashOut, get busy() { return busy; }, get mode() { return curMode; }, setBet: i => { st.bet = i; save(); meters(); }, recoverScreen, cinematic, reels };
+window.G = { st, M, spin, insertBill, cashOut, get busy() { return busy; }, get mode() { return curMode; }, setBet: i => { st.bet = i; save(); meters(); }, recoverScreen, cinematic, reels, drawWheel };
 if (DEBUG) { window.G.force = k => { forceNext = k; }; const d = $('dbg'); d.classList.remove('hidden');
   d.innerHTML = ['win', 'big', 'mega', 'madness', 'wild', 'drift', 'almost', 'meter', 'jackpot', 'wheel3', 'wheel4', 'wheel5', 'revup', 'locked', 'turbo', 'nitro', 'madspins', 'gearup', 'rally', 'rally1', 'offroad', 'summit', 'rescue', 'charge', 'full72', 'surge', 'wcharge', 'mini', 'minor', 'major', 'grandwheel'].map(k => `<button data-f="${k}">${k}</button>`).join('');
   d.addEventListener('click', e => { const k = e.target.dataset.f; if (k) { forceNext = k; toast('next: ' + k, 900); } }); }

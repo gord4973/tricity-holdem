@@ -17,7 +17,7 @@ const TAPS = ['none', 'impatient', 'mash', 'spin'];
     if (orphan) { if (!__dark.since) __dark.since = now; __dark.max = Math.max(__dark.max, now - __dark.since); } else __dark.since = 0; }, 100); });
   let maxBusy = 0;
   for (let i = 0; i < ITER; i++) {
-    const kind = KINDS[(i * 7 + +(process.env.OFFSET || 0)) % KINDS.length], tap = TAPS[i % TAPS.length];
+    const kind = KINDS[(i * 5 + +(process.env.OFFSET || 0)) % KINDS.length], tap = TAPS[i % TAPS.length];
     if (kind) await p.evaluate(k => G.force(k), kind);
     const t0 = Date.now(); await p.click('#spinBtn');
     let done = false; const tapper = (async () => { while (!done) { await wait(150 + Math.random() * 500); if (done) break;

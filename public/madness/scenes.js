@@ -84,6 +84,10 @@
     S.draw = (g, W, H, now) => { const c = TCOL[st.terrain] || TCOL.GRAVEL; const sky = g.createLinearGradient(0, 0, 0, H * .6); sky.addColorStop(0, st.terrain === 'SNOW' ? '#4a6a9a' : '#1a2a4a'); sky.addColorStop(1, st.terrain === 'SAND' ? '#f0a050' : '#7a5a7a'); g.fillStyle = sky; g.fillRect(0, 0, W, H);
       // mountains
       g.fillStyle = 'rgba(20,20,40,.7)'; g.beginPath(); g.moveTo(0, H * .55); for (let x = 0; x <= W; x += 20) g.lineTo(x, H * .38 + Math.sin((x + scrollX * .2) / 70) * 30 + Math.sin((x + scrollX * .2) / 23) * 10); g.lineTo(W, H * .6); g.lineTo(0, H * .6); g.fill();
+      // pines / cacti along the ridge (parallax)
+      for (let i = 0; i < 14; i++) { const x = ((i * 71 - scrollX * .55) % (W + 60) + W + 60) % (W + 60) - 30, base = H * .58 + Math.sin(i * 1.7) * 8, h = 34 + (i * 13) % 26;
+        if (st.terrain === 'SAND') { g.fillStyle = '#2f5a2a'; g.fillRect(x - 3, base - h * .8, 6, h * .8); g.fillRect(x - 11, base - h * .55, 8, 4); g.fillRect(x - 11, base - h * .7, 4, 14); }
+        else { g.fillStyle = st.terrain === 'SNOW' ? '#24435a' : '#1d3a26'; g.beginPath(); g.moveTo(x, base - h); g.lineTo(x - h * .32, base); g.lineTo(x + h * .32, base); g.fill(); if (st.terrain === 'SNOW') { g.fillStyle = '#fff'; g.beginPath(); g.moveTo(x, base - h); g.lineTo(x - h * .12, base - h * .62); g.lineTo(x + h * .12, base - h * .62); g.fill(); } } }
       if (st.summit) { g.fillStyle = '#fff'; g.fillRect(W * .2, H * .2, 3, 50); g.fillStyle = '#ff2040'; g.fillRect(W * .2 + 3, H * .2, 30, 18); }
       const spd = st.drive ? 7 : st.stuck ? .4 : 0; scrollX += spd; const gy = x => H * .66 + Math.sin((x - scrollX) / 55) * 10 + Math.sin((x - scrollX) / 17) * 4;
       g.fillStyle = c[0]; g.beginPath(); g.moveTo(0, H); for (let x = 0; x <= W; x += 8) g.lineTo(x, gy(x)); g.lineTo(W, H); g.fill();
