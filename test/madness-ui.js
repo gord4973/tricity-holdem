@@ -68,7 +68,7 @@ const FORCES = (process.env.FORCES || 'win,big,mega,madness,wild,drift,almost,me
   await p.setViewport({ width: 1024, height: 1366, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }); await wait(900);
   const lay2 = await p.evaluate(() => { const r = id => { const q = document.getElementById(id).getBoundingClientRect(); return { top: q.top, bottom: q.bottom, left: q.left, right: q.right, width: q.width, height: q.height }; }; return { spin: r('spinBtn'), frame: r('frame'), vw: innerWidth, vh: innerHeight, sw: document.documentElement.scrollWidth }; });
   assert.ok(lay2.spin.bottom <= lay2.vh + 1 && lay2.frame.right <= lay2.vw + 1 && lay2.sw <= lay2.vw + 1 && lay2.frame.width > 800, 'iPad layout ' + JSON.stringify(lay2));
-  if (SHOTS) { await p.click('#billBtn'); await idle(); await p.screenshot({ path: SHOTS + '/main-reels-ipad.png' }); }
+  if (SHOTS && TAG !== 'ipad') { await p.click('#billBtn'); await idle(); await p.screenshot({ path: SHOTS + '/main-reels-ipad.png' }); }
   assert.deepStrictEqual(errs, [], 'page errors: ' + errs.join(' | '));
   console.log(`PASS madness-ui: ${FORCES.length} forces, 0 page errors`); await b.close();
 })().catch(e => { console.error('FAIL', e.message); process.exit(1); });
