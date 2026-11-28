@@ -1,7 +1,7 @@
 // MITSUBISHI MADNESS - original play-money slot math (UMD: browser window.MadnessMath, Node require()).
 // Base: 5 reels x 3 rows, 243 ways. Symbols are the 5 current Mitsubishi models (2026 + 2027 combined, no years), paying in order of
 // top-trim MSRP (RVR lowest ... Outlander PHEV highest = jackpot symbol). Every feature is decided HERE before anything animates,
-// so the cabinet only acts out a result that is already counted in the RTP. All amounts are in CREDITS (1 credit = $1 play money).
+// so the cabinet only acts out a result that is already counted in the RTP. All amounts are in BET UNITS (the game shows them as credits: 1 unit = 50 credits x denomination).
 (function (root, factory) { if (typeof module === 'object' && module.exports) module.exports = factory(); else root.MadnessMath = factory(); })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
   // ---- symbols, low -> high (top-trim MSRP, Mitsubishi Canada, Nov 2026) ----
@@ -41,7 +41,7 @@
   // ---- S-AWC Off-Road Challenge: 5 stages, pick a trail, each clear pays, STUCK ends it (S-AWC rescues once at 50%) ----
   const OFFROAD = { stages: 5, stuck: [0.10, 0.20, 0.28, 0.35, 0.42], prize: [[2, 30], [3, 28], [4, 20], [5, 12], [8, 7], [10, 3]], rescue: 0.5, summit: 20 };
   const TERRAIN = ['GRAVEL', 'MUD', 'SNOW', 'ROCKS', 'SAND'];
-  // ---- PHEV Charging: tap to charge; bursts of 3-9 km; a POWER SURGE can stop it; 72 km = FULL CHARGE. 1 km = 1 credit x bet. ----
+  // ---- PHEV Charging: tap to charge; bursts of 3-9 km; a POWER SURGE can stop it; 72 km = FULL CHARGE. 1 km = 1x bet. ----
   const CHARGE = { max: 72, burst: [[3, 10], [4, 14], [5, 16], [6, 16], [7, 14], [8, 10], [9, 8]], surge: 0.25, regen: 0.10, minKm: 10 };
   // ---- reel strips: fixed counts, fixed shuffle (same machine on every device) ----
   const COUNTS = [

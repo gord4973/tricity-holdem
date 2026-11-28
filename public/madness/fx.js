@@ -66,7 +66,7 @@
   const MadFXObj = {
     cars, drawCar, fit, photo, cover,
     stageInit, setRoad(y, k) { stage.roadY = y; stage.k = k; }, setAttract(on) { stage.attract = on; }, setMode(m) { stage.mode = m || ''; }, pauseStage(p) { stage.paused = p; },
-    fxInit,
+    fxInit, hook(fn) { P.hooks.push(fn); fxStart(); },
     coinRain(ms = 2500, n = 3) { emit(ms, (now, W) => { for (let i = 0; i < n; i++) add({ t: 'coin', x: rnd(0, W), y: -20, vx: rnd(-1, 1), vy: rnd(2, 6), g: .18, s: rnd(7, 13), r: rnd(0, 6), vr: rnd(.1, .3), life: 1, decay: .004 }); }); },
     coinBurst(x, y, n = 40) { for (let i = 0; i < n; i++) { const a = rnd(-Math.PI, 0), s = rnd(4, 11); add({ t: 'coin', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, g: .3, s: rnd(6, 11), r: rnd(0, 6), vr: rnd(.1, .3), life: 1, decay: .008 }); } },
     confetti(n = 120) { const W = P.cv.getBoundingClientRect().width; for (let i = 0; i < n; i++) add({ t: 'conf', x: rnd(0, W), y: rnd(-80, -5), vx: rnd(-1.5, 1.5), vy: rnd(1.5, 4), g: .04, drag: .995, s: rnd(6, 11), r: rnd(0, 6), vr: rnd(-.2, .2), c: COLORS[i % COLORS.length], life: 1, decay: .004 }); },

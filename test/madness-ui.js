@@ -18,6 +18,7 @@ const FORCES = (process.env.FORCES || 'win,multi,big,mega,madness,wild,drift,alm
   // layout: everything on screen, no horizontal overflow
   const lay = await p.evaluate(() => { const r = id => { const q = document.getElementById(id).getBoundingClientRect(); return { top: q.top, bottom: q.bottom, left: q.left, right: q.right, width: q.width, height: q.height }; }; return { spin: r('spinBtn'), frame: r('frame'), bar: r('bar'), vw: innerWidth, vh: innerHeight, sw: document.documentElement.scrollWidth }; });
   assert.ok(lay.spin.bottom <= lay.vh + 1 && lay.frame.right <= lay.vw + 1 && lay.sw <= lay.vw + 1, 'phone layout fits ' + JSON.stringify(lay));
+  await p.evaluate(() => G.setDenom(2)); // 50 credits x 2¢ = $1 per bet unit, so the money assertions below read in bet units (t118u)
   await p.click('#billBtn'); await p.waitForFunction(() => G.st.cents === 10000 && !G.busy, { timeout: 30000 }); console.log('bill ok');
   await p.click('#betUp'); assert.strictEqual(await p.evaluate(() => G.st.bet), 1); await p.click('#betDn');
   if (SHOTS) await p.screenshot({ path: SHOTS + '/main-reels-' + TAG + '.png' });

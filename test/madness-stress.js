@@ -12,7 +12,7 @@ const TAPS = ['none', 'impatient', 'mash', 'spin'];
   const vp = process.env.IPAD ? { width: 1024, height: 1366 } : { width: 412, height: 915 };
   await p.setViewport({ ...vp, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
   await p.goto(BASE + '/madness?debug=1&speed=' + (process.env.SPEED || '0.25'), { waitUntil: 'load' }); await p.evaluate(() => localStorage.clear()); await p.reload({ waitUntil: 'load' });
-  await p.waitForFunction(() => window.G && !G.busy, { timeout: 60000 }); await p.mouse.click(200, 150); await p.click('#billBtn'); await p.waitForFunction(() => G.st.cents > 0 && !G.busy, { timeout: 30000 });
+  await p.waitForFunction(() => window.G && !G.busy, { timeout: 60000 }); await p.mouse.click(200, 150); await p.evaluate(() => G.setDenom(2)); await p.click('#billBtn'); await p.waitForFunction(() => G.st.cents > 0 && !G.busy, { timeout: 30000 });
   await p.evaluate(() => { window.__dark = { max: 0, since: 0 }; setInterval(() => { const c = document.getElementById('cine'), vis = !c.classList.contains('hidden'), now = performance.now(); const orphan = vis && !(window.__tkLog && document.getElementById('cine').classList.contains('show'));
     if (orphan) { if (!__dark.since) __dark.since = now; __dark.max = Math.max(__dark.max, now - __dark.since); } else __dark.since = 0; }, 100); });
   let maxBusy = 0;

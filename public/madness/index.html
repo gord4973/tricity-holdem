@@ -3,7 +3,7 @@
 <meta name=apple-mobile-web-app-capable content=yes><meta name=mobile-web-app-capable content=yes><meta name=apple-mobile-web-app-status-bar-style content=black-translucent><meta name=apple-mobile-web-app-title content="Madness">
 <title>MITSUBISHI MADNESS · play-money slot</title><link rel=stylesheet href=/madness/madness.css></head><body>
 <div id=app>
-<canvas id=stage></canvas>
+<canvas id=stage></canvas><canvas id=showCv></canvas>
 <header id=top>
   <div id=plaques>
     <div class="plq grand"><b>PHEV GRAND</b><span id=jpG>$0</span></div>
@@ -13,20 +13,22 @@
   </div>
   <div id=topBtns><button id=muteBtn class=icon aria-label="Sound">🔊</button><button id=fsBtn class=icon aria-label="Full screen">⛶</button><button id=menuBtn class=icon aria-label="Menu">☰</button></div>
 </header>
-<div id=logo><div id=hero><img src=/madness/art/car-outlander-phev.webp?v=1 alt=""><span>WIN THE PHEV GRAND</span></div><div id=brand><img src=/madness/art/emblem.webp alt=""><div><b>MITSUBISHI</b><i>MADNESS</i></div></div></div>
+<div id=logo><div id=brand><img src=/madness/art/emblem.webp alt=""><div><b>MITSUBISHI</b><i>MADNESS</i></div></div></div>
 <div id=modeHud class=hidden><b id=hudMode>TURBO SPINS</b><div class=hrow><span><small>SPIN</small><i id=hudSpins>1 OF 8</i></span><span id=hudMultW class=hidden><small>MULTIPLIER</small><i id=hudMult>×1</i></span><span><small>BONUS WIN</small><i id=hudWin>0.00</i></span></div></div>
 <main id=machine>
   <div id=meter title="Madness Meter: checkered flags fill it; full = Madness Wheel"><b>MADNESS METER</b><div class=track><div id=meterFill></div></div><span id=meterPct>0%</span></div>
   <div id=frame><div class=lights></div><div id=reels><canvas id=reelCv></canvas></div><div id=winBanner class=hidden></div><div id=attract class=hidden><div id=attractTxt></div><small>TAP SPIN TO PLAY</small></div></div>
   <div id=bar>
     <div id=meters>
-      <div class=meter><small>CREDITS</small><b id=mCred>0.00</b></div>
-      <div class=meter><small>BET</small><b id=mBet>1</b></div>
-      <div class=meter><small>WIN</small><b id=mWin>0.00</b></div>
+      <div class=meter><small>CASH</small><b id=mCash>$0.00</b></div>
+      <div class=meter><small>CREDITS</small><b id=mCred>0</b></div>
+      <div class=meter><small>BET</small><b id=mBet>50</b><i id=mBetD>$0.50</i></div>
+      <div class=meter><small>WIN</small><b id=mWin>0</b></div>
+      <div id=cashWrap><button id=cashBtn class=btn>CASH<br>OUT</button><div id=ticket class=hidden></div></div>
     </div>
     <div id=controls>
       <div id=slotWrap><button id=billBtn class=btn aria-label="Insert a play-money $100 bill"><span class=slot></span>INSERT<br>$100</button><div id=bill class=hidden><div class=billIn><b>100</b><span>MADNESS PLAY MONEY</span><b>100</b></div></div></div>
-      <div id=cashWrap><button id=cashBtn class=btn>CASH<br>OUT</button><div id=ticket class=hidden></div></div>
+      <button id=denomBtn class=btn><small>DENOM</small><span id=denomTxt>1¢</span></button>
       <button id=betDn class="btn sm" aria-label="Bet down">−</button><button id=betUp class="btn sm" aria-label="Bet up">+</button>
       <button id=maxBtn class=btn>MAX<br>BET</button>
       <button id=autoBtn class=btn>AUTO</button>
@@ -34,7 +36,7 @@
     </div>
   </div>
 </main>
-<canvas id=fx></canvas>
+<canvas id=fx></canvas><div id=sweep></div>
 <div id=cine class=hidden><canvas id=cineCv></canvas><div id=cineTitle></div><div id=cineSub></div></div>
 <div id=big class=hidden><div class=burst></div><div id=bigTitle>BIG WIN</div><div id=bigAmt>0.00</div><div id=bigSub></div><small>tap to continue</small></div>
 <div id=wheelBox class=hidden><div id=wheelTitle>MADNESS WHEEL</div><div id=wheelTier>3 FLAGS</div><div id=wheelWrap><canvas id=wheel width=760 height=760></canvas><div id=pointer></div><button id=wheelHub>SPIN</button></div><div id=wheelMsg></div></div>
@@ -45,11 +47,12 @@
   <div id=menuBody></div>
   <p class=links><a href=/gorilla>Gorilla</a> · <a href=/host>Hold'em host</a></p>
   <button class=close data-close=menu>Close</button></div></div>
+<div id=denomModal class="modal hidden"><div class=card><h2>Choose your denomination</h2><p>Each credit is worth:</p><div id=denoms></div><button class=close data-close=denomModal>Done</button></div></div>
 <div id=toast class=hidden></div>
 <div id=dbg class=hidden></div>
 </div>
 <div id=rotate><div><b>Turn your device upright</b><span>MITSUBISHI MADNESS is designed for portrait</span></div></div>
 <i id=safeProbe></i>
-<script src=/madness/math.js></script><script src=/madness/audio.js></script><script src=/madness/reels.js></script><script src=/madness/fx.js></script><script src=/madness/scenes.js></script>
+<script src=/madness/math.js></script><script src=/madness/audio.js></script><script src=/madness/reels.js></script><script src=/madness/fx.js></script><script src=/madness/scenes.js></script><script src=/madness/show.js></script>
 <script src=/madness/game.js></script>
 </body></html>
