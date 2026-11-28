@@ -88,29 +88,70 @@
   // ---------------- S-AWC OFF-ROAD CHALLENGE ----------------
   const TCOL = { GRAVEL: ['#5a4a3a', '#8a7a64', '#c9b28a'], MUD: ['#2e1d10', '#5a3a1e', '#7a4f28'], SNOW: ['#bcd6f0', '#e8f2ff', '#ffffff'], ROCKS: ['#3a3a44', '#6a6a78', '#9a9aa8'], SAND: ['#9a6a2a', '#d8a050', '#f4cf8a'] };
   const TRAILS = { GRAVEL: ['SWITCHBACK', 'RIDGE RUN', 'QUARRY CUT'], MUD: ['BOG HOLE', 'RUT ROAD', 'RIVER BANK'], SNOW: ['ICE SHELF', 'POWDER PASS', 'SNOW DRIFT'], ROCKS: ['ROCK CRAWL', 'BOULDER FIELD', 'LEDGE STEP'], SAND: ['DUNE CREST', 'WASHOUT', 'DESERT WASH'] };
-  function offroad(R, env) { return guarded(120000, R, async () => {
+  function offroad(R, env) { return guarded(260000, R, async () => {
     open('S-AWC CHALLENGE', 'PICK A TRAIL AT EACH STAGE · 5 STAGES TO THE SUMMIT');
-    const st = { terrain: R.stages[0].terrain, drive: 0, stuck: 0, rescue: 0, total: 0, stage: 0, summit: false, t: 0, bump: 0 };
-    let scrollX = 0;
+    const st = { terrain: R.stages[0].terrain, drive: 0, stuck: 0, rescue: 0, total: 0, stage: 0, summit: false, t: 0, bump: 0, obs: [], tens: 0, hop: 0, prog: -1, boss: null, dust: [] };
+    window.__offroadSt = st; let scrollX = 0;
+    // t144u: each attempt is a ~4.3 s trail run (was 1.4 s): a string of real obstacles rolls under the car (bumps, hops, dust), the camera
+    // follows and zooms in, then the run slows into ONE big obstacle with rising tension (heartbeat, revs, rumble) before pass / STUCK.
+    const OBS = { GRAVEL: ['rock', 'pothole', 'log'], MUD: ['puddle', 'rut', 'log'], SNOW: ['mound', 'rock', 'mound'], ROCKS: ['rock', 'rock', 'log'], SAND: ['mound', 'rock', 'pothole'] };
+    const drawObs = (g, o, x, y, sz, c) => { g.save(); g.translate(x, y);
+      if (o.k === 'puddle') { g.fillStyle = 'rgba(40,70,90,.85)'; g.beginPath(); g.ellipse(0, 0, sz * 1.5, sz * .28, 0, 0, 7); g.fill(); g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 2; g.beginPath(); g.ellipse(-sz * .3, -2, sz * .6, sz * .1, 0, 0, 7); g.stroke(); }
+      else if (o.k === 'pothole' || o.k === 'rut') { g.fillStyle = 'rgba(0,0,0,.55)'; g.beginPath(); g.ellipse(0, 0, sz * 1.1, sz * .22, 0, 0, 7); g.fill(); }
+      else if (o.k === 'log') { g.fillStyle = '#5a3a1e'; g.fillRect(-sz * 1.2, -sz * .45, sz * 2.4, sz * .5); g.fillStyle = '#7a5230'; g.fillRect(-sz * 1.2, -sz * .45, sz * 2.4, sz * .14); g.fillStyle = '#c9a070'; g.beginPath(); g.ellipse(sz * 1.2, -sz * .2, sz * .12, sz * .25, 0, 0, 7); g.fill(); }
+      else if (o.k === 'mound') { g.fillStyle = c[1]; g.beginPath(); g.ellipse(0, 0, sz * 1.3, sz * .7, 0, Math.PI, 0); g.fill(); g.fillStyle = c[2]; g.beginPath(); g.ellipse(-sz * .2, -sz * .15, sz * .7, sz * .35, 0, Math.PI, 0); g.fill(); }
+      else { g.fillStyle = '#4a4a54'; g.beginPath(); g.moveTo(-sz, 0); g.lineTo(-sz * .7, -sz * .75); g.lineTo(-sz * .1, -sz * 1.05); g.lineTo(sz * .6, -sz * .7); g.lineTo(sz * .95, 0); g.closePath(); g.fill(); g.fillStyle = 'rgba(255,255,255,.22)'; g.beginPath(); g.moveTo(-sz * .7, -sz * .75); g.lineTo(-sz * .1, -sz * 1.05); g.lineTo(sz * .1, -sz * .5); g.lineTo(-sz * .5, -sz * .35); g.closePath(); g.fill(); g.fillStyle = 'rgba(0,0,0,.28)'; g.beginPath(); g.moveTo(sz * .1, -sz * .5); g.lineTo(sz * .6, -sz * .7); g.lineTo(sz * .95, 0); g.lineTo(sz * .2, 0); g.closePath(); g.fill(); }
+      g.restore(); };
+    const kick = (c, n, W, H, x, y) => { for (let i = 0; i < n; i++) st.dust.push({ x: x + rnd(-20, 20), y, vx: rnd(-1, 4), vy: rnd(-4, -1), r: rnd(3, 9), life: 1, c: c[2] }); };
     S.draw = (g, W, H, now) => { const c = TCOL[st.terrain] || TCOL.GRAVEL;
-      const spd = st.drive ? 7 : st.stuck ? .4 : 0; scrollX += spd;
+      const fr = Math.min(3, Math.max(.3, (now - (st.lastNow || now)) / 16.667)); st.lastNow = now; // frame-rate independent (60 / 120 Hz look the same)
+      const spd = (st.drive ? 7 * (st.slow == null ? 1 : st.slow) : st.stuck ? .4 : 0) * fr; scrollX += spd;
+      const camZ = 1 + .17 * st.tens, camS = st.tens * (2 + st.tens * 3); g.save(); g.translate(W * .48, H * .62); g.scale(camZ, camZ); g.translate(-W * .48 + (camS ? rnd(-camS, camS) : 0), -H * .62 + (camS ? rnd(-camS, camS) * .6 : 0)); // camera follows the car and pushes in
       // photo-real terrain for each stage (gravel / mud / snow / rocks / sand), scrolling as you drive
       g.fillStyle = '#111'; g.fillRect(0, 0, W, H); const m = F().cover(g, F().photo('bg-' + String(st.terrain || 'GRAVEL').toLowerCase()), W, H, { scroll: -scrollX * 1.2, fy: .6 });
       const base = m.ok ? Math.min(H * .86, m.y(.8)) : H * .66; const gy = x => base + Math.sin((x - scrollX) / 55) * 6 + Math.sin((x - scrollX) / 17) * 2;
       const vg = g.createLinearGradient(0, 0, 0, H); vg.addColorStop(0, 'rgba(0,0,0,.55)'); vg.addColorStop(.3, 'rgba(0,0,0,.05)'); vg.addColorStop(1, 'rgba(0,0,0,.25)'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
+      const gyW = x => gy(x), cxx = W * .48, ww = W * .55;
+      for (const o of st.obs) { if (o.over) o.sx += 9 * fr; const x = o.boss ? o.sx : o.wx + scrollX; o.x = x; if (x > -W * .3 && x < W * 1.2) drawObs(g, o, x, gy(x) + 10, o.sz, c); }
       if (st.summit) { g.fillStyle = '#fff'; g.fillRect(W * .2, H * .2, 3, 50); g.fillStyle = '#ff2040'; g.fillRect(W * .2 + 3, H * .2, 30, 18); }
-      const w = W * .55, cx = W * .48, y = gy(cx) + 4 + (st.drive ? Math.sin(now / 50) * 3 : 0) + (st.stuck ? Math.sin(now / 25) * 2 : 0);
+      const w = W * .55, cx = W * .48, y = gy(cx) + 4 + (st.drive ? Math.sin(now / 50) * 3 : 0) + (st.stuck ? Math.sin(now / 25) * 2 : 0) - (st.hop > 0 ? Math.sin(Math.min(1, st.hop) * Math.PI) * H * .045 * Math.min(1.6, st.hopSz || 1) : 0); if (st.hop > 0) st.hop -= .06 * fr;
       const tilt = (gy(cx + 30) - gy(cx - 30)) / 60 * .6 + (st.stuck ? Math.sin(now / 40) * .02 : 0);
       if (st.rescue) { g.save(); g.globalAlpha = .5 + .5 * Math.sin(now / 80); g.strokeStyle = '#22c3ff'; g.lineWidth = 6; g.shadowColor = '#22c3ff'; g.shadowBlur = 30; g.beginPath(); g.ellipse(cx, y - w * .15, w * .6, w * .25, 0, 0, 7); g.stroke(); g.restore(); }
       F().drawCar(g, 'out', cx, y, w, { tilt, flame: st.rescue ? 1.2 : 0, track: st.wt || (st.wt = {}), wx: -scrollX, wspin: st.stuck ? -.45 : 0 });
       if ((st.drive || st.stuck) && Math.random() < .9) for (let k = 0; k < (st.stuck ? 3 : 1); k++) { g.fillStyle = c[2]; const px = cx + w * rnd(-.35, .4), py = y - rnd(0, 30); g.globalAlpha = .8; g.beginPath(); g.arc(px + rnd(0, 30), py, rnd(2, 6), 0, 7); g.fill(); g.globalAlpha = 1; }
+      for (const d of st.dust) { d.x += d.vx * fr; d.y += d.vy * fr; d.vy += .15 * fr; d.life -= .03 * fr; if (d.life > 0) { g.globalAlpha = d.life * .8; g.fillStyle = d.c; g.beginPath(); g.arc(d.x, d.y, d.r, 0, 7); g.fill(); } } st.dust = st.dust.filter(d => d.life > 0); g.globalAlpha = 1;
+      g.restore();
+      if (st.tens > 0) { const vg2 = g.createRadialGradient(W / 2, H * .6, H * .2, W / 2, H * .6, H * .85); vg2.addColorStop(0, 'rgba(255,0,0,0)'); vg2.addColorStop(1, `rgba(180,0,20,${.5 * st.tens * (.6 + .4 * Math.sin(now / 90))})`); g.fillStyle = vg2; g.fillRect(0, 0, W, H); }
+      if (st.prog >= 0) { const bw = W * .56, bx = (W - bw) / 2, by = H * .32; g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(bx, by, bw, 9); g.fillStyle = st.tens > .3 ? '#ff3b30' : '#30e060'; g.fillRect(bx, by, bw * st.prog, 9); g.fillStyle = '#fff'; g.font = '900 11px Russo,sans-serif'; g.textAlign = 'center'; g.fillText('TRAIL', W / 2, by - 4); }
       // stage progress dots
       for (let i = 0; i < 5; i++) { const x = W / 2 + (i - 2) * 34, yy = H * .2; g.fillStyle = i < st.stage ? '#30e060' : i === st.stage ? '#ffd84a' : 'rgba(255,255,255,.25)'; g.beginPath(); g.arc(x, yy, 10, 0, 7); g.fill(); g.fillStyle = '#000'; g.font = '900 11px Russo,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(i + 1, x, yy + 1); }
       g.fillStyle = '#fff'; g.font = '900 16px Russo,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.fillText('WON ' + env.fmt(st.total), W / 2, H * .27); };
+    const RUN = { run: 2800, tens: 1400, over: 450 }; // logical ms: 4.2 s of trail + tension (was a flat 1.4 s) - sleep() applies the speed setting like everywhere else
+    window.__offroadRun = RUN;
+    async function trailRun(s, trail) {
+      const W = $('sceneCv').getBoundingClientRect().width || 400, kinds = OBS[s.terrain] || OBS.GRAVEL, c = TCOL[s.terrain] || TCOL.GRAVEL, cx = W * .48, nose = cx - W * .55 * .3;
+      st.obs = []; st.tens = 0; st.slow = null; st.prog = 0; st.boss = null; st.hop = 0; let spawnAt = 150, kn = 0, bossDone = false, hb = false; window.__offroadBumps = window.__offroadBumps || 0; window.__offroadRuns = (window.__offroadRuns || 0) + 1;
+      const hitT = [], t0 = performance.now(); let tensEnd = 0;
+      for (let t = 0; t < RUN.run + RUN.tens + RUN.over; t += 50) { await sleep(50); st.t = t; const r = $('sceneCv').getBoundingClientRect(); const H = r.height || 500;
+        if (t < RUN.run - 500 && t >= spawnAt) { const k = kinds[kn++ % kinds.length]; st.obs.push({ k, sz: W * (.045 + Math.random() * .03), wx: -scrollX - W * .12 }); spawnAt += 430 + Math.random() * 120; }
+        for (const o of st.obs) if (!o.boss && !o.hit && o.x != null && o.x > nose) { o.hit = 1; st.hop = 1; st.hopSz = o.k === 'log' || o.k === 'rock' ? 1.2 : .6; window.__offroadBumps++; kick(c, 8 + (o.k === 'puddle' ? 8 : 0), W, H, cx - W * .1, H * .66);
+          A().play(o.k === 'puddle' ? 'mud' : 'crack'); if (o.k !== 'puddle') A().play('gravel', .5); }
+        st.obs = st.obs.filter(o => o.boss || o.x == null || o.x < W * 1.2);
+        st.prog = Math.min(1, t / (RUN.run + RUN.tens));
+        if (t >= RUN.run - 600 && !st.boss) { st.boss = { k: s.terrain === 'MUD' || s.terrain === 'SNOW' ? 'mound' : 'rock', sz: W * .15, boss: true, sx: -W * .2 }; st.obs.push(st.boss); }
+        if (st.boss) { const u = Math.min(1, Math.max(0, (t - (RUN.run - 600)) / (RUN.run + RUN.tens - (RUN.run - 600)))); st.boss.sx = -W * .2 + (nose - W * .07 + W * .2) * (1 - Math.pow(1 - u, 2.2)); }
+        if (t >= RUN.run) { const u = Math.min(1, (t - RUN.run) / RUN.tens); st.tens = Math.min(1, u); st.slow = 1 - .78 * Math.min(1, u * 1.2); if (!hb) { hb = true; try { A().heartbeat(true); } catch (e) {} A().play('rev', 1); prompt(`HOLD ON…<br><b>${trail}: BIG OBSTACLE AHEAD</b>`); }
+          if (Math.round(t / 50) % 8 === 0) A().play('rev', 1); }
+        if (t >= RUN.run + RUN.tens && !bossDone) { bossDone = true; tensEnd = performance.now() - t0; try { A().heartbeat(false); } catch (e) {} st.tens = 1; st.slow = (s.stuck || s.rescue) ? .05 : null;
+          if (!(s.stuck || s.rescue)) { st.hop = 1; st.hopSz = 1.8; st.boss.over = 1; kick(c, 30, W, H, cx - W * .12, H * .66); A().play('crack'); A().play('gravel', 1.2); } } }
+      (window.__offroadRunMs = window.__offroadRunMs || []).push({ trailMs: Math.round(tensEnd), totalMs: Math.round(performance.now() - t0), speed: sp() });
+      try { A().heartbeat(false); } catch (e) {}
+      st.tens = 0; st.slow = null; st.obs = []; st.boss = null; st.prog = -1; }
     await howTo('S-AWC OFF-ROAD CHALLENGE', ['Drive <b>5 stages</b> to reach the summit.', 'At each stage, <b>tap ONE of the 3 trail buttons</b> at the bottom of the screen.', 'A <b>clear</b> trail pays 2× – 10× bet and you drive on to the next stage.', 'A <b>STUCK</b> trail ends the challenge — but S-AWC can rescue you once.', 'Clear all 5 stages for a <b>20× SUMMIT</b> bonus.']);
     for (let i = 0; i < R.stages.length; i++) { const s = R.stages[i]; st.stage = i; prompt(`STAGE ${i + 1} OF 5 · ${s.terrain}<br><b>👇 TAP ONE OF THE 3 TRAILS BELOW</b>`); st.terrain = s.terrain; $('sceneSub').textContent = `STAGE ${i + 1} OF 5 · ${s.terrain}`;
       const names = TRAILS[s.terrain]; const pick = await choose(names.map(n => ({ html: `${n}<small>${s.terrain}</small>` })), 8000, 'PICK A TRAIL');
-      prompt(`DRIVING THE ${names[pick]}…`); A().play('rev', 1); A().play('gravel', 1.4); st.drive = 1; if (s.terrain === 'MUD') A().play('mud'); await sleep(1400); st.drive = 0;
+      prompt(`DRIVING THE ${names[pick]}…`); A().play('rev', 1); A().play('gravel', 1.4); st.drive = 1; if (s.terrain === 'MUD') A().play('mud');
+      await trailRun(s, names[pick]); st.drive = 0;
       // reveal the other two trails (what they would have been)
       const btns = [...$('sceneBtns').querySelectorAll('button')];
       if (s.stuck || s.rescue) { st.stuck = 1; A().play('stuck'); msg('STUCK!<small>That trail was blocked</small>', '#ff2040'); await sleep(1300); st.stuck = 0; }
