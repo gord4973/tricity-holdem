@@ -107,6 +107,8 @@ function forceOf(kind) {
     wild: g => { row('OU', 4)(g); set(g, 1, 1, { s: 'WD', mult: 3 }); set(g, 3, 1, { s: 'WD', mult: 2 }); },
     jackpot: g => { clean(g); for (let r = 0; r < 5; r++) set(g, r, 1, { s: 'PH' }); },
     almost: g => { clean(g); set(g, 0, 0, { s: 'FL' }); set(g, 1, 2, { s: 'FL' }); },
+    almostpl: g => { clean(g); set(g, 0, 0, { s: 'PL' }); set(g, 2, 1, { s: 'PL' }); },
+    almostbg: g => { clean(g); set(g, 1, 0, { s: 'BG' }); set(g, 2, 2, { s: 'BG' }); },
     drift: g => { clean(g); for (let r = 0; r < 5; r++) for (let y = 0; y < 3; y++) if (g[r][y].s === 'WD' || g[r][y].s === 'OU') g[r][y] = { s: 'RV' }; set(g, 0, 1, { s: 'OU' }); set(g, 1, 0, { s: 'OU' }); set(g, 3, 2, { s: 'OU' }); },
     meter: g => { clean(g); set(g, 0, 1, { s: 'FL' }); },
     multi: g => { for (let r = 0; r < 5; r++) g[r] = r < 3 ? [{ s: 'RV' }, { s: 'EC' }, { s: 'OU' }] : r === 3 ? [{ s: 'EV' }, { s: 'PH' }, { s: 'EV' }] : [{ s: 'PH' }, { s: 'EV' }, { s: 'PH' }]; }, // 3 separate wins (t116u)
@@ -128,9 +130,11 @@ function forceOf(kind) {
   if (kind === 'summit') wheelTo('offroad', 3, { opts: { forceStuck: -1 } });
   if (kind === 'rescue') wheelTo('offroad', 3, { opts: { forceStuck: 1, forceRescue: true } });
   if (kind === 'wcharge') wheelTo('charge', 3);
+  if (kind === 'c10' || kind === 'c25') wheelTo(kind); // t141u: 10x / 25x BET wheel wedges -> BIG / MEGA bonus finale
   if (/^(grandwheel|major|minor|mini)$/.test(kind)) wheelTo(kind === 'grandwheel' ? 'grand' : kind);
   if (kind === 'boost') { F.force = grids.boost; F.trigger = { type: 'wheel', tier: M.BOOST_TIER, via: 'boost' }; }
   if (kind === 'boost2') { F.force = grids.boost2; }
+  if (kind === 'almost' || kind === 'almostpl' || kind === 'almostbg') F.force = grids[kind];
   if (kind === 'revup') { F.force = flags(3); F.trigger = { type: 'wheel', tier: 1, via: 'flags' }; F.revUp = true; F.idx = WIDX('madness'); }
   if (kind === 'locked') { F.force = flags(3); F.trigger = { type: 'wheel', tier: 1, via: 'flags' }; F.revUp = false; F.idx = WIDX('major'); }
   if (kind === 'meterwheel') { F.force = grids.meter; F.meter = true; }
@@ -160,7 +164,7 @@ async function spin() {
     recoverScreen(); total = Math.max(total, window.__bonusWin || 0, disp.win || 0); }
   window.__bonusWin = 0;
   window.__lastSpin = { units: total, credits: total * CPU, cents: toCents(total), bet: bet(), betCr: betCr(), betCents: betCents(), denom: st.denom }; // t122u test hook
-  if (total > 0) { st.cents += toCents(total); st.lastWin = total; save(); await roll('cents', st.cents, 600, false); }
+  if (total > 0) { st.cents += toCents(total); st.lastWin = total; save(); const big = total >= 10 * bet(); await roll('cents', st.cents, big ? 1400 : 600, big); } // t141u: a big total's credits climb with coin ticks
   $('spinBtn').classList.remove('stop'); $('spinBtn').textContent = 'SPIN'; busy = false; quick = false; meters(); idleKick();
   if (st.cents < betCents() && st.cents > 0) toast('Low on credits — insert another bill or lower the bet');
   if (auto) { if (st.cents >= betCents() && !res.trigger) setTimeout(() => { if (auto && !busy) spin(); }, 450 * SPD()); else { auto = false; $('autoBtn').classList.remove('on'); } }
@@ -173,14 +177,24 @@ async function animateReels(res, mode) {
   $('frame').classList.add('spinning'); const fast = quick ? .35 : 1; let teased = false; try { SH.spin(); } catch (e) {}
   await reels.spin(grid, { fast, tease,
     onStop: (r, cells) => { try { SH.reelStop(r, cells); if (cells.some(c => /PH|WD|FL|PL/.test(c.s)) && !quick) shake(); } catch (e) {} stopSound(r, cells); },
-    onTease: () => { $('frame').classList.add('tease'); A.play('tease'); if (!teased) { teased = true; SH.tease(true); } } });
-  if (teased) SH.tease(false); $('frame').classList.remove('spinning', 'tease'); setTimeout(() => reels.hot.clear(), 900);
+    onTease: () => { $('frame').classList.add('tease'); A.play('tease'); A.play('heartbeat', true); if (!teased) { teased = true; SH.tease(true); } } });
+  A.play('heartbeat', false); if (teased) SH.tease(false); $('frame').classList.remove('spinning', 'tease'); let clearHot = 900;
   if (res.drift) { for (const r of res.drift.reels) { fxs({ kind: 'drift', r }); A.play('drift'); const ks = ['ev', 'phev', 'ec', 'rvr', 'out'];
       await FX.drift(reels.cellRect(r, 0) && (() => { const a = reels.cellRect(r, 0), b = reels.cellRect(r, reels.rows - 1); return { left: a.left, top: a.top, width: a.width, height: b.top + b.height - a.top }; })(), ks[Math.floor(Math.random() * ks.length)], quick ? 500 : 1300, () => { reels.transformReel(r, res.grid[r]); shake(); A.play('crack'); }); }
     toast('DRIFT WILD!', 1100); }
-  if (!mode && !res.trigger && res.flags === 2 && tease.some(Boolean)) { fxs({ kind: 'almost' }); toast('SO CLOSE! 2 FLAGS', 1100); }
+  // t142u: NEAR MISS (2 flags / 2 plugs / 2 boost gauges and the 3rd missed) is a big, short, non-blocking moment: SO CLOSE! over the reels with the landed
+  // symbols pulsing, flashing frame, the top-display car revs then stalls, a dramatic sound. It never delays the next spin / autoplay.
+  if (!mode && !res.trigger && tease.some(Boolean)) { const nm = res.flags === 2 ? ['FL', '2 CHECKERED FLAGS', 'ONE MORE FOR THE MADNESS WHEEL'] : res.plugs === 2 && pl(0) && pl(2) ? ['PL', '2 CHARGE PLUGS', 'ONE MORE FOR PHEV CHARGE'] : res.boosts === 2 ? ['BG', '2 BOOST GAUGES', 'ONE MORE FOR THE BOOSTED WHEEL'] : null;
+    if (nm) { fxs({ kind: 'almost', sym: nm[0] }); nearMiss(nm[0], nm[1], nm[2], res.grid); clearHot = 1800 * SPD(); } }
+  setTimeout(() => reels.hot.clear(), clearHot);
   shown = res.grid.map(col => col.map(c => ({ ...c })));
 }
+function nearMiss(sym, what, sub, grid) { const el = $('near'), fr = $('frame').getBoundingClientRect(), ms = 1600 * SPD() * (quick ? .5 : 1);
+  const hot = []; grid.forEach((col, r) => col.forEach((c, y) => { if (c.s === sym) hot.push([r, y]); })); try { reels.lineUp(hot, 5); } catch (e) {}
+  $('nearSyms').innerHTML = hot.map(() => `<img src="/madness/art/${sym}.webp?v=5" alt="">`).join(''); $('nearSub').textContent = sub; $('nearTitle').textContent = 'SO CLOSE!';
+  el.dataset.what = what; el.style.top = Math.round(fr.top + fr.height / 2) + 'px'; el.classList.remove('hidden', 'go'); void el.offsetWidth; el.classList.add('go');
+  const f = $('frame'); f.classList.remove('nearflash'); void f.offsetWidth; f.classList.add('nearflash'); A.play('nearMiss'); try { SH.nearMiss(); shake(); } catch (e) {}
+  window.__near = { sym, what, at: performance.now() }; clearTimeout(nearMiss.t); nearMiss.t = setTimeout(() => { el.classList.add('hidden'); el.classList.remove('go'); f.classList.remove('nearflash'); }, ms); }
 function markWins(res) { const cells = new Set(); for (const w of res.ways) for (const [r, y] of w.cells) cells.add(r + ',' + y);
   if (res.jackpot) res.grid.forEach((col, r) => cells.add(r + ',1'));
   if (res.trigger || res.retrig) res.grid.forEach((col, r) => col.forEach((c, y) => { if (c.s === 'FL' || (res.trigger && res.trigger.type === 'charge' && c.s === 'PL') || (res.trigger && res.trigger.via === 'boost' && c.s === 'BG')) cells.add(r + ',' + y); }));
@@ -241,14 +255,32 @@ async function boostFill() { toast('3 BOOST GAUGES!', 1400); A.play('boostFill')
   try { SH.meter(1, true); } catch (e) {} shake(); window.__boostFill.done = true; await sleep(900); }
 function meterPulse(m) { meters(); if (m.full) { SH.meter(1, true); toast('BOOST FULL!', 1500); A.play('turbo'); } }
 // ---------------- big wins ----------------
-const TIER_TXT = { big: 'BIG WIN', mega: 'MEGA WIN', madness: 'MITSUBISHI MADNESS!', total: 'BONUS TOTAL' };
-function bigWin(amount, tier, sub) { return new Promise(async res => { const b = $('big'); fxs({ kind: 'big', tier, amount });
-  b.className = tier; $('bigTitle').textContent = TIER_TXT[tier] || 'BIG WIN'; $('bigSub').textContent = sub || ''; $('bigAmt').textContent = '0.00'; b.classList.remove('hidden');
-  A.play('bigWin'); if (tier !== 'big' && tier !== 'total') { A.play('fanfare'); FX.fireworks(3000); } FX.coinRain(tier === 'madness' ? 4200 : 2600, tier === 'big' ? 2 : 4); FX.flyBy(tier === 'madness' ? 'phev' : tier === 'mega' ? 'ev' : 'ec', 1600);
-  let done = false; const t0 = performance.now(), ms = (tier === 'madness' ? 4200 : tier === 'mega' ? 3200 : tier === 'total' ? 1400 : 2200) * SPD() * (quick ? .2 : 1);
-  const fin = () => { if (done) return; done = true; b.onclick = null; $('bigAmt').textContent = fmt(amount); setTimeout(() => { b.classList.add('hidden'); res(); }, 350 * SPD()); };
-  const step = now => { if (done) return; const u = Math.min(1, (now - t0) / ms); $('bigAmt').textContent = fmt(amount * u); if (Math.random() < .3) A.play('coin', Math.random() * 7 | 0); if (u < 1) requestAnimationFrame(step); else setTimeout(fin, 1300 * SPD()); };
-  requestAnimationFrame(step); setTimeout(() => { b.onclick = fin; }, 500); setTimeout(fin, ms + 6000); }); }
+const TIER_TXT = { big: 'BIG WIN', mega: 'MEGA WIN', madness: 'MITSUBISHI MADNESS!', total: 'BONUS TOTAL', bonus: 'BONUS WIN' };
+// t141u: BONUS-WIN FINALE. Every bonus round that pays >= 3x bet (wheel credits/locks/jackpots, Rally, S-AWC, PHEV Charge, free-spin totals) ends in a
+// full-machine takeover scaled by x-bet tier: BONUS WIN (3-10x) / BIG WIN (10x+) / MEGA WIN (25x+) / MITSUBISHI MADNESS (60x+): giant rolling total, x-bet chip,
+// strobes, quakes, coin + confetti + firework bursts, a parade of top-display cars with burnout/horn/rev, and an escalating coin-bell-rev ROLLUP sound
+// ending in a fanfare. Tap once = jump to the total (finale fanfare), tap again = close. The pay itself is unchanged.
+const FIN = { bonus: { ms: 3200, coins: 3, fw: 0, cars: 1, q: 0 }, total: { ms: 3200, coins: 3, fw: 0, cars: 1, q: 0 }, big: { ms: 5200, coins: 5, fw: 3500, cars: 2, q: 1 }, mega: { ms: 7200, coins: 8, fw: 6000, cars: 3, q: 2 }, madness: { ms: 9500, coins: 12, fw: 9000, cars: 5, q: 3 } };
+const bonusTier = (win) => { const t = M.tier(win, bet()); return t === 'win' ? (win >= 3 * bet() ? 'bonus' : null) : t; };
+async function bonusWin(win, label) { const t = bonusTier(win); if (!t) return false; await bigWin(win, t, label, { bonus: true }); return true; }
+function bigWin(amount, tier, sub, o = {}) { return new Promise(async res => { const b = $('big'), bon = !!o.bonus, F = FIN[tier] || FIN.big, xb = amount / bet(); fxs({ kind: 'big', tier, amount, bonus: bon });
+  b.className = tier + (bon ? ' bonus q' + F.q : ''); $('bigTitle').textContent = TIER_TXT[tier] || 'BIG WIN'; $('bigSub').textContent = sub || ''; $('bigAmt').textContent = '0.00'; $('bigX').textContent = bon ? (xb >= 10 ? Math.round(xb) : xb.toFixed(1)) + '× BET' : ''; b.classList.remove('hidden');
+  window.__finale = bon ? { tier, amount, xb, skipped: false, done: false, start: performance.now() } : null;
+  if (!bon) { A.play('bigWin'); if (tier !== 'big' && tier !== 'total') { A.play('fanfare'); FX.fireworks(3000); } FX.coinRain(tier === 'madness' ? 4200 : 2600, tier === 'big' ? 2 : 4); FX.flyBy(tier === 'madness' ? 'phev' : tier === 'mega' ? 'ev' : 'ec', 1600); }
+  const quickK = quick ? .2 : 1, ms = (bon ? F.ms : (tier === 'madness' ? 4200 : tier === 'mega' ? 3200 : tier === 'total' ? 1400 : 2200)) * SPD() * quickK, t0 = performance.now(), timers = [];
+  let done = false, rolling = true, lastTick = 0, tickN = 0;
+  if (bon) { A.play('rollStart', F.q); FX.coinRain(ms, F.coins); try { FX.confetti(60 + F.q * 50); } catch (e) {} if (F.fw) FX.fireworks(F.fw * SPD());
+    const cars = ['ec', 'ev', 'phev', 'out', 'rvr']; for (let k = 0; k < F.cars; k++) timers.push(setTimeout(() => { if (done) return; FX.flyBy(cars[(k * 2 + F.q) % 5], 1500, undefined); A.play('passby', 1); if (k % 2) A.play('burnout'); A.play('rev', 1.4); try { shake(); } catch (e) {} }, (300 + k * (ms / (F.cars + 1))) ));
+    for (let k = 1; k <= 2 + F.q * 2; k++) timers.push(setTimeout(() => { if (done || !rolling) return; b.classList.remove('hit'); void b.offsetWidth; b.classList.add('hit'); try { FX.confetti(30 + F.q * 20); FX.coinBurst(innerWidth * (.2 + Math.random() * .6), innerHeight * .55, 40); } catch (e) {} A.play('rollTick', .6, F.q, 3); }, ms * k / (3 + F.q * 2))); }
+  const finishRoll = (skip) => { if (!rolling) return; rolling = false; $('bigAmt').textContent = fmt(amount); if (bon) { if (window.__finale) { window.__finale.skipped = !!skip; window.__finale.rolled = true; } A.play('rollEnd', F.q); b.classList.add('landed'); try { FX.confetti(80 + F.q * 60); FX.coinBurst(innerWidth / 2, innerHeight * .5, 80); shake(); } catch (e) {} } };
+  const fin = () => { if (done) return; done = true; timers.forEach(clearTimeout); b.onclick = null; finishRoll(false); $('bigAmt').textContent = fmt(amount); if (window.__finale) window.__finale.done = true; setTimeout(() => { b.classList.add('hidden'); b.classList.remove('landed', 'hit'); res(); }, 350 * SPD()); };
+  const step = now => { if (done || !rolling) return; const u = Math.min(1, (now - t0) / ms);
+    // bonus: the total accelerates (ease-in) so the last few moments are a blur of credits; the tick rate and pitch climb with it
+    const e = bon ? u * u * (1.6 - .6 * u) : u; $('bigAmt').textContent = fmt(amount * Math.min(1, e));
+    if (bon) { if (now - lastTick > 190 - 150 * u) { lastTick = now; tickN++; A.play('rollTick', u, F.q, tickN); } } else if (Math.random() < .3) A.play('coin', Math.random() * 7 | 0);
+    if (u < 1) requestAnimationFrame(step); else { finishRoll(false); timers.push(setTimeout(fin, (bon ? 2600 : 1300) * SPD())); } };
+  requestAnimationFrame(step);
+  setTimeout(() => { b.onclick = () => { if (bon && rolling) { finishRoll(true); timers.push(setTimeout(fin, 1800 * SPD())); } else fin(); }; }, bon ? 700 : 500); setTimeout(fin, ms + (bon ? 12000 : 6000)); }); }
 async function jackpotWin(id, amount, how) { fxs({ kind: 'jackpot', id, amount }); A.play('boom'); await cinematic({ title: M.JP_NAME[id] + '!', sub: 'JACKPOT', color: '#ffc400', car: id === 'grand' ? 'phev' : id === 'major' ? 'out' : id === 'minor' ? 'ec' : 'rvr', dur: 2400 });
   await bigWin(amount, amount >= 60 * bet() ? 'madness' : amount >= 25 * bet() ? 'mega' : 'big', M.JP_NAME[id] + ' JACKPOT' + (how ? ' · ' + how : '')); disp.win += amount; meters(); }
 // ---------------- triggers ----------------
@@ -260,7 +292,7 @@ async function trigger(t, F) {
   else { if (t.via === 'meter') { toast('BOOST FULL — WHEEL TIME!', 1500); await sleep(800); } else await sleep(600);
   await cinematic({ title: 'MADNESS WHEEL', sub: t.via === 'meter' ? 'BOOST FULL' : `${t.tier + 2} CHECKERED FLAGS`, color: '#ffd84a', car: 'ec', dur: 1900 }); }
   const w = await wheel(t.tier, F, t.via); meters(); let total = w.win; window.__bonusWin = total;
-  if (w.wedge.jp && !w.locked) await jackpotWin(w.wedge.jp, w.win); else if (w.win) await roll('win', disp.win + w.win, 900, true);
+  if (w.wedge.jp && !w.locked) await jackpotWin(w.wedge.jp, w.win); else if (w.win) { if (await bonusWin(w.win, w.locked ? 'LOCKED WEDGE' : w.wedge.label)) { disp.win += w.win; meters(); } else await roll('win', disp.win + w.win, 900, true); }
   if (w.feat) total += await runFeature(w.feat, F);
   return total; }
 async function runFeature(feat, F) {
@@ -273,7 +305,7 @@ async function runFeature(feat, F) {
     await cinematic(Object.assign({ dur: 2000 }, C)); A.music(true);
     try { win = await SC[R.kind](R, env); } finally { A.music(false); }
     win = R.win; window.__bonusWin = (window.__bonusWin || 0) + win;
-    if (win > 0) { const t = M.tier(win, bet()); if (t !== 'win') { await bigWin(win, t, { rally: 'RALLY RACE', offroad: 'S-AWC CHALLENGE', charge: `PHEV CHARGE · ${R.km} km` }[R.kind]); disp.win += win; meters(); } else await roll('win', disp.win + win, 900, true); }
+    if (win > 0) { if (await bonusWin(win, { rally: 'RALLY RACE', offroad: 'S-AWC CHALLENGE', charge: `PHEV CHARGE · ${R.km} km` }[R.kind])) { disp.win += win; meters(); } else await roll('win', disp.win + win, 900, true); }
   }
   return win; }
 // ---------------- Madness Wheel (photo-real: chrome marquee rim + bulbs, lacquered wedges with chrome dividers, rotating alloy hub, chrome pointer) ----------------
@@ -385,7 +417,7 @@ async function freeRound(R, F) {
       if (s.retrig) { total += s.retrig; fxs({ kind: 'retrig' }); A.play('fanfare'); toast(`+${s.retrig} SPINS!`, 1300); hud(i + 1); await sleep(900); }
       await sleep(quick ? 80 : 250); }
   } finally { A.music(false); setModeLook(null); curMode = null; clearWinBanner(); await setRows(3); }
-  if (won > 0) await bigWin(won, M.tier(won, bet()) === 'win' ? 'total' : M.tier(won, bet()), `${M.MODES[R.finalMode].name} TOTAL · ${R.played} SPINS`);
+  if (won > 0) { if (!(await bonusWin(won, `${M.MODES[R.finalMode].name} TOTAL · ${R.played} SPINS`))) await bigWin(won, 'total', `${M.MODES[R.finalMode].name} TOTAL · ${R.played} SPINS`); }
   return won; }
 // ---------------- recovery ----------------
 function recoverScreen() { try { clearCine('recover'); } catch (e) {} clearWinBanner(); for (const id of ['wheelBox', 'splash', 'big']) $(id).classList.add('hidden'); try { SC.close(); } catch (e) {} setModeLook(null); curMode = null; setRows(3, true); $('frame').classList.remove('spinning', 'tease'); A.music(false); reels.setGrid(shown); }
@@ -431,8 +463,9 @@ $('denoms').addEventListener('click', e => { const d = +e.target.dataset.d; if (
 document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => $(b.dataset.close).classList.add('hidden')));
 addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); spin(); } });
 meters();
+if (DEBUG) window.__finaleDemo = async (xb, label) => { busy = true; try { await bonusWin(xb * bet(), label || 'DEMO'); } finally { busy = false; } }; // t141u test hook: play the finale for xb x bet
 window.G = { st, M, spin, insertBill, cashOut, get busy() { return busy; }, get mode() { return curMode; }, setBet: i => { st.bet = i; save(); meters(); }, setDenom: d => { st.denom = d; save(); meters(); }, DENOMS, CPU, recoverScreen, cinematic, reels, drawWheel };
 if (DEBUG) { window.G.force = k => { forceNext = k; }; const d = $('dbg'); d.classList.remove('hidden');
-  d.innerHTML = ['rv5', 'ph5', 'win', 'multi', 'big', 'mega', 'madness', 'wild', 'drift', 'almost', 'meter', 'jackpot', 'boost', 'boost2', 'wheel3', 'wheel4', 'wheel5', 'revup', 'locked', 'turbo', 'nitro', 'madspins', 'gearup', 'rally', 'rally1', 'offroad', 'summit', 'rescue', 'charge', 'full72', 'surge', 'wcharge', 'mini', 'minor', 'major', 'grandwheel'].map(k => `<button data-f="${k}">${k}</button>`).join('');
+  d.innerHTML = ['rv5', 'ph5', 'win', 'multi', 'big', 'mega', 'madness', 'wild', 'drift', 'almost', 'meter', 'jackpot', 'boost', 'boost2', 'almostpl', 'almostbg', 'c10', 'c25', 'wheel3', 'wheel4', 'wheel5', 'revup', 'locked', 'turbo', 'nitro', 'madspins', 'gearup', 'rally', 'rally1', 'offroad', 'summit', 'rescue', 'charge', 'full72', 'surge', 'wcharge', 'mini', 'minor', 'major', 'grandwheel'].map(k => `<button data-f="${k}">${k}</button>`).join('');
   d.addEventListener('click', e => { const k = e.target.dataset.f; if (k) { forceNext = k; toast('next: ' + k, 900); } }); }
 })();

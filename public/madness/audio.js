@@ -31,6 +31,9 @@
     spin() {}, // t140u: the old spin-start clip (reelSpin) was a mechanical ratchet/clack at the start of every spin; stops and lining-up are unchanged
     reelStop(i = 0) { const t = now(); osc('sine', 120 - i * 6, 42, t, .16, .32); osc('square', 180 - i * 12, 60, t, .06, .12); noise(t, .05, .22, 'lowpass', 1600); if (verb) noise(t, .08, .06, 'bandpass', 900, 2, verb); },
     tick() { osc('square', 2400, 0, now(), .02, .04); },
+    rollStart(q = 0) { const t = now(); osc('sawtooth', 70, 260 + q * 60, t, 1.2, .14); },
+    rollTick(u = 0, q = 0, n = 1) { const t = now(), f = 1400 + u * 2200; osc('square', f, 0, t, .05, .06); osc('square', f * 1.5, 0, t + .05, .08, .05); },
+    rollEnd(q = 0) { const t = now(); arp([60, 64, 67, 72, 76, 79, 84, 88], t, .08, .5, .1, 'square'); chord([72, 76, 79, 84], t + .7, 1.4, .1, 'sawtooth'); },
     win(n = 0) { const t = now(); arp([72, 76, 79, 84].map(x => x + (n % 3) * 2), t, .07, .18, .1, 'triangle'); },
     bigWin() { const t = now(); arp([60, 64, 67, 72, 76, 79, 84], t, .09, .4, .12, 'square'); chord([72, 76, 79], t + .7, 1.2, .1, 'sawtooth'); noise(t + .65, .9, .12, 'highpass', 5000); },
     fanfare() { const t = now(); [[67, 0], [67, .12], [67, .24], [72, .4], [76, .7], [79, .9]].forEach(([n, d]) => { osc('sawtooth', N(n), 0, t + d, .3, .1); osc('square', N(n - 12), 0, t + d, .3, .06); }); chord([72, 76, 79, 84], t + 1.1, 1.4, .09, 'sawtooth'); },
@@ -108,6 +111,7 @@
   function smp(n, o = {}) { const b = buf[n]; if (!b) { load(n); return null; } const t = now() + (o.delay || 0), src = ctx.createBufferSource(), g = ctx.createGain();
     src.buffer = b; src.playbackRate.value = o.rate || 1; src.loop = !!o.loop; g.gain.value = (GAIN[n] || 1) * (o.gain == null ? 1 : o.gain); src.connect(g); g.connect(bus()); if (o.verb && verb) { const vs = ctx.createGain(); vs.gain.value = o.verb; g.connect(vs); vs.connect(verb); }
     src.start(t, o.offset || 0); if (o.dur) { g.gain.setValueAtTime(g.gain.value, t + o.dur - .15); g.gain.linearRampToValueAtTime(0, t + o.dur); src.stop(t + o.dur + .05); } diag.samples++; return { src, g }; }
+  let hbT = 0;
   const rnd = (a, b) => a + Math.random() * (b - a); let alt = 0;
   // event -> recorded clips. Return a truthy value when a clip played; otherwise the synth version plays.
   const R = {
@@ -172,6 +176,18 @@
     // t138u 3 BOOST GAUGES: the needle sweeps to FULL - turbo spool, climbing rev, blow-off, exhaust flames (burnout) and a crowd roar
     boostFill: () => { const r = smp('turbo', { gain: 1, rate: 1.1, dur: 1.6 }); smp('rev2', { gain: .9, rate: 1.15, dur: 1.7, delay: .1 }); smp('blowoff', { gain: .9, delay: 1.55 }); smp('burnout', { gain: .6, dur: 1.4, delay: 1.5 }); smp('crowd', { gain: .5, delay: 1.7 });
       if (!r) { const t = now(); osc('sawtooth', 80, 900, t, 1.6, .2); noise(t + 1.5, .5, .35, 'bandpass', 900, 1); } return 1; },
+    // t141u BONUS-WIN FINALE rollup: rollStart = engine spool-up (louder/longer per tier q 0-3); rollTick(u 0..1, q, n) = coin that climbs in pitch+gain as the
+    // total accelerates, a bell every 3rd tick rising a step, rev blips; rollEnd = fanfare + cha-ching + crowd (+ burnout/horn/applause for bigger tiers)
+    rollStart: (q = 0) => { const r = smp('rev2', { gain: .7 + q * .15, rate: .9, dur: 1.4 + q * .5 }); if (q >= 1) smp('turbo', { gain: .5 + q * .15, rate: .9 + q * .04, delay: .1 }); if (q >= 2) smp('launch', { gain: .6, delay: .25 }); return r || 1; },
+    rollTick: (u = 0, q = 0, n = 1) => { const r = smp('coin', { gain: .45 + .5 * u, rate: .9 + u * 1.1 + (n % 4) * .03 });
+      if (n % 3 === 0) smp('chime', { gain: .35 + .25 * u, rate: Math.pow(2, Math.min(24, Math.floor(u * 14) * 1) / 12) });
+      if (n % 7 === 0 && q >= 1) smp('rev', { gain: .35 + .2 * q, rate: .95 + u * .5, dur: .5 }); (diag.rollTicks = (diag.rollTicks || 0) + 1); return r || 1; },
+    rollEnd: (q = 0) => { smp('fanfareBig', { gain: .9 + q * .05 }); smp('chaching', { gain: 1 }); smp('crowd', { gain: .6 + q * .1, delay: .2 }); smp('coins', { gain: 1, delay: .1, dur: 1.2 + q * .6 }); if (q >= 1) smp('cheer', { gain: .7, delay: .35 }); if (q >= 2) { smp('applause', { gain: .8, delay: .6 }); smp('horn', { gain: .6, delay: .15 }); smp('fireworks', { gain: .9, delay: .3 }); } if (q >= 3) { smp('burnout', { gain: .8, delay: .1 }); smp('boom', { gain: .9, delay: .05 }); } diag.rollEnds = (diag.rollEnds || 0) + 1; return 1; },
+    // t142u NEAR MISS: tension heartbeat (thumps that quicken) while the last reel crawls; the near-miss sting = rev-limiter hit, low boom, deflating blow-off
+    heartbeat: (on) => { clearInterval(hbT); hbT = 0; if (!on) return 1; let n = 0, gap = 720; const beat = () => { if (!ctx || muted || n > 14) { if (n > 14) { clearInterval(hbT); hbT = 0; } return; } const t = now(); const g = 1 + Math.min(.6, n * .05);
+        smp('impact', { gain: .55 * g, rate: .55, dur: .22 }) || osc('sine', 70, 38, t, .22, .5); setTimeout(() => smp('impact', { gain: .4 * g, rate: .5, dur: .18 }) || osc('sine', 62, 34, now(), .18, .38), 160); diag.beats = (diag.beats || 0) + 1; n++; clearInterval(hbT); gap = Math.max(380, gap - 40); hbT = setInterval(beat, gap); }; beat(); hbT = setInterval(beat, gap); return 1; },
+    nearMiss: () => { const r = smp('limiter', { gain: 1 }); smp('boom', { gain: .8, rate: .6, delay: .12 }); smp('blowoff', { gain: .9, rate: .8, delay: .3 }); smp('whoosh2', { gain: .5, rate: .7, delay: .05 });
+      if (!r) { const t = now(); osc('sawtooth', 420, 70, t, .9, .2); noise(t + .4, .4, .25, 'lowpass', 900); } diag.nearMiss = (diag.nearMiss || 0) + 1; return 1; },
     // recorded-only events (no synth version)
     passby: (g = 1) => smp(['passby', 'passby2', 'passby3'][Math.floor(Math.random() * 3)], { gain: g }),
     launch: (g = 1) => smp('launch', { gain: g, verb: .15 }),

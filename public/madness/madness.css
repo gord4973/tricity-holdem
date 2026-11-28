@@ -56,6 +56,19 @@ button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulat
 #reels { position: relative; width: 100%; height: var(--reelsH); border-radius: calc(10px * var(--k)); overflow: hidden; background: #05070d; box-shadow: inset 0 0 0 2px #000; }
 #reelCv { width: 100%; height: 100%; display: block; }
 #frame.spinning { box-shadow: 0 0 0 2px #000, 0 0 calc(34px * var(--k)) rgba(255,180,0,.75); }
+/* t142u NEAR MISS: big SO CLOSE! callout over the reels */
+#near { position: fixed; left: 0; right: 0; z-index: 44; transform: translateY(-50%); pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(6px * var(--k)); text-align: center; }
+#near.hidden { display: none; }
+#nearTitle { font: 400 min(calc(70px * var(--k)), calc(var(--appW) * .15)) Russo, sans-serif; color: #fff; background: linear-gradient(#fff7a0, #ffc400 45%, #ff3a1a); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 4px 0 #3a0008) drop-shadow(0 0 22px #ff3048); transform: skewX(-10deg); }
+#nearSyms { display: flex; gap: calc(10px * var(--k)); justify-content: center; } #nearSyms img { width: calc(78px * var(--k)); border-radius: 12px; box-shadow: 0 0 22px #ff3048; animation: nearPulse .32s ease-in-out infinite alternate; } #nearSyms img:nth-child(2) { animation-delay: .16s; }
+#nearSub { font: 800 italic calc(17px * var(--k)) Barlow, sans-serif; color: #fff; background: rgba(120,0,16,.88); border: 1px solid #ff3048; border-radius: 99px; padding: 3px 14px; }
+#near.go #nearTitle { animation: nearSlam .45s cubic-bezier(.2, 1.7, .4, 1) both; } #near.go #nearSyms { animation: nearSlam .5s cubic-bezier(.2, 1.7, .4, 1) both .08s; } #near.go #nearSub { animation: nearSlam .5s ease-out both .2s; }
+#near.go { animation: nearOut 1.6s linear both; }
+@keyframes nearSlam { from { transform: skewX(-10deg) scale(3.2); opacity: 0; } to { transform: skewX(-10deg) scale(1); opacity: 1; } }
+@keyframes nearPulse { from { transform: scale(.92); } to { transform: scale(1.22); } }
+@keyframes nearOut { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
+#frame.nearflash { animation: nearflash .14s steps(2) 11; }
+@keyframes nearflash { 0% { box-shadow: 0 0 0 2px #000, 0 0 calc(30px * var(--k)) rgba(255,40,60,.95), inset 0 0 calc(40px * var(--k)) rgba(255,40,60,.7); } 100% { box-shadow: 0 0 0 2px #000, 0 0 calc(8px * var(--k)) rgba(255,40,60,.2); } }
 #frame.tease { animation: tease .25s infinite alternate; }
 @keyframes tease { to { box-shadow: 0 0 0 2px #000, 0 0 calc(44px * var(--k)) #ff7a00, 0 0 calc(80px * var(--k)) rgba(255,60,0,.6); } }
 #frame.mode-turbo { --modeC: #ff8a00; box-shadow: 0 0 0 2px #000, 0 0 calc(30px * var(--k)) #ff8a00; }
@@ -205,3 +218,25 @@ button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulat
 #wheelMsg b.tapme { display: block; color: #ffd84a; animation: blink 1s steps(2) infinite; } #wheelMsg small { display: block; font: 600 calc(12px * var(--k)) Barlow, sans-serif; opacity: .85; margin-top: 4px; }
 #splashFeats p.how { margin-top: 10px; font: 600 calc(13px * var(--k))/1.35 Barlow, sans-serif; color: #fff; opacity: .9; }
 .sbtn { position: relative; }
+
+/* t141u BONUS-WIN FINALE */
+#big .strobe { display: none; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen; }
+#bigX { position: relative; font: 800 italic calc(24px * var(--k)) Barlow, sans-serif; color: #fff; background: linear-gradient(90deg, #ff3048, #ff8a00); padding: 2px 16px; border-radius: 99px; margin-top: 8px; box-shadow: 0 0 18px #ff5a00; transform: skewX(-8deg); } #bigX:empty { display: none; }
+#big.bonus #bigAmt { font-size: min(calc(76px * var(--k)), calc(var(--appW) * .17)); text-shadow: 0 0 30px #ffb000, 0 0 60px #ff3a1a, 0 4px 0 #000; animation: amtPulse .35s ease-in-out infinite alternate; }
+#big.bonus.q1 #bigAmt { font-size: min(calc(88px * var(--k)), calc(var(--appW) * .2)); }
+#big.bonus.q2 #bigAmt { font-size: min(calc(100px * var(--k)), calc(var(--appW) * .22)); }
+#big.bonus.q3 #bigAmt { font-size: min(calc(112px * var(--k)), calc(var(--appW) * .24)); }
+#big.bonus #bigTitle { font-size: min(calc(64px * var(--k)), calc(var(--appW) * .12)); animation: slam .55s cubic-bezier(.2, 1.6, .4, 1) both, titleGlow .5s ease-in-out infinite alternate; }
+#big.bonus.q2 #bigTitle, #big.bonus.q3 #bigTitle { animation: slam .55s cubic-bezier(.2, 1.6, .4, 1) both, hue 1s linear infinite; }
+#big.bonus .strobe { display: block; background: repeating-linear-gradient(90deg, rgba(255,255,255,.0) 0 24px, rgba(255,230,120,.16) 24px 48px); animation: strobe .22s steps(2) infinite; }
+#big.bonus.q0 .strobe { animation-duration: .5s; } #big.bonus.q3 .strobe { animation-duration: .12s; background: repeating-linear-gradient(90deg, rgba(255,40,60,.0) 0 24px, rgba(255,70,90,.22) 24px 48px); }
+#big.bonus.q1 { animation: bigZoom 6s ease-out both, quake .5s linear infinite; } #big.bonus.q2 { animation: bigZoom 6s ease-out both, quake .35s linear infinite; } #big.bonus.q3 { animation: bigZoom 6s ease-out both, quake .24s linear infinite; }
+#big.bonus.hit #bigAmt { animation: amtHit .4s cubic-bezier(.2, 1.8, .4, 1) both; }
+#big.bonus.landed #bigAmt { animation: amtLand .8s cubic-bezier(.2, 1.8, .4, 1) both; color: #fff6a0; }
+#big.bonus .burst { animation-duration: 5s; background: repeating-conic-gradient(rgba(255,210,90,.18) 0 8deg, transparent 8deg 18deg); }
+@keyframes amtPulse { from { transform: scale(1); } to { transform: scale(1.07); } }
+@keyframes amtHit { from { transform: scale(1.35); } to { transform: scale(1); } }
+@keyframes amtLand { 0% { transform: scale(1.7); } 100% { transform: scale(1.12); } }
+@keyframes titleGlow { from { filter: drop-shadow(0 4px 0 #3a0008) drop-shadow(0 0 14px #ff6a00); } to { filter: drop-shadow(0 4px 0 #3a0008) drop-shadow(0 0 34px #ffd84a); } }
+@keyframes strobe { 0% { opacity: 0; } 50% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes quake { 0% { translate: 0 0; } 25% { translate: 3px -2px; } 50% { translate: -3px 2px; } 75% { translate: 2px 3px; } 100% { translate: 0 0; } }
