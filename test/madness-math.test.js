@@ -2,25 +2,25 @@
 const test = require('node:test'), assert = require('assert'), M = require('../public/madness/math.js');
 const G = cols => cols.map(c => c.map(s => typeof s === 'string' ? { s } : s));
 test('paytable ranks the 7 models by top-trim MSRP; Outlander PHEV is the top prize', () => {
-  assert.deepStrictEqual(M.CARS, ['R7', 'R6', 'EC', 'O6', 'O7', 'EV', 'PH']);
+  assert.deepStrictEqual(M.CARS, ['RV', 'EC', 'OU', 'EV', 'PH']);
   for (let i = 1; i < M.CARS.length; i++) { const a = M.CARS[i - 1], b = M.CARS[i]; assert.ok(M.SYM[b].msrp > M.SYM[a].msrp, `${b} msrp > ${a}`); for (let n = 0; n < 3; n++) assert.ok(M.PAY[b][n] >= M.PAY[a][n], `${b} pays >= ${a} for ${n + 3}`); }
   assert.ok(M.PAY.PH[2] > M.PAY.EV[2] * 2, 'PHEV 5-of-a-kind clearly the top line pay');
   assert.strictEqual(M.JP.grand, 1000); assert.ok(M.JP.grand > M.JP.major && M.JP.major > M.JP.minor && M.JP.minor > M.JP.mini);
 });
 test('243-ways evaluation with wild multipliers', () => {
-  const g = G([['EC', 'R7', 'R6'], ['R6', { s: 'WD', mult: 2 }, 'R7'], ['EC', 'EC', 'O6'], ['R6', 'O6', 'R7'], ['O7', 'O7', 'O7']]);
+  const g = G([['EC', 'RV', 'RV'], ['RV', { s: 'WD', mult: 2 }, 'RV'], ['EC', 'EC', 'OU'], ['RV', 'OU', 'RV'], ['OU', 'OU', 'OU']]);
   const r = M.evalWays(g, 2); const ec = r.ways.find(w => w.s === 'EC');
   assert.ok(ec && ec.len === 3 && ec.ways === 2 && ec.mult === 2, JSON.stringify(ec)); assert.ok(Math.abs(ec.pay - M.PAY.EC[0] * 2 * 4) < 1e-9);
-  const none = M.evalWays(G([['R7', 'R7', 'R7'], ['EC', 'EC', 'EC'], ['R7', 'R7', 'R7'], ['R7', 'R7', 'R7'], ['R7', 'R7', 'R7']]), 1); assert.strictEqual(none.win, 0, 'reel 2 breaks the way');
+  const none = M.evalWays(G([['RV', 'RV', 'RV'], ['EC', 'EC', 'EC'], ['RV', 'RV', 'RV'], ['RV', 'RV', 'RV'], ['RV', 'RV', 'RV']]), 1); assert.strictEqual(none.win, 0, 'reel 2 breaks the way');
 });
 test('five Outlander PHEVs on the centre row = PHEV GRAND (1000x bet)', () => {
   const s = M.spin(3, Math.random, { force: g => { for (let r = 0; r < 5; r++) g[r][1] = { s: 'PH' }; } });
   assert.ok(s.jackpot && s.jackpot.id === 'grand' && s.jackpot.win === 3000); assert.ok(s.win >= 3000);
 });
 test('triggers: 3/4/5 flags -> wheel tier 1/2/3, 3 plugs -> PHEV charge, meter fills', () => {
-  for (const n of [3, 4, 5]) { const s = M.spin(1, Math.random, { force: g => { for (let r = 0; r < 5; r++) for (let y = 0; y < 3; y++) if (/FL|PL/.test(g[r][y].s)) g[r][y] = { s: 'R7' }; for (let r = 0; r < n; r++) g[r][0] = { s: 'FL' }; } }); assert.deepStrictEqual([s.trigger.type, s.trigger.tier], ['wheel', n - 2]); }
-  const c = M.spin(1, Math.random, { force: g => { for (let r = 0; r < 5; r++) for (let y = 0; y < 3; y++) if (/FL|PL/.test(g[r][y].s)) g[r][y] = { s: 'R7' }; for (const r of [0, 2, 4]) g[r][2] = { s: 'PL' }; } }); assert.strictEqual(c.trigger.type, 'charge');
-  const m = { n: M.METER_MAX - 1 }; const s = M.spin(1, Math.random, { meter: m, force: g => { for (let r = 0; r < 5; r++) for (let y = 0; y < 3; y++) if (/FL|PL/.test(g[r][y].s)) g[r][y] = { s: 'R7' }; g[0][0] = { s: 'FL' }; } });
+  for (const n of [3, 4, 5]) { const s = M.spin(1, Math.random, { force: g => { for (let r = 0; r < 5; r++) for (let y = 0; y < 3; y++) if (/FL|PL/.test(g[r][y].s)) g[r][y] = { s: 'RV' }; for (let r = 0; r < n; r++) g[r][0] = { s: 'FL' }; } }); assert.deepStrictEqual([s.trigger.type, s.trigger.tier], ['wheel', n - 2]); }
+  const c = M.spin(1, Math.random, { force: g => { for (let r = 0; r < 5; r++) for (let y = 0; y < 3; y++) if (/FL|PL/.test(g[r][y].s)) g[r][y] = { s: 'RV' }; for (const r of [0, 2, 4]) g[r][2] = { s: 'PL' }; } }); assert.strictEqual(c.trigger.type, 'charge');
+  const m = { n: M.METER_MAX - 1 }; const s = M.spin(1, Math.random, { meter: m, force: g => { for (let r = 0; r < 5; r++) for (let y = 0; y < 3; y++) if (/FL|PL/.test(g[r][y].s)) g[r][y] = { s: 'RV' }; g[0][0] = { s: 'FL' }; } });
   assert.ok(s.meter.full && s.trigger.via === 'meter' && m.n === 0);
 });
 test('reel strips: specials at most once per 3-row window', () => {

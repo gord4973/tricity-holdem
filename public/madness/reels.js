@@ -1,7 +1,7 @@
 // MITSUBISHI MADNESS - canvas reels (5 x 3): wind-back start, motion blur, staggered stops with overshoot, tease (slow, glowing) reels,
 // landing pops for specials, win pulse + dimming, wild multiplier chips, drift-wild reel transform. Purely visual. window.MadReels
 (function () {
-  const CODES = ['R7', 'R6', 'EC', 'O6', 'O7', 'EV', 'PH', 'WD', 'FL', 'PL'], V = '1';
+  const CODES = ['RV', 'EC', 'OU', 'EV', 'PH', 'WD', 'FL', 'PL'], V = '2';
   const img = {}, ready = Promise.all(CODES.map(c => new Promise(r => { const i = new Image(); i.decoding = 'async'; i.onload = i.onerror = () => r(); i.src = `/madness/art/${c}@2x.webp?v=${V}`; img[c] = i; })));
   const SPECIAL = { WD: 1, FL: 1, PL: 1 };
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));

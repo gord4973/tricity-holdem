@@ -1,20 +1,19 @@
 // MITSUBISHI MADNESS - original play-money slot math (UMD: browser window.MadnessMath, Node require()).
-// Base: 5 reels x 3 rows, 243 ways. Symbols are the 7 current Mitsubishi models, paying in order of top-trim MSRP
-// (2027 RVR lowest ... 2026 Outlander PHEV highest = jackpot symbol). Every feature is decided HERE before anything animates,
+// Base: 5 reels x 3 rows, 243 ways. Symbols are the 5 current Mitsubishi models (2026 + 2027 combined, no years), paying in order of
+// top-trim MSRP (RVR lowest ... Outlander PHEV highest = jackpot symbol). Every feature is decided HERE before anything animates,
 // so the cabinet only acts out a result that is already counted in the RTP. All amounts are in CREDITS (1 credit = $1 play money).
 (function (root, factory) { if (typeof module === 'object' && module.exports) module.exports = factory(); else root.MadnessMath = factory(); })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
   // ---- symbols, low -> high (top-trim MSRP, Mitsubishi Canada, Nov 2026) ----
   const SYM = {
-    R7: { name: '2027 RVR', msrp: 35958, kind: 'car' }, R6: { name: '2026 RVR', msrp: 35998, kind: 'car' }, EC: { name: '2026 Eclipse Cross', msrp: 38898, kind: 'car' },
-    O6: { name: '2026 Outlander', msrp: 49748, kind: 'car' }, O7: { name: '2027 Outlander', msrp: 50998, kind: 'car' }, EV: { name: '2027 Eclipse Sportback EV', msrp: 54098, kind: 'car' },
-    PH: { name: '2026 Outlander PHEV', msrp: 63048, kind: 'car' },
+    RV: { name: 'RVR', msrp: 35998, kind: 'car' }, EC: { name: 'Eclipse Cross', msrp: 38898, kind: 'car' }, OU: { name: 'Outlander', msrp: 50998, kind: 'car' },
+    EV: { name: 'Eclipse Sportback EV', msrp: 54098, kind: 'car' }, PH: { name: 'Outlander PHEV', msrp: 63048, kind: 'car' },
     WD: { name: 'Madness Wild', kind: 'wild' }, FL: { name: 'Checkered Flag', kind: 'scatter' }, PL: { name: 'Charge Plug', kind: 'plug' },
   };
-  const CARS = ['R7', 'R6', 'EC', 'O6', 'O7', 'EV', 'PH'];
+  const CARS = ['RV', 'EC', 'OU', 'EV', 'PH'];
   // pay per WAY for 3 / 4 / 5 of a kind, in multiples of the total bet (x PAY_SCALE)
-  const PAY_SCALE = 0.70;
-  const PAY0 = { R7: [0.10, 0.25, 0.60], R6: [0.10, 0.30, 0.70], EC: [0.15, 0.40, 1.00], O6: [0.20, 0.50, 1.50], O7: [0.25, 0.70, 2.00], EV: [0.40, 1.20, 4.00], PH: [0.60, 2.00, 10.0] };
+  const PAY_SCALE = 0.345;
+  const PAY0 = { RV: [0.10, 0.25, 0.60], EC: [0.15, 0.40, 1.00], OU: [0.20, 0.60, 1.60], EV: [0.40, 1.20, 4.00], PH: [0.60, 2.00, 10.0] };
   let PAY = {}; const setScale = k => { PAY = Object.fromEntries(Object.entries(PAY0).map(([s, a]) => [s, a.map(v => v * k)])); api.PAY = PAY; api.PAY_SCALE = k; };
   const BETS = [1, 2, 3, 5, 10]; // credits per spin (243 ways)
   const JP = { mini: 20, minor: 50, major: 200, grand: 1000 }; // x bet: MINI (RVR) / MINOR (ECLIPSE) / MAJOR (OUTLANDER) / GRAND (PHEV)
@@ -46,18 +45,18 @@
   const CHARGE = { max: 72, burst: [[3, 10], [4, 14], [5, 16], [6, 16], [7, 14], [8, 10], [9, 8]], surge: 0.25, regen: 0.10, minKm: 10 };
   // ---- reel strips: fixed counts, fixed shuffle (same machine on every device) ----
   const COUNTS = [
-    { R7: 9, R6: 9, EC: 8, O6: 7, O7: 6, EV: 5, PH: 3, FL: 2, PL: 2 },
-    { R7: 9, R6: 9, EC: 8, O6: 7, O7: 6, EV: 5, PH: 3, FL: 2, WD: 3 },
-    { R7: 9, R6: 9, EC: 8, O6: 7, O7: 6, EV: 5, PH: 3, FL: 2, WD: 3, PL: 2 },
-    { R7: 9, R6: 9, EC: 8, O6: 7, O7: 6, EV: 5, PH: 3, FL: 2, WD: 3 },
-    { R7: 9, R6: 9, EC: 8, O6: 7, O7: 6, EV: 5, PH: 3, FL: 2, PL: 2 },
+    { RV: 20, EC: 12, OU: 8, EV: 4, PH: 3, FL: 2, PL: 2 },
+    { RV: 6, EC: 9, OU: 13, EV: 12, PH: 7, FL: 2, WD: 3 },
+    { RV: 18, EC: 12, OU: 9, EV: 5, PH: 3, FL: 2, WD: 3, PL: 2 },
+    { RV: 8, EC: 10, OU: 12, EV: 10, PH: 7, FL: 2, WD: 3 },
+    { RV: 16, EC: 12, OU: 10, EV: 6, PH: 3, FL: 2, PL: 2 },
   ];
   const FREE_COUNTS = [
-    { R7: 8, R6: 8, EC: 8, O6: 7, O7: 6, EV: 5, PH: 4, FL: 2 },
-    { R7: 8, R6: 8, EC: 8, O6: 7, O7: 6, EV: 5, PH: 4, FL: 2, WD: 4 },
-    { R7: 8, R6: 8, EC: 8, O6: 7, O7: 6, EV: 5, PH: 4, FL: 2, WD: 4 },
-    { R7: 8, R6: 8, EC: 8, O6: 7, O7: 6, EV: 5, PH: 4, FL: 2, WD: 4 },
-    { R7: 8, R6: 8, EC: 8, O6: 7, O7: 6, EV: 5, PH: 4, FL: 2 },
+    { RV: 12, EC: 11, OU: 10, EV: 8, PH: 5, FL: 2 },
+    { RV: 12, EC: 11, OU: 10, EV: 8, PH: 5, FL: 2, WD: 4 },
+    { RV: 12, EC: 11, OU: 10, EV: 8, PH: 5, FL: 2, WD: 4 },
+    { RV: 12, EC: 11, OU: 10, EV: 8, PH: 5, FL: 2, WD: 4 },
+    { RV: 12, EC: 11, OU: 10, EV: 8, PH: 5, FL: 2 },
   ];
   function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
   function buildStrip(counts, seed) {

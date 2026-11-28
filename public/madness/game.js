@@ -80,18 +80,18 @@ setInterval(() => { const el = $('cine'), vis = !el.classList.contains('hidden')
 // ---------------- debug / test forces ----------------
 const WIDX = id => M.WHEEL.findIndex(w => w.id === id);
 function forceOf(kind) {
-  const set = (g, r, y, c) => { g[r][y] = c; }, clean = g => { for (let r = 0; r < 5; r++) for (let y = 0; y < 3; y++) if (/FL|PL/.test(g[r][y].s)) g[r][y] = { s: 'R7' }; };
+  const set = (g, r, y, c) => { g[r][y] = c; }, clean = g => { for (let r = 0; r < 5; r++) for (let y = 0; y < 3; y++) if (/FL|PL/.test(g[r][y].s)) g[r][y] = { s: 'RV' }; };
   const flags = n => g => { clean(g); for (let r = 0; r < n; r++) set(g, r, r % 3, { s: 'FL' }); };
-  const row = (s, n, wild) => g => { clean(g); for (let r = 0; r < 5; r++) for (let y = 0; y < 3; y++) if (g[r][y].s === s) g[r][y] = { s: 'R6' }; for (let r = 0; r < n; r++) set(g, r, 1, { s }); if (wild) set(g, 2, 1, { s: 'WD', mult: wild }); };
+  const row = (s, n, wild) => g => { clean(g); for (let r = 0; r < 5; r++) for (let y = 0; y < 3; y++) if (g[r][y].s === s) g[r][y] = { s: s === 'RV' ? 'EC' : 'RV' }; for (let r = 0; r < n; r++) set(g, r, 1, { s }); if (wild) set(g, 2, 1, { s: 'WD', mult: wild }); };
   const F = { kind };
   const grids = {
     win: row('EC', 3), big: g => { row('EV', 5)(g); set(g, 1, 0, { s: 'EV' }); set(g, 3, 2, { s: 'EV' }); set(g, 2, 1, { s: 'WD', mult: 2 }); },
     mega: g => { row('PH', 5)(g); set(g, 2, 1, { s: 'WD', mult: 3 }); set(g, 0, 0, { s: 'PH' }); set(g, 1, 0, { s: 'PH' }); },
     madness: g => { row('PH', 5)(g); for (const r of [0, 1, 3, 4]) set(g, r, 0, { s: 'PH' }); set(g, 2, 1, { s: 'WD', mult: 3 }); set(g, 2, 0, { s: 'WD', mult: 2 }); },
-    wild: g => { row('O7', 4)(g); set(g, 1, 1, { s: 'WD', mult: 3 }); set(g, 3, 1, { s: 'WD', mult: 2 }); },
+    wild: g => { row('OU', 4)(g); set(g, 1, 1, { s: 'WD', mult: 3 }); set(g, 3, 1, { s: 'WD', mult: 2 }); },
     jackpot: g => { clean(g); for (let r = 0; r < 5; r++) set(g, r, 1, { s: 'PH' }); },
     almost: g => { clean(g); set(g, 0, 0, { s: 'FL' }); set(g, 1, 2, { s: 'FL' }); },
-    drift: g => { clean(g); for (let r = 0; r < 5; r++) for (let y = 0; y < 3; y++) if (g[r][y].s === 'WD' || g[r][y].s === 'O6') g[r][y] = { s: 'R7' }; set(g, 0, 1, { s: 'O6' }); set(g, 1, 0, { s: 'O6' }); set(g, 3, 2, { s: 'O6' }); },
+    drift: g => { clean(g); for (let r = 0; r < 5; r++) for (let y = 0; y < 3; y++) if (g[r][y].s === 'WD' || g[r][y].s === 'OU') g[r][y] = { s: 'RV' }; set(g, 0, 1, { s: 'OU' }); set(g, 1, 0, { s: 'OU' }); set(g, 3, 2, { s: 'OU' }); },
     meter: g => { clean(g); set(g, 0, 1, { s: 'FL' }); },
     charge: g => { clean(g); set(g, 0, 0, { s: 'PL' }); set(g, 2, 1, { s: 'PL' }); set(g, 4, 2, { s: 'PL' }); },
   };
@@ -288,7 +288,7 @@ function showRules() { $('menuBody').innerHTML = `<h3>DRIFT WILD</h3><p>Any spin
   <h3>RALLY RACE</h3><p>Pick one of four cars and watch the race. 1st = 30× (NITRO FINISH doubles it to 60×), 2nd = 15×, 3rd = 8×, 4th = 4× bet.</p>
   <h3>S-AWC CHALLENGE</h3><p>Five trail stages. Each cleared stage pays 2× – 10× bet. Get STUCK and it ends — but S-AWC can rescue you once. Clear all 5 for a 20× SUMMIT bonus.</p>
   <h3>PHEV CHARGE</h3><p>The Outlander PHEV plugs in. Tap to charge in bursts of 3 – 9 km (REGEN BOOST doubles a burst). A POWER SURGE can stop the charge. Every km = 1 credit × bet; a FULL CHARGE is 72 km = 72 credits × bet (exactly 72 credits at bet 1).</p>`; }
-function showAbout() { $('menuBody').innerHTML = `<p><b>MITSUBISHI MADNESS</b> is a play-money game for fun. No real money, no prizes, no cash value. Vehicle names and pictures show the current 2026 – 2027 Mitsubishi line-up; jackpot amounts are play credits, not vehicles.</p><p>Return to player ≈ ${(window.__rtp || 95.5)}% (simulated). Played ${st.played} spins on this device.</p>`; }
+function showAbout() { $('menuBody').innerHTML = `<p><b>MITSUBISHI MADNESS</b> is a play-money game for fun. No real money, no prizes, no cash value. Vehicle names and pictures show the current Mitsubishi line-up; jackpot amounts are play credits, not vehicles.</p><p>Return to player ≈ ${(window.__rtp || 95.5)}% (simulated). Played ${st.played} spins on this device.</p>`; }
 // ---------------- wiring ----------------
 $('spinBtn').addEventListener('click', spin); $('billBtn').addEventListener('click', insertBill); $('cashBtn').addEventListener('click', cashOut);
 $('betUp').addEventListener('click', () => { if (busy) return; st.bet = Math.min(M.BETS.length - 1, st.bet + 1); save(); meters(); A.play('click'); });
