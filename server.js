@@ -12,7 +12,7 @@ const PW = (process.env.HOST_PIN || fs.readFileSync(PWF, 'utf8')).trim();
 const pwOk = pw => typeof pw === 'string' && pw.length === PW.length && crypto.timingSafeEqual(Buffer.from(pw), Buffer.from(PW));
 
 const VER = (process.env.RENDER_GIT_COMMIT || String(Date.now())).slice(0, 10);
-const html = f => { const src = fs.readFileSync(path.join(__dirname, 'public', f), 'utf8').replace(/(href|src)=\/(style\.css|cards\.js|voice\.js|bj\.js|bj\.css|gorilla\/[\w.-]+\.(?:js|css))/g, `$1=/$2?v=${VER}`); return (q, r) => { r.set('Cache-Control', 'no-store, max-age=0'); r.type('html').send(src); }; };
+const html = f => { const src = fs.readFileSync(path.join(__dirname, 'public', f), 'utf8').replace(/(href|src)=\/(style\.css|cards\.js|voice\.js|bj\.js|bj\.css|(?:gorilla|madness)\/[\w.-]+\.(?:js|css))/g, `$1=/$2?v=${VER}`); return (q, r) => { r.set('Cache-Control', 'no-store, max-age=0'); r.type('html').send(src); }; };
 app.use(express.json());
 app.get(['/', '/play', '/j/:pin'], html('play.html'));
 app.get('/host', html('host.html'));
@@ -21,9 +21,14 @@ app.get(['/blackjack', '/blackjack/j/:pin'], html('bj-play.html'));
 app.get('/blackjack/host', html('bj-host.html'));
 // GORILLA play-money slot machine (static, single player)
 app.get(['/gorilla', '/gorilla/'], html('gorilla/index.html'));
+// MITSUBISHI MADNESS play-money slot machine (static, single player)
+app.get(['/madness', '/madness/'], html('madness/index.html'));
+const madLog = []; let madLogN = 0; // client diagnostics from /madness (memory only, last 100)
+app.post('/madness/log', express.json({ limit: '4kb', type: () => true }), (q, r) => { const b = q.body && typeof q.body === 'object' ? q.body : {}; const e = { at: new Date().toISOString() }; for (const [k, v] of Object.entries(b).slice(0, 24)) e[k] = typeof v === 'string' ? v.slice(0, 300) : (typeof v === 'number' || typeof v === 'boolean') ? v : undefined; madLog.push(e); madLogN++; if (madLog.length > 100) madLog.shift(); r.status(204).end(); });
+app.get('/madness/log', (q, r) => { r.set('Cache-Control', 'no-store'); r.json({ total: madLogN, entries: madLog }); });
 app.use('/gorilla/vendor/three', express.static(path.join(__dirname, 'node_modules/three/build'), { maxAge: '7d' }));
 app.get(['/bj', '/bj/'], (q, r) => r.redirect('/blackjack')); app.get('/bj/host', (q, r) => r.redirect('/blackjack/host')); app.get('/bj/j/:pin', (q, r) => r.redirect('/blackjack/j/' + encodeURIComponent(q.params.pin)));
-app.use(express.static(path.join(__dirname, 'public'), { index: false, setHeaders: (r, f) => { r.set('Cache-Control', f.endsWith('.html') ? 'no-store' : /[\\/]gorilla[\\/]media[\\/]v[345][\\/]/.test(f) ? 'public, max-age=2592000, immutable' : 'no-cache'); if (/manifest[^/]*\.json$/.test(f)) r.type('application/manifest+json'); if (f.endsWith('sw.js')) r.set('Service-Worker-Allowed', '/'); } }));
+app.use(express.static(path.join(__dirname, 'public'), { index: false, setHeaders: (r, f) => { r.set('Cache-Control', f.endsWith('.html') ? 'no-store' : /[\\/]gorilla[\\/]media[\\/]v[345][\\/]/.test(f) ? 'public, max-age=2592000, immutable' : /[\\/]madness[\\/](art|fonts)[\\/]/.test(f) ? 'public, max-age=604800' : 'no-cache'); if (/manifest[^/]*\.json$/.test(f)) r.type('application/manifest+json'); if (f.endsWith('sw.js')) r.set('Service-Worker-Allowed', '/'); } }));
 const gorillaLog = []; let gorillaLogN = 0; // client video diagnostics from /gorilla (memory only, last 100)
 app.post('/gorilla/log', express.json({ limit: '4kb', type: () => true }), (q, r) => { const b = q.body && typeof q.body === 'object' ? q.body : {}; const e = { at: new Date().toISOString() }; for (const [k, v] of Object.entries(b).slice(0, 24)) e[k] = typeof v === 'string' ? v.slice(0, 300) : (typeof v === 'number' || typeof v === 'boolean') ? v : undefined; gorillaLog.push(e); gorillaLogN++; if (gorillaLog.length > 100) gorillaLog.shift(); r.status(204).end(); });
 app.get('/gorilla/log', (q, r) => { r.set('Cache-Control', 'no-store'); r.json({ total: gorillaLogN, entries: gorillaLog }); });
