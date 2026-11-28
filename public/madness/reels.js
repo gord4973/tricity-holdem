@@ -8,7 +8,7 @@
   class Reels {
     constructor(cv, o = {}) { this.cv = cv; this.g = cv.getContext('2d'); this.o = o; this.n = 5; this.rows = 3;
       this.reels = [...Array(5)].map(() => ({ list: [], pos: 0, anim: null, pop: {}, tease: false }));
-      this.win = null; this.blur = {}; this.sparks = []; this.flash = 0; this.dim = 0; this.glow = [0, 0, 0, 0, 0]; this.shine = -1; this.nextShine = performance.now() + 3000;
+      this.win = null; this.blur = {}; this.sparks = []; this.flash = 0; this.dim = 0; this.glow = [0, 0, 0, 0, 0]; this.hot = new Map(); this.shine = -1; this.nextShine = performance.now() + 3000;
       this.resize(); ready.then(() => { this.blur = {}; this.dirty = true; });
       const loop = now => { requestAnimationFrame(loop); this.draw(now); }; requestAnimationFrame(loop); }
     resize() { const r = this.cv.getBoundingClientRect(), d = Math.min(devicePixelRatio || 1, 2.5); this.dpr = d; this.W = Math.max(40, r.width); this.H = Math.max(30, r.height);
@@ -16,7 +16,7 @@
     setGrid(grid) { grid.forEach((col, r) => { const R = this.reels[r]; R.list = col.map(c => ({ ...c })); R.pos = 0; R.anim = null; R.pop = {}; }); }
     visible(r) { const R = this.reels[r]; return R.list.slice(Math.round(R.pos), Math.round(R.pos) + 3); }
     // spin to `grid`. o: { fast, tease:[5 bools], onStop(r, cells), onTease(r) }
-    spin(grid, o = {}) { const sp = window.__madSpeed || 1, fast = o.fast || 1; this.clearWin(); this.stopping = false;
+    spin(grid, o = {}) { const sp = window.__madSpeed || 1, fast = o.fast || 1; this.clearWin(); this.hot.clear(); this.stopping = false;
       const ps = [];
       for (let r = 0; r < 5; r++) { const R = this.reels[r], cur = this.visible(r).length === 3 ? this.visible(r) : grid[r], tease = o.tease && o.tease[r];
         const T = ((0.75 + r * 0.24 + (tease ? 1.5 + (r - 3) * .4 : 0)) * fast) * sp * 1000, v = 24, N = Math.max(8, Math.round(v * T / 1000));
@@ -45,6 +45,8 @@
     // win display (t115u): every contributing tile incl. wilds is lit, everything else dimmed, and each way is traced reel-to-reel with a light trail
     setWin(cells, ways) { this.win = { cells, ways: ways || [], t0: performance.now() }; }
     clearWin() { this.win = null; }
+    // t127u: tiles that are 'lining up' into a possible win as the reels stop (n = reels in the chain so far)
+    lineUp(cells, n) { const t = performance.now(); for (const [r, y] of cells) { const k = r + ',' + y; const h = this.hot.get(k); if (!h || h.n < n) this.hot.set(k, { t: h ? h.t : t, n }); if (!h) this.reels[r].pop[y] = t; } this.dirty = true; }
     transformReel(r, cells) { const R = this.reels[r]; R.list = cells.map(c => ({ ...c })); R.pos = 0; const t = performance.now(); [0, 1, 2].forEach(y => R.pop[y] = t + y * 90); this.flash = 1;
       for (let k = 0; k < 40; k++) this.sparks.push({ x: (r + .5) * (this.colW + this.gap), y: Math.random() * this.H, vx: (Math.random() - .5) * 6, vy: (Math.random() - .5) * 6, life: 1, c: Math.random() < .5 ? '#ff3048' : '#ffd84a' }); }
     drawWays(g, now) { const W = this.win, col = { KY: '#c8cce0', TI: '#3fe0cf', RV: '#3fe06a', EC: '#ff9a3a', OU: '#4a8cff', EV: '#22d8ff', PH: '#ffd84a' }, wt = (now - W.t0) / 1000;
@@ -86,6 +88,8 @@
           if (!speed && c.s === 'WD' && c.mult > 1) { const cr = Math.min(w, h) * .23; g.fillStyle = '#ffd84a'; g.strokeStyle = '#7a0010'; g.lineWidth = 2.5; g.beginPath(); g.arc(cx + sw * .34, cy - sh * .3, cr, 0, 7); g.fill(); g.stroke();
             g.fillStyle = '#7a0010'; g.font = `900 ${Math.round(cr * 1.05)}px "Russo One",Impact,sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('×' + c.mult, cx + sw * .34, cy - sh * .29); }
           if (wn) { g.globalAlpha = .85 + .15 * Math.sin((now - this.win.t0) / 120); g.strokeStyle = '#ffe14a'; g.lineWidth = 4; g.shadowColor = '#ffb000'; g.shadowBlur = 18; g.strokeRect(cx - sw / 2 + 2, cy - sh / 2 + 2, sw - 4, sh - 4); g.shadowBlur = 0; }
+          { const hk = !speed && !this.win && this.hot.get(r + ',' + i); if (hk) { const ht = (now - hk.t) / 1000, a = Math.min(1, ht * 6) * (.65 + .35 * Math.sin(ht * 10)), col = ['#7fe8ff', '#7fe8ff', '#7fe8ff', '#ffd84a', '#ff9a2a', '#ff4a3a'][Math.min(5, hk.n)];
+            g.globalAlpha = a; g.strokeStyle = col; g.lineWidth = 2 + hk.n; g.shadowColor = col; g.shadowBlur = 10 + hk.n * 5; g.strokeRect(cx - sw / 2 + 2, cy - sh / 2 + 2, sw - 4, sh - 4); g.shadowBlur = 0; } }
           g.globalAlpha = 1; }
         // glass + depth shading
         const sh2 = g.createLinearGradient(0, 0, 0, this.H); sh2.addColorStop(0, 'rgba(0,0,0,.55)'); sh2.addColorStop(.18, 'rgba(0,0,0,0)'); sh2.addColorStop(.82, 'rgba(0,0,0,0)'); sh2.addColorStop(1, 'rgba(0,0,0,.6)'); g.fillStyle = sh2; g.fillRect(x, 0, this.colW, this.H);

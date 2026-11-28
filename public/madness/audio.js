@@ -1,4 +1,5 @@
-// MITSUBISHI MADNESS - original synthesized sounds (WebAudio, no samples): engines, tyres, turbo, EV whine, charging, sparks, fanfares.
+// MITSUBISHI MADNESS - t120u RECORDED sound layer (CC0 recordings in /madness/sfx, AAC .m4a + .mp3 fallback, credits in madness-notes/audio-credits.md)
+// on top of the original synthesized sounds, which remain the fallback for any clip that has not loaded / decoded yet.
 // window.MadAudio.play(name, ...args); loops: engine() / hum() return handles with .set() / .stop().
 (function () {
   let ctx = null, master = null, muted = localStorage.getItem('madMuteV2') === '1', noiseBuf = null, musicT = null;
@@ -80,6 +81,96 @@
   // bonus music: a driving synth bassline + hats (quiet)
   function music(on) { clearInterval(musicT); musicT = null; if (!on || !ctx || muted) return; let step = 0; const bass = [40, 40, 52, 40, 43, 43, 55, 43, 38, 38, 50, 38, 45, 45, 47, 49];
     musicT = setInterval(() => { if (!ctx || muted) return; const t = now(); osc('sawtooth', N(bass[step % 16]), 0, t, .12, .05); if (step % 2) noise(t, .03, .04, 'highpass', 8000); if (step % 4 === 0) osc('sine', 110, 40, t, .12, .12); step++; }, 125); }
-  window.MadAudio = { init, unlock, music, engine, hum, state: () => ctx ? ctx.state : 'none', play(name, ...a) { if (!ctx || muted) return; try { S[name](...a); diag.plays++; diag.last = name; } catch (e) { console.warn(e); } }, diag, get muted() { return muted; },
-    setMuted(m) { muted = m; localStorage.setItem('madMuteV2', m ? '1' : '0'); if (master) master.gain.value = m ? 0 : .8; if (m) music(false); }, names: Object.keys(S) };
+
+  // ================= t120u recorded samples =================
+  const SFX_V = '1';
+  // per-clip playback gain (clips are peak-normalised; transient / sparse clips get a lift, dense beds are pulled down)
+  const GAIN = { applause: 1, beep: .45, beepGo: .55, bill: 1, blowoff: 1, boom: 1, burnout: .9, chaching: 1.1, cheer: .9, chime: 1, click: .8, coin: .9, coins: 1.2, crowd: .9, drift: 1, engineLoop: .55, engineLoop2: .6,
+    engineStart: 1.2, fanfare: 1, fanfareBig: 1, fireworks: 1.6, gear: 1, gravel: .8, gravelHit: 1, horn: 1, humLoop: .45, impact: .9, launch: 1, limiter: .9, mud: 1.1, passby: .9, passby2: 1.1, passby3: 1, plug: 1.3,
+    powerUp: 1.1, rallyStart: .9, reelSpin: 1, reelStop: 1, reelStopHeavy: .9, rev: 1, rev2: 1, screech: .85, screechShort: .85, spark: 1, sparks: 1.3, surge: 1, tada: 1, tick: .8, ticket: .9, turbo: 1.4, unlock: 1.3, zap: 1, plugIn: 1.1,
+    wheelSpin: 1.3, whoosh: .9, whoosh2: 1 };
+  const ALL = Object.keys(GAIN);
+  // loaded right after the first tap (what a base spin needs); everything else streams in afterwards, a few at a time
+  const CORE = ['reelSpin', 'reelStop', 'reelStopHeavy', 'click', 'tick', 'coin', 'coins', 'whoosh', 'rev', 'rev2', 'screechShort', 'limiter', 'engineLoop', 'chaching', 'drift', 'turbo', 'fanfare', 'crowd', 'fireworks', 'impact', 'whoosh2', 'horn', 'chime', 'spark', 'plug', 'plugIn'];
+  const buf = {}, loading = {}; let sbus = null, preloaded = false;
+  Object.assign(diag, { total: ALL.length, loaded: 0, failed: [], errors: [], fmt: {}, http: {}, samples: 0 });
+  const canAAC = (() => { try { const a = document.createElement('audio'); return !!(a.canPlayType && a.canPlayType('audio/mp4; codecs="mp4a.40.2"').replace(/no/, '')); } catch (e) { return false; } })();
+  function decode(ab) { return new Promise((res, rej) => { try { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); } catch (e) { rej(e); } }); }
+  function load(n) { if (buf[n]) return Promise.resolve(buf[n]); if (loading[n]) return loading[n];
+    return loading[n] = (async () => { for (const ext of (canAAC ? ['m4a', 'mp3'] : ['mp3', 'm4a'])) { try { const r = await fetch(`/madness/sfx/${n}.${ext}?v=${SFX_V}`); diag.http[n + '.' + ext] = r.status; if (!r.ok) continue;
+        const b = await decode(await r.arrayBuffer()); buf[n] = b; diag.loaded++; diag.fmt[n] = ext; return b; } catch (e) { diag.errors.push(n + '.' + ext + ': ' + ((e && e.message) || e)); } }
+      diag.failed.push(n); return null; })(); }
+  async function pool(list, k = 3) { const q = list.slice(); await Promise.all([...Array(k)].map(async () => { while (q.length) await load(q.shift()); })); }
+  function preload() { if (preloaded || !ctx) return; preloaded = true; pool(CORE, 4).then(() => { const rest = ALL.filter(n => !CORE.includes(n)); const go = () => pool(rest, 2); (window.requestIdleCallback || (f => setTimeout(f, 800)))(go); }); }
+  window.MadAudio_loadAll = () => { preloaded = true; return pool(ALL, 4); };
+  function bus() { if (!sbus) { sbus = ctx.createGain(); sbus.gain.value = 1; sbus.connect(master); } return sbus; }
+  // play one clip; returns the node pair, or null (and starts loading it) if it isn't decoded yet
+  function smp(n, o = {}) { const b = buf[n]; if (!b) { load(n); return null; } const t = now() + (o.delay || 0), src = ctx.createBufferSource(), g = ctx.createGain();
+    src.buffer = b; src.playbackRate.value = o.rate || 1; src.loop = !!o.loop; g.gain.value = (GAIN[n] || 1) * (o.gain == null ? 1 : o.gain); src.connect(g); g.connect(bus()); if (o.verb && verb) { const vs = ctx.createGain(); vs.gain.value = o.verb; g.connect(vs); vs.connect(verb); }
+    src.start(t, o.offset || 0); if (o.dur) { g.gain.setValueAtTime(g.gain.value, t + o.dur - .15); g.gain.linearRampToValueAtTime(0, t + o.dur); src.stop(t + o.dur + .05); } diag.samples++; return { src, g }; }
+  const rnd = (a, b) => a + Math.random() * (b - a); let alt = 0;
+  // event -> recorded clips. Return a truthy value when a clip played; otherwise the synth version plays.
+  const R = {
+    click: () => smp('click', { gain: .8 }),
+    spin: () => smp('reelSpin', { gain: .8 }) && (smp('whoosh', { gain: .45 }), 1),
+    reelStop: (i = 0, heavy) => smp(heavy ? 'reelStopHeavy' : 'reelStop', { rate: 1 - i * .03, verb: .15 }),
+    tick: () => smp('tick', { gain: .5, rate: rnd(.95, 1.1) }),
+    win: (n = 0) => { const r = smp('coins', { gain: .8, rate: 1 + (n % 3) * .05 }); if (r) S.win(n); return r; },
+    bigWin: () => smp('chaching', { gain: .9 }) && (smp('crowd', { gain: .8, delay: .3 }), smp('fireworks', { gain: .9, delay: .5 }), smp('burnout', { gain: .55, delay: .1 }), 1),
+    fanfare: () => smp('fanfare') && (smp('cheer', { gain: .5, delay: .4 }), 1),
+    coin: (i = 0) => smp('coin', { gain: .7, rate: 1 + (i % 7) * .04 }),
+    rev: (len = 1.2) => smp(len >= 1.3 ? 'rev' : 'rev2', { rate: rnd(.95, 1.05), verb: .2 }),
+    blowoff: () => smp('blowoff'),
+    screech: (len = .9) => smp(len >= .95 ? 'screech' : 'screechShort', { verb: .2 }),
+    turbo: () => smp('turbo'),
+    whoosh: () => smp((alt++ & 1) ? 'whoosh2' : 'whoosh'),
+    zap: () => smp('zap', { rate: rnd(.85, 1.2) }) && (smp('spark', { gain: .6, rate: rnd(.9, 1.2) }), 1),
+    plug: () => smp('plug') && (smp('powerUp', { gain: .6, delay: .25 }), 1),
+    surge: () => smp('surge'),
+    full: () => smp('chime') && (smp('powerUp', { gain: .6 }), smp('fanfareBig', { gain: .9, delay: .5 }), smp('applause', { gain: .7, delay: .9 }), smp('sparks', { gain: .5, delay: .2 }), 1),
+    flag: (i = 0) => { const r = smp('impact', { gain: .35 + i * .15, rate: 1.3 + i * .15, dur: .6 }); smp('whoosh2', { gain: .35, rate: 1 + i * .08 }); S.flag(i); return r || 1; },
+    tease: () => smp('limiter', { gain: .8 }),
+    lights: (i = 0) => smp(i < 3 ? 'beep' : 'beepGo'),
+    horn: () => smp('horn'),
+    crowd: (len = 2.5) => smp(len > 4 ? 'cheer' : 'crowd', { gain: .8 }),
+    crack: () => smp('impact', { gain: .7 }),
+    unlock: () => { const r = smp('unlock'); if (r) arp([72, 79, 84, 91], now() + .1, .06, .2, .07, 'square'); return r; },
+    wheelTick: () => smp('tick', { gain: .6, rate: 1.15 }),
+    bill: () => smp('bill'),
+    ticket: () => smp('ticket', { gain: .8 }),
+    sparkle: () => { const r = smp('spark', { gain: .35, rate: rnd(1, 1.3) }); S.sparkle(); return r || 1; },
+    mud: () => smp('mud') && (smp('gravelHit', { gain: .5, delay: .1 }), 1),
+    stuck: () => smp('limiter', { gain: .7, rate: .75 }) && (smp('mud', { gain: .6, delay: .3 }), 1),
+    pick: () => { const r = smp('click', { gain: .7 }); S.pick(); return r || 1; },
+    gear: () => smp('gear', { gain: .8 }) && (smp('rev2', { gain: .9, delay: .25 }), smp('turbo', { gain: .9, delay: .9 }), 1),
+    // t127u 'lining up' on a reel stop: revs climb higher and louder with every reel in the chain, plus a rising tone; 5 in a row adds a crowd lift
+    lineUp: (n = 2, rank = 0) => { const k = n - 2; const r = smp('reelStop', { gain: .8, rate: 1.05 + k * .05 }); if (!r) S.reelStop(n - 1); smp('rev2', { gain: .45 + k * .18, rate: .92 + k * .13, dur: .55 + k * .15, offset: .2 });
+      const t = now(); osc('triangle', N(67 + k * 4 + Math.min(rank, 6)), 0, t, .22 + k * .05, .09 + k * .02); osc('sine', N(79 + k * 4), 0, t + .06, .25, .05 + k * .015); if (n >= 4) smp('whoosh2', { gain: .4 }); if (n >= 5) smp('crowd', { gain: .5, dur: 1.4 }); return r || 1; },
+    phLand: (n = 0) => smp('horn', { gain: .45, rate: 1.1 }) && (smp('chime', { gain: .35, rate: 1.2 }), 1),
+    // t129u CHARGE plug lands: connector clunk snapping in + zap/crackle + rising power-up hum; the 2nd and 3rd plug zap harder and hum higher
+    plugLand: (k = 1) => { k = Math.max(1, Math.min(3, k)); const r = smp('plugIn', { gain: .8 + k * .12, rate: 1 + (k - 1) * .09 });
+      if (k >= 2) smp('zap', { gain: .45 + (k - 2) * .3, rate: 1.05 + k * .08, delay: .08 }); if (k >= 3) { smp('sparks', { gain: .55, rate: 1.15, dur: 1.1, delay: .05 }); smp('powerUp', { gain: .6, rate: 1.3, dur: 1.4, delay: .2 }); }
+      if (!r) { const t = now(); osc('square', 180, 60, t, .06, .3); noise(t + .05, .25 + k * .05, .25 + k * .08, 'bandpass', 3200, 2); osc('sawtooth', 90 + k * 30, 260 + k * 120, t + .12, .9, .12 + k * .03); } return 1; },
+    // recorded-only events (no synth version)
+    passby: (g = 1) => smp(['passby', 'passby2', 'passby3'][Math.floor(Math.random() * 3)], { gain: g }),
+    launch: (g = 1) => smp('launch', { gain: g, verb: .15 }),
+    rallyStart: () => smp('rallyStart'),
+    drift: () => smp('drift', { verb: .2 }),
+    burnout: () => smp('burnout'),
+    fireworks: () => smp('fireworks'),
+    boom: () => smp('boom'),
+    engineStart: () => smp('engineStart'),
+    gravel: (dur = 1.5) => smp('gravel', { dur, offset: Math.random() * 3 }) && (smp('gravelHit', { gain: .6 }), 1),
+    wheelSpin: () => smp('wheelSpin'),
+    chaching: () => smp('chaching'),
+  };
+  addEventListener('pointerdown', () => { if (ctx) preload(); }, { passive: true }); addEventListener('touchend', () => { if (ctx) preload(); }, { passive: true }); addEventListener('click', () => { if (ctx) preload(); }, { passive: true });
+  // continuous engine / charging hum: looped recordings (rate follows rpm / charge level), synth fallback until they load
+  const engineSynth = engine, humSynth = hum;
+  function loopHandle(n, base, rate0, rateK, gK) { const v = smp(n, { loop: true, gain: 0, rate: rate0 }); if (!v) return null; const t = now(); v.g.gain.setValueAtTime(0, t); v.g.gain.linearRampToValueAtTime(GAIN[n] * base, t + .25);
+    return { set(x) { const t = now(); v.src.playbackRate.setTargetAtTime(rate0 + x * rateK, t, .08); v.g.gain.setTargetAtTime(GAIN[n] * (base + x * gK), t, .1); }, stop() { if (this.s) return; this.s = 1; const t = now(); v.g.gain.setTargetAtTime(0, t, .12); v.src.stop(t + .8); } }; }
+  engine = function () { if (!ctx || muted) return { set() {}, stop() {} }; return loopHandle('engineLoop', .8, .7, 1.3, .4) || engineSynth(); };
+  hum = function () { if (!ctx || muted) return { set() {}, stop() {} }; return loopHandle('humLoop', .7, .85, .5, .5) || humSynth(); };
+  window.MadAudio = { init, unlock, music, engine, hum, state: () => ctx ? ctx.state : 'none', play(name, ...a) { if (!ctx || muted) return; try { if (!(R[name] && R[name](...a)) && S[name]) S[name](...a); diag.plays++; diag.last = name; (diag.log = diag.log || []).push(name); if (diag.log.length > 80) diag.log.shift(); } catch (e) { console.warn(e); } }, load, preload, loaded: () => Object.keys(buf), sfx: ALL, diag, get muted() { return muted; },
+    setMuted(m) { muted = m; localStorage.setItem('madMuteV2', m ? '1' : '0'); if (master) master.gain.value = m ? 0 : .8; if (m) music(false); }, names: [...new Set([...Object.keys(S), ...Object.keys(R)])] };
 })();

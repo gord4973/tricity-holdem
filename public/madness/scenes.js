@@ -67,13 +67,13 @@
     const others = [1, 2, 3, 4].filter(p => p !== R.place).sort(() => Math.random() - .5); st.places = RACERS.map((_, i) => i === pick ? R.place : others.pop());
     $('sceneSub').textContent = 'GET READY…'; st.phase = 'lights'; A().play('rev', 1.4);
     for (let i = 1; i <= 5; i++) { st.lights = i; A().play('lights', 0); await sleep(380); }
-    await sleep(300); st.lights = 6; A().play('lights', 4); A().play('turbo'); $('sceneSub').textContent = 'GO GO GO!';
+    await sleep(300); st.lights = 6; A().play('lights', 4); A().play('rallyStart'); $('sceneSub').textContent = 'GO GO GO!';
     const eng = A().engine(); st.phase = 'race'; const T = 5200 * sp(), t0 = performance.now(), fin = st.places.map(p => T * (0.86 + p * 0.045)), wob = st.places.map(() => [rnd(.03, .07), rnd(1.5, 3.5), rnd(0, 6)]);
-    st.boost = [0, 0, 0, 0]; A().play('crowd', 5);
+    st.boost = [0, 0, 0, 0]; st.pb = 0; A().play('crowd', 5);
     await new Promise(res => { const step = () => { if (!S.alive) return res(); const t = performance.now() - t0; let all = true;
         for (let i = 0; i < 4; i++) { const u = Math.min(1.08, t / fin[i]), env2 = Math.sin(Math.min(1, u) * Math.PI), w2 = wob[i]; st.prog[i] = u + w2[0] * env2 * Math.sin(u * w2[1] * 6.283 + w2[2]); if (u < 1.06) all = false;
           st.boost[i] = st.places[i] === 1 && u > .7 && u < 1 ? 1 : 0; }
-        eng.set(Math.min(1, .5 + t / T * .5)); if (Math.abs(t - T * .75) < 30 && st.places[pick] === 1) A().play('turbo');
+        eng.set(Math.min(1, .5 + t / T * .5)); if (Math.abs(t - T * .75) < 30 && st.places[pick] === 1) A().play('turbo'); if (!st.pb && t > T * .4) { st.pb = 1; A().play('passby'); }
         if (all || t > T * 1.4) { res(); return; } requestAnimationFrame(step); }; requestAnimationFrame(step); });
     eng.stop(); st.phase = 'done'; st.flash = .9; A().play('screech', .8); A().play('crack');
     const place = R.place; $('sceneSub').textContent = 'PHOTO FINISH';
@@ -110,7 +110,7 @@
     await howTo('S-AWC OFF-ROAD CHALLENGE', ['Drive <b>5 stages</b> to reach the summit.', 'At each stage, <b>tap ONE of the 3 trail buttons</b> at the bottom of the screen.', 'A <b>clear</b> trail pays 2× – 10× bet and you drive on to the next stage.', 'A <b>STUCK</b> trail ends the challenge — but S-AWC can rescue you once.', 'Clear all 5 stages for a <b>20× SUMMIT</b> bonus.']);
     for (let i = 0; i < R.stages.length; i++) { const s = R.stages[i]; st.stage = i; prompt(`STAGE ${i + 1} OF 5 · ${s.terrain}<br><b>👇 TAP ONE OF THE 3 TRAILS BELOW</b>`); st.terrain = s.terrain; $('sceneSub').textContent = `STAGE ${i + 1} OF 5 · ${s.terrain}`;
       const names = TRAILS[s.terrain]; const pick = await choose(names.map(n => ({ html: `${n}<small>${s.terrain}</small>` })), 8000, 'PICK A TRAIL');
-      prompt(`DRIVING THE ${names[pick]}…`); A().play('rev', 1); st.drive = 1; if (s.terrain === 'MUD') A().play('mud'); await sleep(1400); st.drive = 0;
+      prompt(`DRIVING THE ${names[pick]}…`); A().play('rev', 1); A().play('gravel', 1.4); st.drive = 1; if (s.terrain === 'MUD') A().play('mud'); await sleep(1400); st.drive = 0;
       // reveal the other two trails (what they would have been)
       const btns = [...$('sceneBtns').querySelectorAll('button')];
       if (s.stuck || s.rescue) { st.stuck = 1; A().play('stuck'); msg('STUCK!<small>That trail was blocked</small>', '#ff2040'); await sleep(1300); st.stuck = 0; }

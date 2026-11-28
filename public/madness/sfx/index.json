@@ -1,0 +1,523 @@
+{
+"rev": {
+"dur": 2.75,
+"ch": 1,
+"layers": [
+"478756",
+"385935"
+],
+"loop": false,
+"kb": 28.4
+},
+"rev2": {
+"dur": 2.4,
+"ch": 1,
+"layers": [
+"273334"
+],
+"loop": false,
+"kb": 25.1
+},
+"launch": {
+"dur": 3.4,
+"ch": 1,
+"layers": [
+"678961",
+"614627"
+],
+"loop": false,
+"kb": 35.1
+},
+"limiter": {
+"dur": 3.0,
+"ch": 1,
+"layers": [
+"369797"
+],
+"loop": false,
+"kb": 31.2
+},
+"screech": {
+"dur": 2.8,
+"ch": 1,
+"layers": [
+"71739"
+],
+"loop": false,
+"kb": 29.0
+},
+"screechShort": {
+"dur": 1.4,
+"ch": 1,
+"layers": [
+"614627"
+],
+"loop": false,
+"kb": 15.3
+},
+"drift": {
+"dur": 2.0,
+"ch": 1,
+"layers": [
+"76804",
+"478756"
+],
+"loop": false,
+"kb": 21.0
+},
+"burnout": {
+"dur": 3.1,
+"ch": 1,
+"layers": [
+"71740"
+],
+"loop": false,
+"kb": 32.0
+},
+"turbo": {
+"dur": 5.2,
+"ch": 1,
+"layers": [
+"659544"
+],
+"loop": false,
+"kb": 53.0
+},
+"blowoff": {
+"dur": 1.2,
+"ch": 1,
+"layers": [
+"105351",
+"385935"
+],
+"loop": false,
+"kb": 13.2
+},
+"passby": {
+"dur": 7.0,
+"ch": 2,
+"layers": [
+"377133"
+],
+"loop": false,
+"kb": 97.8
+},
+"passby2": {
+"dur": 3.4,
+"ch": 1,
+"layers": [
+"659548"
+],
+"loop": false,
+"kb": 35.1
+},
+"passby3": {
+"dur": 4.2,
+"ch": 1,
+"layers": [
+"462862"
+],
+"loop": false,
+"kb": 42.9
+},
+"rallyStart": {
+"dur": 6.0,
+"ch": 2,
+"layers": [
+"179667"
+],
+"loop": false,
+"kb": 84.3
+},
+"gravel": {
+"dur": 6.0,
+"ch": 1,
+"layers": [
+"251661"
+],
+"loop": true,
+"kb": 61.0
+},
+"gravelHit": {
+"dur": 1.6,
+"ch": 1,
+"layers": [
+"251662"
+],
+"loop": false,
+"kb": 17.0
+},
+"mud": {
+"dur": 1.1,
+"ch": 1,
+"layers": [
+"207139"
+],
+"loop": false,
+"kb": 12.2
+},
+"engineLoop": {
+"dur": 2.35,
+"ch": 1,
+"layers": [
+"269771"
+],
+"loop": true,
+"kb": 24.5
+},
+"engineLoop2": {
+"dur": 2.37,
+"ch": 1,
+"layers": [
+"421001"
+],
+"loop": true,
+"kb": 24.6
+},
+"engineStart": {
+"dur": 3.0,
+"ch": 1,
+"layers": [
+"50898"
+],
+"loop": false,
+"kb": 31.1
+},
+"zap": {
+"dur": 0.75,
+"ch": 1,
+"layers": [
+"136542"
+],
+"loop": false,
+"kb": 8.9
+},
+"spark": {
+"dur": 0.22,
+"ch": 1,
+"layers": [
+"512471",
+"189630"
+],
+"loop": false,
+"kb": 3.5
+},
+"sparks": {
+"dur": 4.0,
+"ch": 1,
+"layers": [
+"396470"
+],
+"loop": false,
+"kb": 42.3
+},
+"humLoop": {
+"dur": 6.0,
+"ch": 1,
+"layers": [
+"72091",
+"351430"
+],
+"loop": true,
+"kb": 60.9
+},
+"powerUp": {
+"dur": 3.2,
+"ch": 1,
+"layers": [
+"262510"
+],
+"loop": false,
+"kb": 33.0
+},
+"plug": {
+"dur": 0.85,
+"ch": 1,
+"layers": [
+"523612",
+"523612"
+],
+"loop": false,
+"kb": 9.8
+},
+"surge": {
+"dur": 4.3,
+"ch": 1,
+"layers": [
+"169994",
+"396470"
+],
+"loop": false,
+"kb": 44.2
+},
+"chime": {
+"dur": 2.7,
+"ch": 1,
+"layers": [
+"717771",
+"116779"
+],
+"loop": false,
+"kb": 9.7
+},
+"crowd": {
+"dur": 5.0,
+"ch": 2,
+"layers": [
+"130568"
+],
+"loop": false,
+"kb": 70.4
+},
+"applause": {
+"dur": 6.0,
+"ch": 2,
+"layers": [
+"160493"
+],
+"loop": false,
+"kb": 84.3
+},
+"cheer": {
+"dur": 7.0,
+"ch": 2,
+"layers": [
+"365132"
+],
+"loop": false,
+"kb": 97.9
+},
+"fanfare": {
+"dur": 3.0,
+"ch": 2,
+"layers": [
+"456966"
+],
+"loop": false,
+"kb": 42.3
+},
+"fanfareBig": {
+"dur": 6.0,
+"ch": 2,
+"layers": [
+"350428"
+],
+"loop": false,
+"kb": 85.1
+},
+"tada": {
+"dur": 1.7,
+"ch": 1,
+"layers": [
+"397355"
+],
+"loop": false,
+"kb": 18.2
+},
+"reelSpin": {
+"dur": 2.0,
+"ch": 1,
+"layers": [
+"415074"
+],
+"loop": false,
+"kb": 21.6
+},
+"reelStop": {
+"dur": 0.6,
+"ch": 1,
+"layers": [
+"94127"
+],
+"loop": false,
+"kb": 7.2
+},
+"reelStopHeavy": {
+"dur": 1.2,
+"ch": 1,
+"layers": [
+"94127",
+"222517"
+],
+"loop": false,
+"kb": 13.1
+},
+"wheelSpin": {
+"dur": 4.2,
+"ch": 1,
+"layers": [
+"752284"
+],
+"loop": false,
+"kb": 44.7
+},
+"tick": {
+"dur": 0.14,
+"ch": 1,
+"layers": [
+"342200"
+],
+"loop": false,
+"kb": 2.5
+},
+"coin": {
+"dur": 0.14,
+"ch": 1,
+"layers": [
+"146723"
+],
+"loop": false,
+"kb": 2.6
+},
+"coins": {
+"dur": 1.9,
+"ch": 1,
+"layers": [
+"17502"
+],
+"loop": false,
+"kb": 20.6
+},
+"chaching": {
+"dur": 2.6,
+"ch": 1,
+"layers": [
+"351304"
+],
+"loop": false,
+"kb": 27.2
+},
+"beep": {
+"dur": 0.45,
+"ch": 1,
+"layers": [
+"368779"
+],
+"loop": false,
+"kb": 5.8
+},
+"beepGo": {
+"dur": 0.5,
+"ch": 1,
+"layers": [
+"368779"
+],
+"loop": false,
+"kb": 6.2
+},
+"whoosh": {
+"dur": 0.43,
+"ch": 1,
+"layers": [
+"60013"
+],
+"loop": false,
+"kb": 5.6
+},
+"whoosh2": {
+"dur": 0.6,
+"ch": 1,
+"layers": [
+"683101"
+],
+"loop": false,
+"kb": 7.2
+},
+"horn": {
+"dur": 0.85,
+"ch": 1,
+"layers": [
+"434878"
+],
+"loop": false,
+"kb": 9.5
+},
+"ticket": {
+"dur": 3.4,
+"ch": 1,
+"layers": [
+"345057"
+],
+"loop": false,
+"kb": 35.0
+},
+"bill": {
+"dur": 1.3,
+"ch": 1,
+"layers": [
+"629324",
+"345057"
+],
+"loop": false,
+"kb": 14.2
+},
+"click": {
+"dur": 0.14,
+"ch": 1,
+"layers": [
+"342200"
+],
+"loop": false,
+"kb": 2.5
+},
+"unlock": {
+"dur": 1.55,
+"ch": 1,
+"layers": [
+"536414",
+"164670"
+],
+"loop": false,
+"kb": 17.0
+},
+"impact": {
+"dur": 2.5,
+"ch": 1,
+"layers": [
+"222517"
+],
+"loop": false,
+"kb": 26.1
+},
+"boom": {
+"dur": 2.2,
+"ch": 1,
+"layers": [
+"244394"
+],
+"loop": false,
+"kb": 23.6
+},
+"fireworks": {
+"dur": 6.5,
+"ch": 2,
+"layers": [
+"505264"
+],
+"loop": false,
+"kb": 90.9
+},
+"gear": {
+"dur": 1.3,
+"ch": 1,
+"layers": [
+"629324"
+],
+"loop": false,
+"kb": 14.1
+},
+"plugIn": {
+"dur": 1.65,
+"ch": 1,
+"layers": [
+"523612",
+"512471",
+"136542",
+"189630",
+"262510",
+"72091"
+],
+"loop": false,
+"kb": 17.7
+}
+}

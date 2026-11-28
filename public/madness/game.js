@@ -55,9 +55,10 @@ function toast(msg, ms = 1800) { const t = $('toast'); t.textContent = msg; t.cl
 function shake() { const m = $('frame'); m.classList.remove('shakeX'); void m.offsetWidth; m.classList.add('shakeX'); }
 // ---------------- bill acceptor & ticket ----------------
 async function insertBill() { if (busy) return; A.init(); busy = true; meters(); const b = $('bill'); b.classList.remove('hidden', 'go'); void b.offsetWidth; b.classList.add('go'); A.play('bill');
-  await sleep(1200); b.classList.add('hidden'); st.cents += 10000; st.inserted += 10000; save(); await roll('cents', st.cents, 1000, true); A.play('coin', 4); A.play('rev', .8); busy = false; meters(); }
+  await sleep(1200); b.classList.add('hidden'); st.cents += 10000; st.inserted += 10000; save(); await roll('cents', st.cents, 1000, true); A.play('coin', 4); A.play('engineStart'); busy = false; meters(); }
 async function cashOut() { if (busy || st.cents <= 0) return; A.init(); busy = true; meters(); const amt = st.cents, no = ++st.ticketNo; st.cents = 0; save();
   const t = $('ticket'); t.innerHTML = `<h4>MITSUBISHI MADNESS</h4><div>CASH-OUT VOUCHER</div><div class=amt>${money(amt)}</div><div>PLAY MONEY · NO CASH VALUE</div><div>${new Date().toLocaleString()}</div><div>TICKET #${no}</div><div class=bc></div><div style="text-align:center;margin-top:4px">tap to take ticket</div>`;
+  { const pr = $('cashWrap').getBoundingClientRect(); t.style.bottom = Math.max(8, innerHeight - pr.top + 10) + 'px'; } // t128u: centred above the panel, fully on screen
   t.classList.remove('hidden'); t.style.animation = 'none'; void t.offsetWidth; t.style.animation = ''; A.play('ticket'); await roll('cents', 0, 1200, false); disp.win = 0; busy = false; meters();
   t.onclick = () => t.classList.add('hidden'); setTimeout(() => t.classList.add('hidden'), 12000); }
 // ---------------- cinematic takeover (guarded) ----------------
@@ -95,6 +96,8 @@ function forceOf(kind) {
     rv5: fix([['KY', 'RV', 'TI'], ['EC', 'RV', 'OU'], ['KY', 'RV', 'TI'], ['EC', 'RV', 'OU'], ['EV', 'RV', 'PH']]),
     rv5w: fix([['KY', 'RV', 'TI'], ['EC', 'RV', 'OU'], ['KY', { s: 'WD', mult: 2 }, 'TI'], ['EC', 'RV', 'OU'], ['EV', 'RV', 'PH']]),
     rv5x2: fix([['KY', 'RV', 'TI'], ['RV', 'RV', 'OU'], ['KY', 'RV', 'TI'], ['EC', 'RV', 'OU'], ['EV', 'RV', 'PH']]),
+    plugs2: fix([['KY', 'PL', 'TI'], ['EC', 'OU', 'EV'], ['KY', 'RV', 'PL'], ['EC', 'OU', 'EV'], ['KY', 'RV', 'TI']]),
+    noline: fix([['KY', 'RV', 'TI'], ['EC', 'OU', 'EV'], ['KY', 'RV', 'TI'], ['EC', 'OU', 'EV'], ['KY', 'RV', 'TI']]),
     ph5: fix([['KY', 'PH', 'TI'], ['EC', 'OU', 'PH'], ['KY', 'PH', 'TI'], ['PH', 'EC', 'OU'], ['EV', 'PH', 'RV']]),
     win: row('EC', 3), big: g => { row('EV', 5)(g); set(g, 1, 0, { s: 'EV' }); set(g, 3, 2, { s: 'EV' }); set(g, 2, 1, { s: 'WD', mult: 2 }); },
     mega: g => { row('PH', 5)(g); set(g, 2, 1, { s: 'WD', mult: 3 }); set(g, 0, 0, { s: 'PH' }); set(g, 1, 0, { s: 'PH' }); },
@@ -163,10 +166,10 @@ async function animateReels(res, mode) {
   if (!mode && pl(0) && pl(2)) tease[4] = true; for (let r = 0; r < 3; r++) tease[r] = false;
   $('frame').classList.add('spinning'); const fast = quick ? .35 : 1; let teased = false; try { SH.spin(); } catch (e) {}
   await reels.spin(grid, { fast, tease,
-    onStop: (r, cells) => { try { SH.reelStop(r, cells); if (cells.some(c => /PH|WD|FL|PL/.test(c.s)) && !quick) shake(); } catch (e) {} A.play('reelStop', r); cells.forEach(c => { if (c.s === 'FL') A.play('flag', r); else if (c.s === 'PL') A.play('plug'); else if (c.s === 'WD') A.play('sparkle'); }); },
+    onStop: (r, cells) => { try { SH.reelStop(r, cells); if (cells.some(c => /PH|WD|FL|PL/.test(c.s)) && !quick) shake(); } catch (e) {} stopSound(r, cells); },
     onTease: () => { $('frame').classList.add('tease'); A.play('tease'); if (!teased) { teased = true; SH.tease(true); } } });
-  if (teased) SH.tease(false); $('frame').classList.remove('spinning', 'tease');
-  if (res.drift) { for (const r of res.drift.reels) { fxs({ kind: 'drift', r }); A.play('screech', 1.1); A.play('rev', 1); const ks = ['ev', 'phev', 'ec', 'rvr', 'out'];
+  if (teased) SH.tease(false); $('frame').classList.remove('spinning', 'tease'); setTimeout(() => reels.hot.clear(), 900);
+  if (res.drift) { for (const r of res.drift.reels) { fxs({ kind: 'drift', r }); A.play('drift'); const ks = ['ev', 'phev', 'ec', 'rvr', 'out'];
       await FX.drift(reels.cellRect(r, 0) && (() => { const a = reels.cellRect(r, 0), b = reels.cellRect(r, 2); return { left: a.left, top: a.top, width: a.width, height: b.top + b.height - a.top }; })(), ks[Math.floor(Math.random() * ks.length)], quick ? 500 : 1300, () => { reels.transformReel(r, res.grid[r]); shake(); A.play('crack'); }); }
     toast('DRIFT WILD!', 1100); }
   if (!mode && !res.trigger && res.flags === 2 && tease.some(Boolean)) { fxs({ kind: 'almost' }); toast('SO CLOSE! 2 FLAGS', 1100); }
@@ -212,6 +215,18 @@ async function resolve(res, mode) {
     await sleep(quick ? 100 : mode ? 300 : 300); }
   else if (n) await sleep(400);
   return win; }
+// t127u reel-stop audio (like Gorilla): each stop that CONTINUES a possible win - a symbol (or wild) on every reel from reel 1 - plays an
+// escalating 'lining up' sound (revs climbing + rising tone per reel) and glows the tiles; flags / plugs / PHEVs / wilds have their own landing
+// sounds; a stop that continues nothing is a plain clunk.
+const lineSt = { cols: [], flags: 0, plugs: 0 }; window.__stopLog = [];
+function stopSound(r, cells) { if (r === 0) { lineSt.cols = []; lineSt.flags = 0; lineSt.plugs = 0; window.__stopLog = []; } lineSt.cols[r] = cells;
+  const live = M.PAYSYMS.filter(s => lineSt.cols.slice(0, r + 1).every(col => col && col.some(c => c.s === s || c.s === 'WD')) && lineSt.cols[0].some(c => c.s === s));
+  const n = live.length ? r + 1 : 0, top = live.length ? live[live.length - 1] : null, heavy = cells.some(c => /PH|WD|FL|PL/.test(c.s)); let kind = 'plain';
+  if (n >= 2) { kind = 'lineUp'; A.play('lineUp', n, M.PAYSYMS.indexOf(top)); const hot = []; for (let k = 0; k <= r; k++) lineSt.cols[k].forEach((c, y) => { if (live.includes(c.s) || c.s === 'WD') hot.push([k, y]); }); try { reels.lineUp(hot, n); } catch (e) {} }
+  else A.play('reelStop', r, heavy);
+  const land = []; cells.forEach(c => { if (c.s === 'FL') { lineSt.flags++; land.push('flag'); A.play('flag', lineSt.flags - 1); } else if (c.s === 'PL') { lineSt.plugs++; land.push('plug'); A.play('plugLand', lineSt.plugs); } else if (c.s === 'WD') { land.push('wild'); A.play('sparkle'); } else if (c.s === 'PH') land.push('ph'); });
+  if (land.includes('ph')) A.play('phLand', n);
+  window.__stopLog.push({ r, kind, n, top, land }); }
 function meterPulse(m) { meters(); if (m.full) { SH.meter(1, true); toast('BOOST FULL!', 1500); A.play('turbo'); } }
 // ---------------- big wins ----------------
 const TIER_TXT = { big: 'BIG WIN', mega: 'MEGA WIN', madness: 'MITSUBISHI MADNESS!', total: 'BONUS TOTAL' };
@@ -222,7 +237,7 @@ function bigWin(amount, tier, sub) { return new Promise(async res => { const b =
   const fin = () => { if (done) return; done = true; b.onclick = null; $('bigAmt').textContent = fmt(amount); setTimeout(() => { b.classList.add('hidden'); res(); }, 350 * SPD()); };
   const step = now => { if (done) return; const u = Math.min(1, (now - t0) / ms); $('bigAmt').textContent = fmt(amount * u); if (Math.random() < .3) A.play('coin', Math.random() * 7 | 0); if (u < 1) requestAnimationFrame(step); else setTimeout(fin, 1300 * SPD()); };
   requestAnimationFrame(step); setTimeout(() => { b.onclick = fin; }, 500); setTimeout(fin, ms + 6000); }); }
-async function jackpotWin(id, amount, how) { fxs({ kind: 'jackpot', id, amount }); await cinematic({ title: M.JP_NAME[id] + '!', sub: 'JACKPOT', color: '#ffc400', car: id === 'grand' ? 'phev' : id === 'major' ? 'out' : id === 'minor' ? 'ec' : 'rvr', dur: 2400 });
+async function jackpotWin(id, amount, how) { fxs({ kind: 'jackpot', id, amount }); A.play('boom'); await cinematic({ title: M.JP_NAME[id] + '!', sub: 'JACKPOT', color: '#ffc400', car: id === 'grand' ? 'phev' : id === 'major' ? 'out' : id === 'minor' ? 'ec' : 'rvr', dur: 2400 });
   await bigWin(amount, amount >= 60 * bet() ? 'madness' : amount >= 25 * bet() ? 'mega' : 'big', M.JP_NAME[id] + ' JACKPOT' + (how ? ' · ' + how : '')); disp.win += amount; meters(); }
 // ---------------- triggers ----------------
 async function trigger(t, F) {
