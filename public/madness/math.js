@@ -9,7 +9,7 @@
     RV: { name: 'RVR', msrp: 35998, kind: 'car' }, EC: { name: 'Eclipse Cross', msrp: 38898, kind: 'car' }, OU: { name: 'Outlander', msrp: 50998, kind: 'car' },
     EV: { name: 'Eclipse Sportback EV', msrp: 54098, kind: 'car' }, PH: { name: 'Outlander PHEV', msrp: 63048, kind: 'car' },
     KY: { name: 'Smart Key', kind: 'low' }, TI: { name: 'Performance Tire', kind: 'low' },
-    WD: { name: 'Madness Wild', kind: 'wild' }, FL: { name: 'Checkered Flag', kind: 'scatter' }, PL: { name: 'Charge Plug', kind: 'plug' },
+    WD: { name: 'Madness Wild', kind: 'wild' }, FL: { name: 'Checkered Flag', kind: 'scatter' }, PL: { name: 'Charge Plug', kind: 'plug' }, BG: { name: 'Boost Gauge', kind: 'boost' }, // t138u
   };
   const CARS = ['RV', 'EC', 'EV', 'OU', 'PH']; // t125u pay order set by Gord: RVR < Eclipse Cross < Sportback EV < Outlander < Outlander PHEV
   const LOWS = ['KY', 'TI'];          // t123u: low "garage" symbols (like card ranks on real 243-ways slots)
@@ -25,13 +25,13 @@
   const BETS = [1, 2, 3, 5, 10]; // credits per spin (243 ways)
   const JP = { mini: 20, minor: 50, major: 200, grand: 1000 }; // x bet: MINI (RVR) / MINOR (ECLIPSE) / MAJOR (OUTLANDER) / GRAND (PHEV)
   const JP_NAME = { mini: 'RVR MINI', minor: 'ECLIPSE MINOR', major: 'OUTLANDER MAJOR', grand: 'PHEV GRAND' };
-  const WILD_MULT = { base: [[1, 82], [2, 13], [3, 5]], turbo: [[1, 30], [2, 40], [3, 20], [5, 8], [10, 2]] };
-  const DRIFT_P = 0.038;            // base: a car drifts across one of reels 2-4 and leaves it fully WILD
-  const FS_DRIFT = { turbo: 0, nitro: 0.38, madness: 0.42 };
+  const WILD_MULT = { base: [[1, 82], [2, 13], [3, 5]], turbo: [[1, 30], [2, 40], [3, 20], [5, 8], [10, 2]], nitro: [[1, 85], [2, 12], [3, 3]] }; // t135u: NITRO plays 5x4 (1,024 ways) - milder wild multipliers + fewer drift reels keep its round value where it was
+  const DRIFT_P = 0.023;            // base: a car drifts across one of reels 2-4 and leaves it fully WILD
+  const FS_DRIFT = { turbo: 0, nitro: 0.10, madness: 0.32 };
   const FS_START = { turbo: 8, nitro: 8, madness: 10 }, FS_RETRIG = 5, FS_MAX = 50, MADNESS_MULT_MAX = 10;
   const GEAR_UP = { turbo: { p: 0.10, to: 'nitro', add: 2 }, nitro: { p: 0.08, to: 'madness', add: 2 } }; // mid-round upgrade, once per round
-  const MODES = { turbo: { name: 'TURBO SPINS', wildMult: true, drift: 0, prog: false }, nitro: { name: 'NITRO SPINS', wildMult: true, drift: FS_DRIFT.nitro, prog: false }, madness: { name: 'MADNESS SPINS', wildMult: true, drift: FS_DRIFT.madness, prog: true } };
-  const METER_MAX = 150;            // Madness Meter: every flag that lands without a trigger adds a notch; full = guaranteed wheel
+  const MODES = { turbo: { name: 'TURBO SPINS', wildMult: true, drift: 0, prog: false }, nitro: { name: 'NITRO SPINS', wildMult: true, drift: FS_DRIFT.nitro, prog: false, rows: 4 }, madness: { name: 'MADNESS SPINS', wildMult: true, drift: FS_DRIFT.madness, prog: true } };
+  const METER_MAX = 220;            // Madness Meter: every flag that lands without a trigger adds a notch; full = guaranteed wheel
   const GRAND_ROW = 1;              // 5 Outlander PHEVs on the centre row = PHEV GRAND jackpot
   // ---- Madness Wheel: 12 wedges, index 0 at the top, clockwise ----
   const WHEEL = [
@@ -41,6 +41,7 @@
     { id: 'c25', label: '25× BET', x: 25, w: 6 }, { id: 'madness', label: 'MADNESS SPINS', feat: 'madness', w: 4 }, { id: 'minor', label: 'ECLIPSE MINOR', jp: 'minor', w: 3 },
   ];
   const LOCKS = { 1: ['grand', 'major', 'madness'], 2: ['grand'], 3: [] }; // locked wedges by flag tier (3 / 4 / 5 flags)
+  const BOOST_TIER = 3; // t138u: the BOOST bonus = Madness Wheel with no locks
   const LOCK_X = 5, REV_UP = { 1: 0.16, 2: 0.10 };                       // locked wedge pays 5x; REV UP (engine roar) breaks the locks: tier + 1
   // ---- Rally Race: you pick a car, it finishes 1st-4th ----
   const RALLY = [[1, 30, 18], [2, 15, 30], [3, 8, 32], [4, 4, 20]]; // [place, x bet, weight]
@@ -54,11 +55,14 @@
   // 100-stop strips; specials: flags 4/100, plugs 4/100 on reels 1/3/5, wilds 4/100 on reels 2-4.
   // t125u: strips alternate which symbols are common (reels 1/3/5 vs 2/4) so matches across adjacent reels are rarer - fewer ways hit, each pays
   // a real multiple of the bet (RTP ~95%, a win or feature on ~1 in 4 spins).
+  // t138u: BOOST GAUGE scatter on reels 2-4 (BGN per 100 stops, in place of smart keys); 3 anywhere = BOOST: the gauge fills and the
+  // BOOSTED Madness Wheel spins with every lock off. The flag meter (fills to 100% = wheel) still works as before.
+  const BGN = 4;
   const COUNTS = [
     { KY: 5, TI: 28, RV: 3, EC: 20, EV: 30, OU: 3, PH: 3, FL: 4, PL: 4 },
-    { KY: 23, TI: 4, RV: 20, EC: 3, EV: 3, OU: 22, PH: 17, FL: 4, WD: 4 },
-    { KY: 22, TI: 22, RV: 22, EC: 13, EV: 3, OU: 3, PH: 3, FL: 4, WD: 4, PL: 4 },
-    { KY: 22, TI: 3, RV: 20, EC: 3, EV: 10, OU: 22, PH: 12, FL: 4, WD: 4 },
+    { KY: 23 - BGN, TI: 4, RV: 20, EC: 3, EV: 3, OU: 22, PH: 17, FL: 4, WD: 4, BG: BGN },
+    { KY: 22 - BGN, TI: 22, RV: 22, EC: 13, EV: 3, OU: 3, PH: 3, FL: 4, WD: 4, PL: 4, BG: BGN },
+    { KY: 22 - BGN, TI: 3, RV: 20, EC: 3, EV: 10, OU: 22, PH: 12, FL: 4, WD: 4, BG: BGN },
     { KY: 22, TI: 22, RV: 19, EC: 20, EV: 3, OU: 3, PH: 3, FL: 4, PL: 4 },
   ];
   const FREE_COUNTS = [
@@ -73,7 +77,7 @@
     const r = mulberry32(seed), s = []; for (const k in counts) for (let i = 0; i < counts[k]; i++) s.push(k);
     for (let i = s.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [s[i], s[j]] = [s[j], s[i]]; }
     // specials (flag / plug / wild) never within 2 stops of the same special: at most one per reel window
-    for (let pass = 0; pass < 80; pass++) { let moved = false; for (let i = 0; i < s.length; i++) for (const k of ['FL', 'PL', 'WD']) if (s[i] === k) for (let d = 1; d <= 2; d++) { const j = (i + d) % s.length; if (s[j] === k) { const m = (j + 5 + Math.floor(r() * (s.length - 7))) % s.length; [s[j], s[m]] = [s[m], s[j]]; moved = true; } } if (!moved) break; }
+    for (let pass = 0; pass < 80; pass++) { let moved = false; for (let i = 0; i < s.length; i++) for (const k of ['FL', 'PL', 'WD', 'BG']) if (s[i] === k) for (let d = 1; d <= 2; d++) { const j = (i + d) % s.length; if (s[j] === k) { const m = (j + 5 + Math.floor(r() * (s.length - 7))) % s.length; [s[j], s[m]] = [s[m], s[j]]; moved = true; } } if (!moved) break; }
     return s;
   }
   const STRIPS = COUNTS.map((c, i) => buildStrip(c, 7272 + i * 101));
@@ -95,33 +99,41 @@
   const count = (grid, s) => grid.reduce((a, col) => a + col.filter(c => c.s === s).length, 0);
   // ---- one spin ----
   // opts: mode ('turbo'|'nitro'|'madness' = free spin), meter {n}, force(grid) debug override, forceDrift (reel), noDrift, forceTrigger, noTrigger, progMult
+  const rowsOf = mode => (mode && MODES[mode] && MODES[mode].rows) || 3;
   function spin(bet, rng, opts = {}) {
-    const mode = opts.mode || null, free = !!mode, strips = free ? FREE_STRIPS : STRIPS, grid = [], stops = [];
-    for (let r = 0; r < 5; r++) { const L = strips[r].length, st = Math.floor(rng() * L); stops.push(st); grid.push([0, 1, 2].map(y => ({ s: strips[r][(st + y) % L] }))); }
+    const mode = opts.mode || null, free = !!mode, strips = free ? FREE_STRIPS : STRIPS, grid = [], stops = [], rows = rowsOf(mode); // t135u: NITRO = 5x4 (1,024 ways)
+    for (let r = 0; r < 5; r++) { const L = strips[r].length, st = Math.floor(rng() * L); stops.push(st); grid.push([...Array(rows).keys()].map(y => ({ s: strips[r][(st + y) % L] }))); }
     if (opts.force) opts.force(grid);
-    const wtab = free ? WILD_MULT.turbo : WILD_MULT.base;
+    const wtab = free ? (WILD_MULT[mode] || WILD_MULT.turbo) : WILD_MULT.base;
     for (const col of grid) for (const c of col) if (c.s === 'WD' && c.mult == null) c.mult = pickV(rng, wtab);
-    // DRIFT WILD: a car drifts across one (free spins: up to two) of reels 2-4; the reel turns fully wild before the ways are counted
-    let drift = null; const pre = grid.map(col => col.map(c => ({ ...c })));
+    // DRIFT WILD: a car drifts across one (free spins: up to two) of reels 2-4; the reel turns fully wild before the ways are counted.
+    // t137u: a drift wild ALWAYS pays - the drift reel is re-picked among reels 2-4 and, if no choice connects a way from reel 1, the reels are re-spun
+    // (fresh strip stops) until the wild reel completes at least one 3+ way. RTP is rebalanced through DRIFT_P / FS_DRIFT.
+    let drift = null, pre = null;
     const dp = free ? MODES[mode].drift : DRIFT_P;
     if (opts.forceDrift != null || (!opts.noDrift && !opts.force && rng() < dp)) {
-      const reelsD = []; const first = opts.forceDrift != null ? opts.forceDrift : 1 + Math.floor(rng() * 3); reelsD.push(first);
-      if (free && opts.forceDrift == null && rng() < 0.25) { const o = [1, 2, 3].filter(r => r !== first); reelsD.push(o[Math.floor(rng() * 2)]); }
-      for (const r of reelsD) grid[r] = [0, 1, 2].map(() => ({ s: 'WD', mult: 1, drift: true }));
-      drift = { reels: reelsD };
+      const two = free && opts.forceDrift == null && rng() < 0.25;
+      for (let a = 0; a < 200; a++) {
+        if (a > 0 && !opts.force) { for (let r = 0; r < 5; r++) { const L = strips[r].length, st = Math.floor(rng() * L); stops[r] = st; grid[r] = [...Array(rows).keys()].map(y => { const c = { s: strips[r][(st + y) % L] }; if (c.s === 'WD') c.mult = pickV(rng, wtab); return c; }); } }
+        const firsts = opts.forceDrift != null ? [opts.forceDrift] : [1, 2, 3].sort(() => rng() - .5); let hit = null;
+        for (const first of firsts) { const reelsD = [first]; if (two) { const o = [1, 2, 3].filter(r => r !== first); reelsD.push(o[Math.floor(rng() * 2)]); }
+          const g = grid.map((col, r) => reelsD.includes(r) ? [...Array(rows).keys()].map(() => ({ s: 'WD', mult: 1, drift: true })) : col);
+          const w = evalWays(g, bet).win; if ((w > 0 || a === 199 || opts.force) && (!hit || w < hit.w)) hit = { reelsD, g, w }; }
+        if (hit) { pre = grid.map(col => col.map(c => ({ ...c }))); hit.reelsD.forEach(r => { grid[r] = hit.g[r]; }); drift = { reels: hit.reelsD, tries: a + 1 }; break; }
+      }
     }
     let { ways, win } = evalWays(grid, bet);
     const prog = opts.progMult || 1; if (prog > 1) { ways.forEach(w => { w.pay *= prog; }); win *= prog; }
     // PHEV GRAND: five Outlander PHEVs on the centre row (no wilds)
     let jackpot = null; if (!free && grid.every(col => col[GRAND_ROW].s === 'PH')) { jackpot = { id: 'grand', win: JP.grand * bet }; win += jackpot.win; }
-    const flags = count(grid, 'FL'), plugs = count(grid, 'PL');
+    const flags = count(grid, 'FL'), plugs = count(grid, 'PL'), boosts = count(grid, 'BG');
     let trigger = null;
     if (!free) {
       if (opts.forceTrigger) trigger = opts.forceTrigger;
-      else if (!opts.noTrigger) { if (flags >= 3) trigger = { type: 'wheel', tier: Math.min(3, flags - 2), via: 'flags' }; else if (plugs >= 3) trigger = { type: 'charge', via: 'plugs' }; }
+      else if (!opts.noTrigger) { if (boosts >= 3) trigger = { type: 'wheel', tier: BOOST_TIER, via: 'boost' }; else if (flags >= 3) trigger = { type: 'wheel', tier: Math.min(3, flags - 2), via: 'flags' }; else if (plugs >= 3) trigger = { type: 'charge', via: 'plugs' }; }
       const m = opts.meter; let meter = null;
       if (m) { if (!trigger && flags) { m.n = Math.min(METER_MAX, m.n + flags); meter = { add: flags, n: m.n }; if (m.n >= METER_MAX) { m.n = 0; trigger = { type: 'wheel', tier: 1, via: 'meter' }; meter.full = true; } } }
-      return { grid, pre: drift ? pre : null, stops, ways, win, flags, plugs, drift, jackpot, trigger, meter, mode: null };
+      return { grid, pre: drift ? pre : null, stops, ways, win, flags, plugs, boosts, drift, jackpot, trigger, meter, mode: null };
     }
     const retrig = flags >= 3 ? FS_RETRIG : 0;
     return { grid, pre: drift ? pre : null, stops, ways, win, flags, plugs, drift, jackpot: null, retrig, mode, prog };
@@ -199,21 +211,21 @@
   const tier = (win, bet) => win >= 60 * bet ? 'madness' : win >= 25 * bet ? 'mega' : win >= 10 * bet ? 'big' : win > 0 ? 'win' : '';
   function simulate(n, rng = cryptoRng(), bet = 1) {
     const st = { meter: { n: 0 } }, B = { ways: 0, drift: 0, grand5: 0, wheelCredit: 0, wheelLocked: 0, jackpot: 0, turbo: 0, nitro: 0, madness: 0, rally: 0, offroad: 0, charge: 0 };
-    let won = 0, hits = 0, sq = 0, maxX = 0, wheels = 0, charges = 0, viaMeter = 0, drifts = 0, full72 = 0, revUps = 0, gearUps = 0, fsRounds = 0, fsSpins = 0, kmSum = 0;
+    let won = 0, hits = 0, sq = 0, maxX = 0, wheels = 0, charges = 0, viaMeter = 0, viaBoost = 0, drifts = 0, full72 = 0, revUps = 0, gearUps = 0, fsRounds = 0, fsSpins = 0, kmSum = 0;
     const tiers = { big: 0, mega: 0, madness: 0 }, feats = {};
     for (let i = 0; i < n; i++) { const p = play(bet, rng, st), s = p.spin; won += p.total; const x = p.total / bet; sq += x * x; if (x > maxX) maxX = x; if (p.total > 0) hits++;
       if (s.drift) { drifts++; B.drift += s.win - (s.jackpot ? s.jackpot.win : 0); } else B.ways += s.win - (s.jackpot ? s.jackpot.win : 0); if (s.jackpot) B.grand5 += s.jackpot.win;
-      if (s.trigger && s.trigger.via === 'meter') viaMeter++;
+      if (s.trigger && s.trigger.via === 'meter') viaMeter++; if (s.trigger && s.trigger.via === 'boost') viaBoost++;
       if (p.wheel) { wheels++; if (p.wheel.revUp) revUps++; if (p.wheel.locked) B.wheelLocked += p.wheel.win; else if (p.wheel.wedge.jp) B.jackpot += p.wheel.win; else B.wheelCredit += p.wheel.win; }
       if (p.f) { const k = p.f.kind === 'spins' ? p.f.mode : p.f.kind; feats[k] = (feats[k] || 0) + 1; B[k] += p.f.win;
         if (p.f.kind === 'charge') { charges++; kmSum += p.f.km; if (p.f.full) full72++; }
         if (p.f.kind === 'spins') { fsRounds++; fsSpins += p.f.played; if (p.f.gearUp) gearUps++; } }
       const t = tier(p.total, bet); if (tiers[t] != null) tiers[t]++; }
     const T = n * bet, rtp = won / T, share = {}; for (const k in B) share[k] = +(B[k] / T).toFixed(4);
-    return { spins: n, rtp, hitRate: hits / n, sd: Math.sqrt(sq / n - rtp * rtp), maxX, wheelEvery: n / wheels, chargeEvery: n / charges, meterEvery: viaMeter ? n / viaMeter : null, driftEvery: n / drifts,
+    return { spins: n, rtp, hitRate: hits / n, sd: Math.sqrt(sq / n - rtp * rtp), maxX, wheelEvery: n / wheels, chargeEvery: n / charges, meterEvery: viaMeter ? n / viaMeter : null, boostEvery: viaBoost ? n / viaBoost : null, driftEvery: n / drifts,
       avgKm: kmSum / charges, fullChargeRate: full72 / charges, revUpRate: revUps / wheels, gearUpRate: fsRounds ? gearUps / fsRounds : 0, avgFreeSpins: fsSpins / fsRounds, share, tiers, feats };
   }
-  const api = { SYM, CARS, LOWS, PAYSYMS, PAYC, BASE_CR, PAY, wayPay, BETS, JP, JP_NAME, WILD_MULT, DRIFT_P, FS_START, FS_RETRIG, FS_MAX, GEAR_UP, MODES, METER_MAX, WHEEL, LOCKS, LOCK_X, REV_UP, RALLY, NITRO_FINISH, OFFROAD, TERRAIN, CHARGE, COUNTS, FREE_COUNTS, STRIPS, FREE_STRIPS,
-    evalWays, spin, spinWheel, bonusRound, rally, offroad, charge, feature, play, tier, simulate, mulberry32, cryptoRng, buildStrip };
+  const api = { BGN, BOOST_TIER, SYM, CARS, LOWS, PAYSYMS, PAYC, BASE_CR, PAY, wayPay, BETS, JP, JP_NAME, WILD_MULT, DRIFT_P, FS_START, FS_RETRIG, FS_MAX, GEAR_UP, MODES, METER_MAX, WHEEL, LOCKS, LOCK_X, REV_UP, RALLY, NITRO_FINISH, OFFROAD, TERRAIN, CHARGE, COUNTS, FREE_COUNTS, STRIPS, FREE_STRIPS,
+    evalWays, rowsOf, spin, spinWheel, bonusRound, rally, offroad, charge, feature, play, tier, simulate, mulberry32, cryptoRng, buildStrip };
   return api;
 });

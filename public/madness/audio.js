@@ -165,6 +165,13 @@
     plugLand: (k = 1) => { k = Math.max(1, Math.min(3, k)); const r = smp('plugIn', { gain: .8 + k * .12, rate: 1 + (k - 1) * .09 });
       if (k >= 2) smp('zap', { gain: .45 + (k - 2) * .3, rate: 1.05 + k * .08, delay: .08 }); if (k >= 3) { smp('sparks', { gain: .55, rate: 1.15, dur: 1.1, delay: .05 }); smp('powerUp', { gain: .6, rate: 1.3, dur: 1.4, delay: .2 }); }
       if (!r) { const t = now(); osc('square', 180, 60, t, .06, .3); noise(t + .05, .25 + k * .05, .25 + k * .08, 'bandpass', 3200, 2); osc('sawtooth', 90 + k * 30, 260 + k * 120, t + .12, .9, .12 + k * .03); } return 1; },
+    // t138u BOOST GAUGE lands: turbo spool + blow-off chirp, higher and harder on the 2nd; the 3rd adds a rev and a launch
+    boostLand: (k = 1) => { k = Math.max(1, Math.min(3, k)); const r = smp('turbo', { gain: .55 + k * .15, rate: .95 + (k - 1) * .14, dur: .9 });
+      smp('blowoff', { gain: .45 + k * .15, rate: 1 + (k - 1) * .1, delay: .35 }); smp('chime', { gain: .3 + k * .1, rate: Math.pow(2, (k * 4) / 12), delay: .05 }); if (k >= 2) smp('rev2', { gain: .35 + (k - 2) * .3, rate: 1 + k * .06, dur: 1, delay: .1 }); if (k >= 3) smp('launch', { gain: .7, delay: .3 });
+      if (!r) { const t = now(); osc('sawtooth', 300 + k * 120, 1400 + k * 300, t, .5, .12 + k * .03); noise(t + .4, .2, .2, 'highpass', 2500); } return 1; },
+    // t138u 3 BOOST GAUGES: the needle sweeps to FULL - turbo spool, climbing rev, blow-off, exhaust flames (burnout) and a crowd roar
+    boostFill: () => { const r = smp('turbo', { gain: 1, rate: 1.1, dur: 1.6 }); smp('rev2', { gain: .9, rate: 1.15, dur: 1.7, delay: .1 }); smp('blowoff', { gain: .9, delay: 1.55 }); smp('burnout', { gain: .6, dur: 1.4, delay: 1.5 }); smp('crowd', { gain: .5, delay: 1.7 });
+      if (!r) { const t = now(); osc('sawtooth', 80, 900, t, 1.6, .2); noise(t + 1.5, .5, .35, 'bandpass', 900, 1); } return 1; },
     // recorded-only events (no synth version)
     passby: (g = 1) => smp(['passby', 'passby2', 'passby3'][Math.floor(Math.random() * 3)], { gain: g }),
     launch: (g = 1) => smp('launch', { gain: g, verb: .15 }),

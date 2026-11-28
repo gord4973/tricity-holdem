@@ -32,11 +32,12 @@ let shown = [0, 1, 2, 3, 4].map(r => [0, 1, 2].map(y => ({ s: M.STRIPS[r][(r * 5
 reels.setGrid(shown);
 FX.stageInit($('stage')); FX.pauseStage(true); FX.fxInit($('fx')); const SH = window.MadShow; SH.init($('showCv'));
 // ---------------- layout (portrait cabinet) ----------------
+let rowsVis = 3;
 function layout() {
   const vw = innerWidth, vh = innerHeight, land = vw > vh * 1.05, coarse = matchMedia('(pointer: coarse)').matches; document.body.classList.toggle('rotate', land && coarse);
   const app = $('app'), W = Math.min(vw, Math.round(vh * .78)), H = vh, k = Math.max(.8, Math.min(2.0, Math.min(W / 390, H / 844))), wide = W / H > .62;
   const fw = Math.round(wide ? W * .92 : W - 2 * Math.round(5 * k)), pad = Math.round(7 * k), rw = fw - 2 * pad, gap = Math.max(2, rw * .008), colW = (rw - 4 * gap) / 5;
-  let reelsH = Math.round(3 * colW / 1.25);
+  let reelsH = Math.round(rowsVis * colW / 1.25); layout.colW = colW; // t135u: rowsVis = 3, or 4 in NITRO (animated in between)
   const v = { '--appW': W + 'px', '--k': k.toFixed(3), '--fw': fw + 'px', '--pad': pad + 'px', '--reelsH': reelsH + 'px' };
   for (const n in v) app.style.setProperty(n, v[n]); app.classList.toggle('wide', wide);
   requestAnimationFrame(() => { reels.resize(); const a = app.getBoundingClientRect(), f = $('frame').getBoundingClientRect(); FX.setRoad(f.top - a.top - 47 * k, k); app.style.setProperty('--frameTop', (f.top - a.top) + 'px'); app.style.setProperty('--showH', Math.round(f.top - a.top + 6) + 'px'); });
@@ -86,7 +87,7 @@ setInterval(() => { const el = $('cine'), vis = !el.classList.contains('hidden')
 // ---------------- debug / test forces ----------------
 const WIDX = id => M.WHEEL.findIndex(w => w.id === id);
 function forceOf(kind) {
-  const set = (g, r, y, c) => { g[r][y] = c; }, clean = g => { for (let r = 0; r < 5; r++) for (let y = 0; y < 3; y++) if (/FL|PL/.test(g[r][y].s)) g[r][y] = { s: 'RV' }; };
+  const set = (g, r, y, c) => { g[r][y] = c; }, clean = g => { for (let r = 0; r < 5; r++) for (let y = 0; y < 3; y++) if (/FL|PL|BG/.test(g[r][y].s)) g[r][y] = { s: 'RV' }; };
   const flags = n => g => { clean(g); for (let r = 0; r < n; r++) set(g, r, r % 3, { s: 'FL' }); };
   const row = (s, n, wild) => g => { clean(g); for (let r = 0; r < 5; r++) for (let y = 0; y < 3; y++) if (g[r][y].s === s) g[r][y] = { s: s === 'RV' ? 'EC' : 'RV' }; for (let r = 0; r < n; r++) set(g, r, 1, { s }); if (wild) set(g, 2, 1, { s: 'WD', mult: wild }); };
   const F = { kind };
@@ -109,6 +110,8 @@ function forceOf(kind) {
     drift: g => { clean(g); for (let r = 0; r < 5; r++) for (let y = 0; y < 3; y++) if (g[r][y].s === 'WD' || g[r][y].s === 'OU') g[r][y] = { s: 'RV' }; set(g, 0, 1, { s: 'OU' }); set(g, 1, 0, { s: 'OU' }); set(g, 3, 2, { s: 'OU' }); },
     meter: g => { clean(g); set(g, 0, 1, { s: 'FL' }); },
     multi: g => { for (let r = 0; r < 5; r++) g[r] = r < 3 ? [{ s: 'RV' }, { s: 'EC' }, { s: 'OU' }] : r === 3 ? [{ s: 'EV' }, { s: 'PH' }, { s: 'EV' }] : [{ s: 'PH' }, { s: 'EV' }, { s: 'PH' }]; }, // 3 separate wins (t116u)
+    boost: g => { clean(g); set(g, 1, 0, { s: 'BG' }); set(g, 2, 2, { s: 'BG' }); set(g, 3, 1, { s: 'BG' }); },
+    boost2: g => { clean(g); set(g, 1, 0, { s: 'BG' }); set(g, 2, 2, { s: 'BG' }); },
     charge: g => { clean(g); set(g, 0, 0, { s: 'PL' }); set(g, 2, 1, { s: 'PL' }); set(g, 4, 2, { s: 'PL' }); },
   };
   if (grids[kind]) F.force = grids[kind];
@@ -126,6 +129,8 @@ function forceOf(kind) {
   if (kind === 'rescue') wheelTo('offroad', 3, { opts: { forceStuck: 1, forceRescue: true } });
   if (kind === 'wcharge') wheelTo('charge', 3);
   if (/^(grandwheel|major|minor|mini)$/.test(kind)) wheelTo(kind === 'grandwheel' ? 'grand' : kind);
+  if (kind === 'boost') { F.force = grids.boost; F.trigger = { type: 'wheel', tier: M.BOOST_TIER, via: 'boost' }; }
+  if (kind === 'boost2') { F.force = grids.boost2; }
   if (kind === 'revup') { F.force = flags(3); F.trigger = { type: 'wheel', tier: 1, via: 'flags' }; F.revUp = true; F.idx = WIDX('madness'); }
   if (kind === 'locked') { F.force = flags(3); F.trigger = { type: 'wheel', tier: 1, via: 'flags' }; F.revUp = false; F.idx = WIDX('major'); }
   if (kind === 'meterwheel') { F.force = grids.meter; F.meter = true; }
@@ -162,23 +167,23 @@ async function spin() {
 }
 async function animateReels(res, mode) {
   curMode = mode; const grid = res.pre || res.grid; clearWinBanner();
-  const fl = r => grid[r].some(c => c.s === 'FL'), pl = r => grid[r].some(c => c.s === 'PL');
+  const fl = r => grid[r].some(c => c.s === 'FL'), pl = r => grid[r].some(c => c.s === 'PL'), bg = r => grid[r].some(c => c.s === 'BG');
   const tease = [false, false, false, false, false]; let fsoFar = 0; for (let r = 0; r < 5; r++) { if (fsoFar >= 2 && !mode) tease[r] = true; if (fl(r)) fsoFar++; }
-  if (!mode && pl(0) && pl(2)) tease[4] = true; for (let r = 0; r < 3; r++) tease[r] = false;
+  if (!mode && pl(0) && pl(2)) tease[4] = true; if (!mode && bg(1) && bg(2)) tease[3] = tease[4] = true; // reels always land left to right for (let r = 0; r < 3; r++) tease[r] = false;
   $('frame').classList.add('spinning'); const fast = quick ? .35 : 1; let teased = false; try { SH.spin(); } catch (e) {}
   await reels.spin(grid, { fast, tease,
     onStop: (r, cells) => { try { SH.reelStop(r, cells); if (cells.some(c => /PH|WD|FL|PL/.test(c.s)) && !quick) shake(); } catch (e) {} stopSound(r, cells); },
     onTease: () => { $('frame').classList.add('tease'); A.play('tease'); if (!teased) { teased = true; SH.tease(true); } } });
   if (teased) SH.tease(false); $('frame').classList.remove('spinning', 'tease'); setTimeout(() => reels.hot.clear(), 900);
   if (res.drift) { for (const r of res.drift.reels) { fxs({ kind: 'drift', r }); A.play('drift'); const ks = ['ev', 'phev', 'ec', 'rvr', 'out'];
-      await FX.drift(reels.cellRect(r, 0) && (() => { const a = reels.cellRect(r, 0), b = reels.cellRect(r, 2); return { left: a.left, top: a.top, width: a.width, height: b.top + b.height - a.top }; })(), ks[Math.floor(Math.random() * ks.length)], quick ? 500 : 1300, () => { reels.transformReel(r, res.grid[r]); shake(); A.play('crack'); }); }
+      await FX.drift(reels.cellRect(r, 0) && (() => { const a = reels.cellRect(r, 0), b = reels.cellRect(r, reels.rows - 1); return { left: a.left, top: a.top, width: a.width, height: b.top + b.height - a.top }; })(), ks[Math.floor(Math.random() * ks.length)], quick ? 500 : 1300, () => { reels.transformReel(r, res.grid[r]); shake(); A.play('crack'); }); }
     toast('DRIFT WILD!', 1100); }
   if (!mode && !res.trigger && res.flags === 2 && tease.some(Boolean)) { fxs({ kind: 'almost' }); toast('SO CLOSE! 2 FLAGS', 1100); }
   shown = res.grid.map(col => col.map(c => ({ ...c })));
 }
 function markWins(res) { const cells = new Set(); for (const w of res.ways) for (const [r, y] of w.cells) cells.add(r + ',' + y);
   if (res.jackpot) res.grid.forEach((col, r) => cells.add(r + ',1'));
-  if (res.trigger || res.retrig) res.grid.forEach((col, r) => col.forEach((c, y) => { if (c.s === 'FL' || (res.trigger && res.trigger.type === 'charge' && c.s === 'PL')) cells.add(r + ',' + y); }));
+  if (res.trigger || res.retrig) res.grid.forEach((col, r) => col.forEach((c, y) => { if (c.s === 'FL' || (res.trigger && res.trigger.type === 'charge' && c.s === 'PL') || (res.trigger && res.trigger.via === 'boost' && c.s === 'BG')) cells.add(r + ',' + y); }));
   if (cells.size) reels.setWin(cells, res.ways); return cells.size; }
 // returns credits won on this spin (base or free)
 // t116u: multiple wins are shown one by one so the total visibly adds up: first ALL winning tiles together, then each way in turn
@@ -219,15 +224,21 @@ async function resolve(res, mode) {
 // t127u reel-stop audio (like Gorilla): each stop that CONTINUES a possible win - a symbol (or wild) on every reel from reel 1 - plays an
 // escalating 'lining up' sound (revs climbing + rising tone per reel) and glows the tiles; flags / plugs / PHEVs / wilds have their own landing
 // sounds; a stop that continues nothing is a plain clunk.
-const lineSt = { cols: [], flags: 0, plugs: 0 }; window.__stopLog = [];
-function stopSound(r, cells) { if (r === 0) { lineSt.cols = []; lineSt.flags = 0; lineSt.plugs = 0; window.__stopLog = []; } lineSt.cols[r] = cells;
+const lineSt = { cols: [], flags: 0, plugs: 0, boosts: 0 }; window.__stopLog = [];
+function stopSound(r, cells) { if (r === 0) { lineSt.cols = []; lineSt.flags = 0; lineSt.plugs = 0; lineSt.boosts = 0; window.__stopLog = []; } lineSt.cols[r] = cells;
   const live = M.PAYSYMS.filter(s => lineSt.cols.slice(0, r + 1).every(col => col && col.some(c => c.s === s || c.s === 'WD')) && lineSt.cols[0].some(c => c.s === s));
   const n = live.length ? r + 1 : 0, top = live.length ? live[live.length - 1] : null, heavy = cells.some(c => /PH|WD|FL|PL/.test(c.s)); let kind = 'plain';
-  if (n >= 2) { kind = 'lineUp'; A.play('lineUp', n, M.PAYSYMS.indexOf(top)); const hot = []; for (let k = 0; k <= r; k++) lineSt.cols[k].forEach((c, y) => { if (live.includes(c.s) || c.s === 'WD') hot.push([k, y]); }); try { reels.lineUp(hot, n); } catch (e) {} }
+  if (n >= 2) { kind = 'lineUp'; A.play('lineUp', n, M.PAYSYMS.indexOf(top)); const hot = []; for (let k = 0; k <= r; k++) (lineSt.cols[k] || []).forEach((c, y) => { if (live.includes(c.s) || c.s === 'WD') hot.push([k, y]); }); try { reels.lineUp(hot, n); } catch (e) {} }
   else A.play('reelStop', r, false); // t132u: a stop that continues nothing is ONLY the plain clunk (no per-symbol sounds)
-  const land = []; cells.forEach(c => { if (c.s === 'FL') { lineSt.flags++; land.push('flag'); A.play('flag', lineSt.flags - 1); } else if (c.s === 'PL') { lineSt.plugs++; land.push('plug'); A.play('plugLand', lineSt.plugs); } else if (c.s === 'WD' && n >= 2) { land.push('wild'); A.play('sparkle'); } else if (c.s === 'PH' && n >= 2 && live.includes('PH')) land.push('ph'); });
+  const land = []; cells.forEach(c => { if (c.s === 'FL') { lineSt.flags++; land.push('flag'); A.play('flag', lineSt.flags - 1); } else if (c.s === 'PL') { lineSt.plugs++; land.push('plug'); A.play('plugLand', lineSt.plugs); } else if (c.s === 'BG') { lineSt.boosts++; land.push('boost'); A.play('boostLand', lineSt.boosts); } else if (c.s === 'WD' && n >= 2) { land.push('wild'); A.play('sparkle'); } else if (c.s === 'PH' && n >= 2 && live.includes('PH')) land.push('ph'); });
   if (land.includes('ph')) A.play('phLand', n);
   window.__stopLog.push({ r, kind, n, top, land }); }
+// t138u: 3 BOOST GAUGES - the round BOOST gauge needle sweeps from where it is to FULL (rev climbing, flames), then the BOOSTED WHEEL (no locks).
+// The flag meter itself (st.meter) is untouched: after the bonus the gauge shows the flag fill again.
+async function boostFill() { toast('3 BOOST GAUGES!', 1400); A.play('boostFill'); const p0 = Math.min(1, (st.meter || 0) / M.METER_MAX), ms = 1600 * SPD() * (quick ? .3 : 1), t0 = performance.now();
+  window.__boostFill = { p0, done: false };
+  await new Promise(res => { const step = now => { const u = Math.min(1, (now - t0) / ms), e = u * u * (3 - 2 * u); try { SH.meter(p0 + (1 - p0) * e); } catch (er) {} if (u < 1) requestAnimationFrame(step); else res(); }; requestAnimationFrame(step); });
+  try { SH.meter(1, true); } catch (e) {} shake(); window.__boostFill.done = true; await sleep(900); }
 function meterPulse(m) { meters(); if (m.full) { SH.meter(1, true); toast('BOOST FULL!', 1500); A.play('turbo'); } }
 // ---------------- big wins ----------------
 const TIER_TXT = { big: 'BIG WIN', mega: 'MEGA WIN', madness: 'MITSUBISHI MADNESS!', total: 'BONUS TOTAL' };
@@ -244,9 +255,11 @@ async function jackpotWin(id, amount, how) { fxs({ kind: 'jackpot', id, amount }
 async function trigger(t, F) {
   window.__bonusWin = 0; auto = false; $('autoBtn').classList.remove('on');
   if (t.type === 'charge') { fxs({ kind: 'trigger', type: 'charge' }); toast('3 CHARGE PLUGS!', 1200); await sleep(700); return runFeature('charge', F); }
-  fxs({ kind: 'trigger', type: 'wheel', tier: t.tier, via: t.via }); if (t.via === 'meter') { toast('BOOST FULL — WHEEL TIME!', 1500); await sleep(800); } else await sleep(600);
-  await cinematic({ title: 'MADNESS WHEEL', sub: t.via === 'meter' ? 'BOOST FULL' : `${t.tier + 2} CHECKERED FLAGS`, color: '#ffd84a', car: 'ec', dur: 1900 });
-  const w = await wheel(t.tier, F); let total = w.win; window.__bonusWin = total;
+  fxs({ kind: 'trigger', type: 'wheel', tier: t.tier, via: t.via });
+  if (t.via === 'boost') { await boostFill(); await cinematic({ title: 'BOOSTED WHEEL!', sub: '3 BOOST GAUGES · NO LOCKS', color: '#c43cff', car: 'phev', dur: 2000 }); }
+  else { if (t.via === 'meter') { toast('BOOST FULL — WHEEL TIME!', 1500); await sleep(800); } else await sleep(600);
+  await cinematic({ title: 'MADNESS WHEEL', sub: t.via === 'meter' ? 'BOOST FULL' : `${t.tier + 2} CHECKERED FLAGS`, color: '#ffd84a', car: 'ec', dur: 1900 }); }
+  const w = await wheel(t.tier, F, t.via); meters(); let total = w.win; window.__bonusWin = total;
   if (w.wedge.jp && !w.locked) await jackpotWin(w.wedge.jp, w.win); else if (w.win) await roll('win', disp.win + w.win, 900, true);
   if (w.feat) total += await runFeature(w.feat, F);
   return total; }
@@ -319,9 +332,9 @@ function drawWheel(rot, locks, hot) { const cv = $('wheel'), g = cv.getContext('
   g.strokeStyle = 'rgba(255,255,255,.6)'; g.lineWidth = 1.5; g.stroke();
   const jg = g.createRadialGradient(-pw * .15, pw * .05, 1, 0, pw * .2, pw * .5); jg.addColorStop(0, '#ffd0d6'); jg.addColorStop(.3, '#ff2040'); jg.addColorStop(1, '#4a0008'); g.fillStyle = jg; g.beginPath(); g.arc(0, pw * .2, pw * .42, 0, 7); g.fill(); g.restore();
   g.restore(); }
-function wheel(tier, F) { return new Promise(async (resolveWheel) => {
+function wheel(tier, F, via) { return new Promise(async (resolveWheel) => {
   const box = $('wheelBox'), hub = $('wheelHub'); const w = M.spinWheel(bet(), rng, tier, { forceIdx: F.idx, forceRevUp: F.revUp }); window.__lastWheel = w;
-  let locks = M.LOCKS[tier]; box.classList.remove('hidden'); $('wheelTier').textContent = `${tier + 2} FLAGS · ${locks.length ? locks.length + ' LOCKED' : 'ALL UNLOCKED'}`; $('wheelMsg').textContent = ''; hub.disabled = true; hub.textContent = 'SPIN';
+  let locks = M.LOCKS[tier]; box.classList.remove('hidden'); box.classList.toggle('boosted', via === 'boost'); $('wheelTitle').textContent = via === 'boost' ? 'BOOSTED WHEEL' : 'MADNESS WHEEL'; $('wheelTier').textContent = `${via === 'boost' ? '3 BOOST GAUGES' : via === 'meter' ? 'BOOST FULL' : tier + 2 + ' FLAGS'} · ${locks.length ? locks.length + ' LOCKED' : 'ALL UNLOCKED'}`; $('wheelMsg').textContent = ''; hub.disabled = true; hub.textContent = 'SPIN';
   drawWheel(wheelRot, locks); A.music(true); const idleAnim = setInterval(() => { if (!box.classList.contains('hidden')) drawWheel(wheelRot, locks); }, 140);
   let finished = false; const safety = setTimeout(() => { if (!finished) { finished = true; window.__wheelSafety = (window.__wheelSafety || 0) + 1; box.classList.add('hidden'); A.music(false); resolveWheel(w); } }, 45000 * SPD());
   try {
@@ -344,28 +357,38 @@ function wheel(tier, F) { return new Promise(async (resolveWheel) => {
 }); }
 function shakeWheel() { const e = $('wheelWrap'); e.classList.remove('shakeX'); void e.offsetWidth; e.classList.add('shakeX'); }
 // ---------------- free spins ----------------
-const MODE_INFO = { turbo: { c: '#ff8a00', car: 'ec', feats: 'Wilds carry ×2 – ×10 multipliers<br>3 flags = +5 spins · may GEAR UP to NITRO' }, nitro: { c: '#22c3ff', car: 'ev', feats: 'Multiplier wilds + DRIFT WILD reels<br>3 flags = +5 spins · may GEAR UP to MADNESS' }, madness: { c: '#ff2040', car: 'phev', feats: 'Multiplier wilds + DRIFT WILD reels<br>Win multiplier climbs ×1 → ×10 with every win' } };
+const MODE_INFO = { turbo: { c: '#ff8a00', car: 'ec', feats: 'Wilds carry ×2 – ×10 multipliers<br>3 flags = +5 spins · may GEAR UP to NITRO' }, nitro: { c: '#22c3ff', car: 'ev', feats: 'REELS GROW TO 5×4 = 1,024 WAYS<br>Multiplier wilds + DRIFT WILD reels<br>3 flags = +5 spins · may GEAR UP to MADNESS' }, madness: { c: '#ff2040', car: 'phev', feats: 'Multiplier wilds + DRIFT WILD reels<br>Win multiplier climbs ×1 → ×10 with every win' } };
 function splash(mode, n) { return new Promise(res => { const s = $('splash'), info = MODE_INFO[mode]; s.style.setProperty('--modeC', info.c); $('splashTitle').textContent = M.MODES[mode].name.split(' ')[0]; $('splashSub').textContent = `${n} FREE SPINS`; $('splashFeats').innerHTML = info.feats + '<p class=how>HOW IT WORKS: your free spins play by themselves — no bet needed. Wins add up in BONUS WIN at the top. Tap START when ready.</p>'; s.classList.remove('hidden');
   let done = false; const go = () => { if (done) return; done = true; s.classList.add('hidden'); $('startBtn').onclick = null; s.onclick = null; A.play('rev', 1); res(); }; setTimeout(() => { $('startBtn').onclick = go; s.onclick = go; }, 300); setTimeout(go, (quick ? 1500 : 9000) * SPD()); }); }
+// t135u: NITRO SPINS grow the reels to 5x4 (1,024 ways): the cabinet stretches a row taller (top display gives up the space), then shrinks back
+async function setRows(n, instant) { if (reels.rows === n && rowsVis === n) return; const from = rowsVis; reels.beginRows(n);
+  if (!instant) { A.play(n > from ? 'turbo' : 'blowoff'); if (n > from) { A.play('impact'); toast('REELS GROW! 5×4 · 1,024 WAYS', 1600); $('frame').classList.add('grow'); } }
+  const D = instant ? 0 : 750 * SPD(), t0 = performance.now();
+  await new Promise(res => { const f = now => { const u = D ? Math.min(1, (now - t0) / D) : 1, e = u < .5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2; rowsVis = from + (n - from) * e;
+    $('app').style.setProperty('--reelsH', Math.round(rowsVis * (layout.colW || 60) / 1.25) + 'px'); reels.resize();
+    if (u < 1) requestAnimationFrame(f); else res(); }; if (D) requestAnimationFrame(f); else f(performance.now()); });
+  rowsVis = n; reels.endRows(n); layout(); $('frame').classList.remove('grow'); if (!instant && n > from) { try { shake(); } catch (e) {} A.play('reelStop', 0, true); }
+  window.__rows = n; }
 function setModeLook(mode) { const f = $('frame'); f.classList.remove('mode-turbo', 'mode-nitro', 'mode-madness'); $('app').classList.toggle('free', !!mode); FX.setMode(mode); SH.setTint(mode ? { turbo: 'rgba(255,120,0,.14)', nitro: 'rgba(0,160,255,.16)', madness: 'rgba(255,0,60,.18)' }[mode] : ''); if (mode) { f.classList.add('mode-' + mode); $('modeHud').style.setProperty('--modeC', MODE_INFO[mode].c); $('hudMode').textContent = M.MODES[mode].name; $('hudMultW').classList.toggle('hidden', mode !== 'madness'); } $('modeHud').classList.toggle('hidden', !mode); }
 async function freeRound(R, F) {
   const mode0 = R.mode, info = MODE_INFO[mode0];
   await cinematic({ title: M.MODES[mode0].name + '!', sub: `${M.FS_START[mode0]} FREE SPINS`, color: info.c, car: info.car, dur: 2200 });
   await splash(mode0, M.FS_START[mode0]);
-  let mode = mode0, won = 0, total = M.FS_START[mode0]; setModeLook(mode); A.music(true);
+  let mode = mode0, won = 0, total = M.FS_START[mode0]; setModeLook(mode); A.music(true); await setRows(M.rowsOf(mode));
   const hud = (i) => { $('hudSpins').textContent = `${i} OF ${total}`; $('hudWin').textContent = fmt(won); };
   try {
     for (let i = 0; i < R.spins.length; i++) { const s = R.spins[i];
-      if (R.gearUp && R.gearUp.at === i) { fxs({ kind: 'gearup', to: R.gearUp.to }); A.play('gear'); await cinematic({ title: 'GEAR UP!', sub: M.MODES[R.gearUp.to].name + ` · +${R.gearUp.add} SPINS`, color: MODE_INFO[R.gearUp.to].c, car: MODE_INFO[R.gearUp.to].car, dur: 2000 }); mode = R.gearUp.to; total += R.gearUp.add; setModeLook(mode); }
+      if (R.gearUp && R.gearUp.at === i) { fxs({ kind: 'gearup', to: R.gearUp.to }); A.play('gear'); await cinematic({ title: 'GEAR UP!', sub: M.MODES[R.gearUp.to].name + ` · +${R.gearUp.add} SPINS`, color: MODE_INFO[R.gearUp.to].c, car: MODE_INFO[R.gearUp.to].car, dur: 2000 }); mode = R.gearUp.to; total += R.gearUp.add; setModeLook(mode); await setRows(M.rowsOf(mode)); }
       hud(i + 1); $('hudMult').textContent = '×' + (s.prog || 1); A.play('spin');
-      await animateReels(s, mode); const w = await resolve(s, mode); won += w; window.__bonusWin = (window.__bonusWin || 0) + w; hud(i + 1);
+      quick = false; await animateReels(s, mode); // t136u: a STOP tap only hurries the free spin it was tapped on
+      const w = await resolve(s, mode); won += w; window.__bonusWin = (window.__bonusWin || 0) + w; hud(i + 1);
       if (s.retrig) { total += s.retrig; fxs({ kind: 'retrig' }); A.play('fanfare'); toast(`+${s.retrig} SPINS!`, 1300); hud(i + 1); await sleep(900); }
       await sleep(quick ? 80 : 250); }
-  } finally { A.music(false); setModeLook(null); curMode = null; clearWinBanner(); }
+  } finally { A.music(false); setModeLook(null); curMode = null; clearWinBanner(); await setRows(3); }
   if (won > 0) await bigWin(won, M.tier(won, bet()) === 'win' ? 'total' : M.tier(won, bet()), `${M.MODES[R.finalMode].name} TOTAL · ${R.played} SPINS`);
   return won; }
 // ---------------- recovery ----------------
-function recoverScreen() { try { clearCine('recover'); } catch (e) {} clearWinBanner(); for (const id of ['wheelBox', 'splash', 'big']) $(id).classList.add('hidden'); try { SC.close(); } catch (e) {} setModeLook(null); curMode = null; $('frame').classList.remove('spinning', 'tease'); A.music(false); reels.setGrid(shown); }
+function recoverScreen() { try { clearCine('recover'); } catch (e) {} clearWinBanner(); for (const id of ['wheelBox', 'splash', 'big']) $(id).classList.add('hidden'); try { SC.close(); } catch (e) {} setModeLook(null); curMode = null; setRows(3, true); $('frame').classList.remove('spinning', 'tease'); A.music(false); reels.setGrid(shown); }
 // ---------------- attract mode ----------------
 const ATTRACT = ['WIN THE PHEV GRAND!', 'PHEV CHARGE · UP TO 72 km = 72× BET', 'RALLY RACE · PICK YOUR CAR', 'S-AWC CHALLENGE · CONQUER 5 STAGES', 'DRIFT WILDS!', 'TURBO · NITRO · MADNESS SPINS', '3 FLAGS SPIN THE MADNESS WHEEL'];
 let idleT = 0, attractOn = false, attractI = 0, attractTimer = 0;
@@ -377,16 +400,16 @@ window.__attract = { enter: () => { busy || enterAttract(); }, exit: exitAttract
 // ---------------- menu / paytable ----------------
 function showPay() { const b = bet(), cell = (s, n) => { const u = M.wayPay(s, n, b); const x = M.PAY[s][n - 3]; return `<td><b>${fmt(u)}</b><small>${+x.toFixed(2)}× bet · ${cr(u).toLocaleString()} cr</small></td>`; };
   let h = `<div class=payhead>PAYS PER WINNING WAY AT YOUR CURRENT BET<br><b>${betCr()} credits × ${denomTxt(st.denom)} = ${money(betCents())}</b></div>
-  <p>243 ways: matching symbols on adjacent reels from the left pay, anywhere on each reel. Each separate path through matching tiles is one WAY, so 2 RVRs on reel 2 = 2 ways (pays ×2). A MADNESS WILD with ×2 / ×3 multiplies its ways. The win banner shows exactly this: <i>5× RVR · 1 WAY = ${fmt(M.wayPay('RV', 5, b))}</i>.</p>
+  <p>243 ways (1,024 ways in NITRO SPINS, 5×4): matching symbols on adjacent reels from the left pay, anywhere on each reel. Each separate path through matching tiles is one WAY, so 2 RVRs on reel 2 = 2 ways (pays ×2). A MADNESS WILD with ×2 / ×3 multiplies its ways. The win banner shows exactly this: <i>5× RVR · 1 WAY = ${fmt(M.wayPay('RV', 5, b))}</i>.</p>
   <table class=paytab><tr><th></th><th>Symbol</th><th>3</th><th>4</th><th>5</th></tr>`;
   for (const s of M.PAYSYMS.slice().reverse()) h += `<tr class="${M.SYM[s].kind}"><td><img src="/madness/art/${s}.webp?v=4" alt=""></td><td>${M.SYM[s].name}</td>${[3, 4, 5].map(n => cell(s, n)).join('')}</tr>`;
   h += `</table><p>5 of a kind on one way: PHEV ${M.PAY.PH[2]}× bet, Outlander ${M.PAY.OU[2]}×, Sportback EV ${M.PAY.EV[2]}×, Eclipse Cross ${M.PAY.EC[2]}×, RVR ${M.PAY.RV[2]}×. Values above change with your bet and denomination. <b>5 Outlander PHEVs on the centre row = PHEV GRAND (${usd(M.JP.grand * b)})</b>.</p><h3>Specials</h3><p><img src="/madness/art/WD.webp" alt=""> MADNESS WILD (reels 2-4) substitutes for every symbol; in base play it can carry ×2/×3, in free spins ×2 – ×10. Multipliers on one way multiply.</p>
-  <p><img src="/madness/art/FL.webp" alt=""> 3 / 4 / 5 CHECKERED FLAGS anywhere spin the MADNESS WHEEL (more flags = fewer locked wedges).</p><p><img src="/madness/art/PL.webp" alt=""> 3 CHARGE PLUGS (reels 1, 3, 5) start PHEV CHARGE: 1 km = 1× bet, full 72 km = 72× bet (${usd(72 * b)}).</p>`;
+  <p><img src="/madness/art/FL.webp" alt=""> 3 / 4 / 5 CHECKERED FLAGS anywhere spin the MADNESS WHEEL (more flags = fewer locked wedges).</p><p><img src="/madness/art/BG.webp" alt=""> 3 BOOST GAUGES (reels 2, 3, 4) fill the BOOST gauge instantly and spin the BOOSTED WHEEL: the Madness Wheel with every wedge unlocked, jackpots included.</p><p><img src="/madness/art/PL.webp" alt=""> 3 CHARGE PLUGS (reels 1, 3, 5) start PHEV CHARGE: 1 km = 1× bet, full 72 km = 72× bet (${usd(72 * b)}).</p>`;
   $('menuBody').innerHTML = h; window.__payShown = { bet: b, betCr: betCr(), denom: st.denom, rows: Object.fromEntries(M.PAYSYMS.map(s => [s, [3, 4, 5].map(n => ({ usd: fmt(M.wayPay(s, n, b)), cr: cr(M.wayPay(s, n, b)), x: M.PAY[s][n - 3] }))])) }; }
-function showRules() { $('menuBody').innerHTML = `<h3>DRIFT WILD</h3><p>Any spin, a car can drift across reel 2, 3 or 4 in a cloud of tyre smoke and turn the whole reel WILD.</p>
-  <h3>BOOST GAUGE</h3><p>The round BOOST gauge in the top display fills with every checkered flag that lands without a wheel. Full BOOST = a free Madness Wheel.</p>
+function showRules() { $('menuBody').innerHTML = `<h3>DRIFT WILD</h3><p>Any spin, a car can drift across reel 2, 3 or 4 in a cloud of tyre smoke and turn the whole reel WILD. A drift wild always lands at least one win.</p>
+  <h3>BOOST GAUGE</h3><p>The round BOOST gauge in the top display fills with every checkered flag that lands without a wheel. Full BOOST = a free Madness Wheel. <b>New:</b> 3 BOOST GAUGE symbols (reels 2, 3, 4) fill the gauge instantly and launch the BOOSTED WHEEL with no locked wedges. The flag fill keeps going either way.</p>
   <h3>MADNESS WHEEL</h3><p>12 wedges: TURBO / NITRO / MADNESS SPINS, RALLY RACE, S-AWC CHALLENGE, PHEV CHARGE, 10× and 25× bet, and the RVR MINI (${M.JP.mini}×), ECLIPSE MINOR (${M.JP.minor}×), OUTLANDER MAJOR (${M.JP.major}×) and PHEV GRAND (${M.JP.grand}×) jackpots. With 3 flags the GRAND, MAJOR and MADNESS wedges are locked (5× bet); 4 flags lock only the GRAND; 5 flags unlock everything. REV UP can smash the locks before the spin.</p>
-  <h3>FREE SPINS</h3><p>TURBO (8): multiplier wilds. NITRO (8): + drift wild reels. MADNESS (10): + a win multiplier that climbs to ×10. 3 flags = +5 spins. GEAR UP can upgrade the round mid-way.</p>
+  <h3>FREE SPINS</h3><p>TURBO (8): multiplier wilds. NITRO (8): the reels grow to 5×4 for 1,024 ways, + drift wild reels. MADNESS (10): + a win multiplier that climbs to ×10. 3 flags = +5 spins. GEAR UP can upgrade the round mid-way.</p>
   <h3>RALLY RACE</h3><p>Pick one of four cars and watch the race. 1st = 30× (NITRO FINISH doubles it to 60×), 2nd = 15×, 3rd = 8×, 4th = 4× bet.</p>
   <h3>S-AWC CHALLENGE</h3><p>Five trail stages. Each cleared stage pays 2× – 10× bet. Get STUCK and it ends — but S-AWC can rescue you once. Clear all 5 for a 20× SUMMIT bonus.</p>
   <h3>PHEV CHARGE</h3><p>The Outlander PHEV plugs in. Tap to charge in bursts of 3 – 9 km (REGEN BOOST doubles a burst). A POWER SURGE can stop the charge. Every km pays 1× your bet; a FULL CHARGE is 72 km = 72× bet.</p>`; }
@@ -410,6 +433,6 @@ addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault();
 meters();
 window.G = { st, M, spin, insertBill, cashOut, get busy() { return busy; }, get mode() { return curMode; }, setBet: i => { st.bet = i; save(); meters(); }, setDenom: d => { st.denom = d; save(); meters(); }, DENOMS, CPU, recoverScreen, cinematic, reels, drawWheel };
 if (DEBUG) { window.G.force = k => { forceNext = k; }; const d = $('dbg'); d.classList.remove('hidden');
-  d.innerHTML = ['rv5', 'ph5', 'win', 'multi', 'big', 'mega', 'madness', 'wild', 'drift', 'almost', 'meter', 'jackpot', 'wheel3', 'wheel4', 'wheel5', 'revup', 'locked', 'turbo', 'nitro', 'madspins', 'gearup', 'rally', 'rally1', 'offroad', 'summit', 'rescue', 'charge', 'full72', 'surge', 'wcharge', 'mini', 'minor', 'major', 'grandwheel'].map(k => `<button data-f="${k}">${k}</button>`).join('');
+  d.innerHTML = ['rv5', 'ph5', 'win', 'multi', 'big', 'mega', 'madness', 'wild', 'drift', 'almost', 'meter', 'jackpot', 'boost', 'boost2', 'wheel3', 'wheel4', 'wheel5', 'revup', 'locked', 'turbo', 'nitro', 'madspins', 'gearup', 'rally', 'rally1', 'offroad', 'summit', 'rescue', 'charge', 'full72', 'surge', 'wcharge', 'mini', 'minor', 'major', 'grandwheel'].map(k => `<button data-f="${k}">${k}</button>`).join('');
   d.addEventListener('click', e => { const k = e.target.dataset.f; if (k) { forceNext = k; toast('next: ' + k, 900); } }); }
 })();

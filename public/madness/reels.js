@@ -1,9 +1,12 @@
 // MITSUBISHI MADNESS - canvas reels (5 x 3): wind-back start, motion blur, staggered stops with overshoot, tease (slow, glowing) reels,
 // landing pops for specials, win pulse + dimming, wild multiplier chips, drift-wild reel transform. Purely visual. window.MadReels
 (function () {
-  const CODES = ['KY', 'TI', 'RV', 'EC', 'OU', 'EV', 'PH', 'WD', 'FL', 'PL'], V = '4';
+  const CODES = ['KY', 'TI', 'RV', 'EC', 'OU', 'EV', 'PH', 'WD', 'FL', 'PL', 'BG'], V = '5';
   const img = {}, ready = Promise.all(CODES.map(c => new Promise(r => { const i = new Image(); i.decoding = 'async'; i.onload = i.onerror = () => r(); i.src = `/madness/art/${c}@2x.webp?v=${V}`; img[c] = i; })));
-  const SPECIAL = { WD: 1, FL: 1, PL: 1 };
+  const SPECIAL = { WD: 1, FL: 1, PL: 1, BG: 1 };
+  // t136u reel pace: every spin (base, autoplay, all free spins) lands reel 1 at 1.0s then one reel every 0.45s (last at 2.8s), scrolling 18 symbols/s.
+  // (was 0.75s + 0.24s stagger = last reel at 1.71s, 24 symbols/s.) Only a STOP tap (fast .35) or a slow tease changes it.
+  const STOP0 = 1.0, STAGGER = 0.45, REEL_V = 18;
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
   class Reels {
     constructor(cv, o = {}) { this.cv = cv; this.g = cv.getContext('2d'); this.o = o; this.n = 5; this.rows = 3;
@@ -12,17 +15,20 @@
       this.resize(); ready.then(() => { this.blur = {}; this.dirty = true; });
       const loop = now => { requestAnimationFrame(loop); this.draw(now); }; requestAnimationFrame(loop); }
     resize() { const r = this.cv.getBoundingClientRect(), d = Math.min(devicePixelRatio || 1, 2.5); this.dpr = d; this.W = Math.max(40, r.width); this.H = Math.max(30, r.height);
-      this.cv.width = Math.round(this.W * d); this.cv.height = Math.round(this.H * d); this.gap = Math.max(2, this.W * .008); this.colW = (this.W - 4 * this.gap) / 5; this.cellH = this.H / 3; this.blur = {}; }
+      this.cv.width = Math.round(this.W * d); this.cv.height = Math.round(this.H * d); this.gap = Math.max(2, this.W * .008); this.colW = (this.W - 4 * this.gap) / 5; this.cellH = this.cellFix || this.H / this.rows; this.blur = {}; }
     setGrid(grid) { grid.forEach((col, r) => { const R = this.reels[r]; R.list = col.map(c => ({ ...c })); R.pos = 0; R.anim = null; R.pop = {}; }); }
-    visible(r) { const R = this.reels[r]; return R.list.slice(Math.round(R.pos), Math.round(R.pos) + 3); }
+    visible(r) { const R = this.reels[r]; return R.list.slice(Math.round(R.pos), Math.round(R.pos) + this.rows); }
+    // t135u: NITRO grows the reels to 4 rows. begin: keep the tile height, add a tile to every reel (revealed as the canvas grows); end: settle.
+    beginRows(n) { this.rowsTo = n; this.cellFix = this.cellH; if (n > this.rows) { this.reels.forEach((R, r) => { while (R.list.length < n) R.list.push(this.o.randomSym(r)); }); this.rows = n; } this.dirty = true; }
+    endRows(n) { this.rows = n; this.rowsTo = n; this.cellFix = null; this.reels.forEach(R => { if (!R.anim) R.list = R.list.slice(0, n); }); this.resize(); }
     // spin to `grid`. o: { fast, tease:[5 bools], onStop(r, cells), onTease(r) }
     spin(grid, o = {}) { const sp = window.__madSpeed || 1, fast = o.fast || 1; this.clearWin(); this.hot.clear(); this.stopping = false;
       const ps = [];
-      for (let r = 0; r < 5; r++) { const R = this.reels[r], cur = this.visible(r).length === 3 ? this.visible(r) : grid[r], tease = o.tease && o.tease[r];
-        const T = ((0.75 + r * 0.24 + (tease ? 1.5 + (r - 3) * .4 : 0)) * fast) * sp * 1000, v = 24, N = Math.max(8, Math.round(v * T / 1000));
+      for (let r = 0; r < 5; r++) { const R = this.reels[r], cur = (() => { const v = this.visible(r); while (v.length < grid[r].length) v.push(this.o.randomSym(r)); return v; })(), tease = o.tease && o.tease[r];
+        const T = ((STOP0 + r * STAGGER + (tease ? 1.5 + (r - 3) * .4 : 0)) * fast) * sp * 1000, v = REEL_V, N = Math.max(8, Math.round(v * T / 1000));
         R.list = [...grid[r].map(c => ({ ...c })), ...[...Array(N)].map(() => this.o.randomSym(r)), ...cur.map(c => ({ ...c }))];
-        R.pos = N + 3; R.tease = false; R.pop = {};
-        ps.push(new Promise(res => { R.anim = { t0: performance.now(), T, D: N + 3, tease, teased: false, stopped: false, res, onStop: o.onStop, onTease: o.onTease, r, cells: grid[r] }; }));
+        R.pos = N + grid[r].length; R.tease = false; R.pop = {};
+        ps.push(new Promise(res => { R.anim = { t0: performance.now(), T, D: N + grid[r].length, tease, teased: false, stopped: false, res, onStop: o.onStop, onTease: o.onTease, r, cells: grid[r] }; }));
       }
       return Promise.all(ps); }
     stopNow() { const t = performance.now(); for (const R of this.reels) { const A = R.anim; if (A && !A.stopped) { A.tease = false; R.tease = false; const left = 70 * (A.r + 1); if (A.T - (t - A.t0) > left) A.t0 = t - (A.T - left); } } }
@@ -47,7 +53,7 @@
     clearWin() { this.win = null; }
     // t127u: tiles that are 'lining up' into a possible win as the reels stop (n = reels in the chain so far)
     lineUp(cells, n) { const t = performance.now(); for (const [r, y] of cells) { const k = r + ',' + y; const h = this.hot.get(k); if (!h || h.n < n) this.hot.set(k, { t: h ? h.t : t, n }); if (!h) this.reels[r].pop[y] = t; } this.dirty = true; }
-    transformReel(r, cells) { const R = this.reels[r]; R.list = cells.map(c => ({ ...c })); R.pos = 0; const t = performance.now(); [0, 1, 2].forEach(y => R.pop[y] = t + y * 90); this.flash = 1;
+    transformReel(r, cells) { const R = this.reels[r]; R.list = cells.map(c => ({ ...c })); R.pos = 0; const t = performance.now(); cells.forEach((_, y) => R.pop[y] = t + y * 90); this.flash = 1;
       for (let k = 0; k < 40; k++) this.sparks.push({ x: (r + .5) * (this.colW + this.gap), y: Math.random() * this.H, vx: (Math.random() - .5) * 6, vy: (Math.random() - .5) * 6, life: 1, c: Math.random() < .5 ? '#ff3048' : '#ffd84a' }); }
     drawWays(g, now) { const W = this.win, col = { KY: '#c8cce0', TI: '#3fe0cf', RV: '#2ab4ff', EC: '#ff9a3a', OU: '#4a8cff', EV: '#3fe06a', PH: '#ffd84a' }, wt = (now - W.t0) / 1000;
       g.save(); g.lineCap = 'round'; g.lineJoin = 'round';
@@ -74,9 +80,9 @@
         const bg = g.createLinearGradient(0, 0, 0, this.H); bg.addColorStop(0, '#05070d'); bg.addColorStop(.5, '#121826'); bg.addColorStop(1, '#05070d'); g.fillStyle = bg; g.fillRect(x, 0, this.colW, this.H);
         g.save(); g.beginPath(); g.rect(x, 0, this.colW, this.H); g.clip();
         const speed = R.anim && !R.anim.stopped ? 1 : 0, base = Math.floor(R.pos), frac = R.pos - base;
-        for (let j = -1; j <= 3; j++) { const c = R.list[base + j]; if (!c) continue; const yy = (j - frac) * this.cellH;
+        for (let j = -1; j <= this.rows; j++) { const c = R.list[base + j]; if (!c) continue; const yy = (j - frac) * this.cellH;
           // list index grows upward on screen: index 0..2 = final rows top..bottom
-          const i = base + j; let s = 1, alpha = 1; if (!speed && R.pop[i] != null && i >= 0 && i < 3) { const pu = (now - R.pop[i]) / 420; if (pu >= 0 && pu < 1) s = 1 + .18 * Math.sin(Math.PI * pu); else if (pu >= 1) delete R.pop[i]; }
+          const i = base + j; let s = 1, alpha = 1; if (!speed && R.pop[i] != null && i >= 0 && i < this.rows) { const pu = (now - R.pop[i]) / 420; if (pu >= 0 && pu < 1) s = 1 + .18 * Math.sin(Math.PI * pu); else if (pu >= 1) delete R.pop[i]; }
           let wn = false, tilt = 0; if (this.win && !speed) { wn = this.win.cells.has(r + ',' + i); if (!wn) alpha = .26; else { const wt = (now - this.win.t0) / 1000, pop = Math.min(1, wt * 4); s *= 1 + .1 * pop + .05 * Math.sin(wt * 7 + r * .7); tilt = Math.sin(wt * 3.2 + r * .9) * .22 * pop; } }
           const w = this.colW - 2 * pad, h = this.cellH - 2 * pad, sw = w * s, sh = h * s, cx = x + this.colW / 2, cy = yy + this.cellH / 2;
           const spr = this.sprite(c.s, w, h, speed && !(R.anim && R.anim.tease && R.anim.teased)); g.globalAlpha = alpha;
@@ -105,5 +111,5 @@
       for (let i = this.sparks.length - 1; i >= 0; i--) { const p = this.sparks[i]; p.x += p.vx; p.y += p.vy; p.vy += .12; p.life -= .025; if (p.life <= 0) { this.sparks.splice(i, 1); continue; } g.globalAlpha = p.life; g.fillStyle = p.c; g.fillRect(p.x - 2, p.y - 2, 4, 4); }
       g.globalAlpha = 1; }
   }
-  window.MadReels = Reels; window.MadReels.img = img; window.MadReels.ready = ready;
+  window.MadReels = Reels; window.MadReels.img = img; window.MadReels.ready = ready; window.MadReels.TIMING = { STOP0, STAGGER, REEL_V };
 })();

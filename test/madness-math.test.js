@@ -103,3 +103,41 @@ test('t122u: every payout scales exactly with the bet (ways, wilds/mults, drift,
     for (const id of ['mini', 'minor', 'major', 'grand']) assert.ok(M.JP[id] > 0);
   }
 });
+
+test('t135u: NITRO SPINS play 5x4 = 1,024 ways; other modes and the base game stay 5x3; Nitro round value kept', () => {
+  assert.strictEqual(M.rowsOf('nitro'), 4); assert.strictEqual(M.rowsOf('turbo'), 3); assert.strictEqual(M.rowsOf('madness'), 3); assert.strictEqual(M.rowsOf(null), 3);
+  for (let seed = 1; seed <= 300; seed++) { const n = M.spin(1, M.mulberry32(seed), { mode: 'nitro' }), t = M.spin(1, M.mulberry32(seed), { mode: 'turbo' }), b = M.spin(1, M.mulberry32(seed));
+    assert.ok(n.grid.every(c => c.length === 4), 'nitro 4 rows'); assert.ok(t.grid.every(c => c.length === 3) && b.grid.every(c => c.length === 3), '3 rows elsewhere');
+    if (n.drift) for (const r of n.drift.reels) assert.ok(n.grid[r].length === 4 && n.grid[r].every(c => c.s === 'WD'), 'drift fills all 4 rows'); }
+  // a full screen of one symbol = 4^5 = 1,024 ways
+  const g = [...Array(5)].map(() => [...Array(4)].map(() => ({ s: 'RV' }))), w = M.evalWays(g, 1).ways.find(x => x.s === 'RV');
+  assert.strictEqual(w.ways, 1024); assert.strictEqual(w.cells.length, 20); assert.ok(Math.abs(w.pay - M.wayPay('RV', 5, 1, 1024)) < 1e-9);
+  // the bigger grid is rebalanced: Nitro round mean stays ~40-46x bet (was 42x on 5x3)
+  let s = 0; const N = 6000, rng = M.mulberry32(135); for (let i = 0; i < N; i++) s += M.bonusRound(1, rng, 'nitro').win; const mean = s / N;
+  assert.ok(mean > 34 && mean < 52, 'nitro round mean ' + mean.toFixed(2));
+});
+
+test('t137u: every DRIFT WILD pays at least one way (base game + every free-spin mode), drift reel is fully wild on reels 2-4', () => {
+  const seen = { base: 0, turbo: 0, nitro: 0, madness: 0 };
+  for (const mode of [null, 'nitro', 'madness']) { const rng = M.mulberry32(137 + (mode ? mode.length : 0));
+    for (let i = 0; i < (mode ? 60000 : 300000); i++) { const s = M.spin(1, rng, mode ? { mode } : {});
+      if (!s.drift) continue; seen[mode || 'base']++;
+      assert.ok(s.win > 0 && s.ways.length > 0, `drift wild paid nothing (${mode || 'base'}, spin ${i})`);
+      for (const r of s.drift.reels) { assert.ok(r >= 1 && r <= 3); assert.ok(s.grid[r].every(c => c.s === 'WD' && c.drift)); }
+      assert.ok(s.ways.some(w => s.drift.reels.some(r => r < w.len)), 'a paying way runs through the drift reel'); } }
+  // forced drift (any reel 2-4) also always pays
+  for (let seed = 1; seed <= 3000; seed++) { const s = M.spin(1, M.mulberry32(seed), { forceDrift: 1 + seed % 3 }); assert.ok(s.win > 0, 'forced drift seed ' + seed); }
+  assert.ok(seen.base > 5000 && seen.nitro > 2000 && seen.madness > 5000, JSON.stringify(seen));
+});
+
+test('t138u/t139u: 3 BOOST GAUGES (reels 2-4) launch the BOOSTED WHEEL (no locks); the flag-filled BOOST meter still fires at 100%', () => {
+  for (let r = 0; r < 5; r++) { const n = M.STRIPS[r].filter(s => s === 'BG').length; assert.strictEqual(n, r >= 1 && r <= 3 ? M.BGN : 0, 'BG on reels 2-4 only'); assert.ok(!M.FREE_STRIPS[r].includes('BG'), 'no BG in free spins'); }
+  assert.ok(M.PAYSYMS.indexOf('BG') < 0, 'BG never pays on a way'); assert.deepStrictEqual(M.LOCKS[M.BOOST_TIER], []);
+  const rng = M.mulberry32(138); let boosts = 0, meterFires = 0; const meter = { n: 0 }; const N = 600000;
+  for (let i = 0; i < N; i++) { const s = M.spin(1, rng, { meter }); if (s.boosts >= 3) { assert.ok(s.trigger && s.trigger.via === 'boost' && s.trigger.tier === M.BOOST_TIER && s.trigger.type === 'wheel'); boosts++; } if (s.trigger && s.trigger.via === 'meter') meterFires++; }
+  assert.ok(N / boosts > 350 && N / boosts < 1000, 'boost every ' + (N / boosts).toFixed(0)); assert.ok(meterFires > 600, 'meter still fires ' + meterFires);
+  // the meter path is unchanged: METER_MAX - 1 + one flag = wheel via meter
+  const m2 = { n: M.METER_MAX - 1 }; let got = null; for (let seed = 1; seed < 5000 && !got; seed++) { m2.n = M.METER_MAX - 1; const s = M.spin(1, M.mulberry32(seed), { meter: m2, noDrift: true }); if (s.trigger && s.trigger.via === 'meter') got = s; }
+  assert.ok(got && got.trigger.tier === 1, 'meter wheel still tier 1');
+  for (let seed = 1; seed <= 200; seed++) { const w = M.spinWheel(1, M.mulberry32(seed), M.BOOST_TIER, { forceRevUp: false }); assert.ok(!w.locked); }
+});

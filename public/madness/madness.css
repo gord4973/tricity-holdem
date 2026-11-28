@@ -120,6 +120,7 @@ button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulat
 #big.madness #bigTitle { animation: slam .6s cubic-bezier(.2, 1.6, .4, 1) both, hue 1s linear infinite; } @keyframes hue { to { filter: drop-shadow(0 4px 0 #3a0008) drop-shadow(0 0 20px #ff6a00) hue-rotate(360deg); } }
 #wheelBox { display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 50%, rgba(20,0,10,.35), rgba(0,0,0,.9)), url(/madness/photo/bg-cabinet.webp?v=1) center/cover; }
 #wheelTitle { font: 400 calc(32px * var(--k)) Russo, sans-serif; color: #ffd84a; text-shadow: 0 0 18px #ff3048, 0 3px 0 #000; transform: skewX(-8deg); }
+#wheelBox.boosted #wheelTitle { color: #f3b8ff; text-shadow: 0 0 20px #c43cff, 0 3px 0 #000; }
 #wheelTier { font: 800 italic calc(16px * var(--k)) Barlow, sans-serif; letter-spacing: .14em; color: #fff; margin: 2px 0 10px; }
 #wheelWrap { position: relative; width: min(calc(var(--appW) * .94), 74vh); aspect-ratio: 1; }
 #wheel { width: 100%; height: 100%; display: block; }

@@ -4,7 +4,7 @@
 const P = require('puppeteer-core'), assert = require('assert'), BASE = process.env.MADNESS_URL || 'http://localhost:3490', SHOTS = process.env.SHOTS || '';
 const TAG = process.env.IPAD ? 'ipad' : 'phone';
 const wait = ms => new Promise(r => setTimeout(r, ms));
-const FORCES = (process.env.FORCES || 'win,multi,big,mega,madness,wild,drift,almost,meter,jackpot,wheel3,wheel4,wheel5,revup,locked,turbo,nitro,madspins,gearup,rally,rally1,offroad,summit,rescue,charge,full72,surge,wcharge,mini,minor,major,grandwheel').split(',');
+const FORCES = (process.env.FORCES || 'win,multi,big,mega,madness,wild,drift,almost,meter,jackpot,boost,wheel3,wheel4,wheel5,revup,locked,turbo,nitro,madspins,gearup,rally,rally1,offroad,summit,rescue,charge,full72,surge,wcharge,mini,minor,major,grandwheel').split(',');
 (async () => {
   const b = await P.launch({ protocolTimeout: 600000, executablePath: process.env.CHROME || '/usr/bin/google-chrome', args: ['--no-sandbox', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'] });
   const p = await b.newPage(), errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text()); });
@@ -50,7 +50,7 @@ const FORCES = (process.env.FORCES || 'win,multi,big,mega,madness,wild,drift,alm
     if (k === 'jackpot') { assert.ok(has('jackpot'), 'grand'); assert.ok(won >= 1000, 'grand pays 1000x'); }
     if (/^wheel/.test(k) || /^(turbo|nitro|rally|offroad|revup|locked)$/.test(k)) assert.ok(has('wheel'), k + ' wheel');
     if (k === 'revup') assert.ok(has('revup') && st.wheel.rev && !st.wheel.locked, 'rev up unlocks');
-    if (k === 'locked') { assert.ok(st.wheel.locked, 'locked wedge'); assert.ok(Math.abs(won - 5) < .01, 'locked pays 5x'); }
+    if (k === 'locked') { const ways = await p.evaluate(() => window.__lastSpin.win / G.M.BETS[G.st.bet]); assert.ok(st.wheel.locked, 'locked wedge'); assert.ok(Math.abs(won - ways - 5) < .01, 'locked pays 5x (+ any ways win ' + ways + ')'); }
     if (/^(turbo|nitro|madspins|gearup)$/.test(k)) assert.strictEqual(st.feat.kind, 'spins');
     if (k === 'gearup') assert.ok(st.feat.gear && has('gearup'), 'gear up');
     if (/^(charge|full72|surge|wcharge)$/.test(k)) { assert.strictEqual(st.feat.kind, 'charge'); assert.ok(st.charge, 'charge scene completed'); assert.strictEqual(st.charge.km, st.feat.km, 'meter shows decided km'); assert.ok(st.feat.km <= 72); }
