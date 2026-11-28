@@ -26,7 +26,9 @@ const FORCES = (process.env.FORCES || 'win,big,mega,madness,wild,drift,almost,me
   const results = [];
   for (const k of FORCES) {
     const c0 = await cents(); await p.evaluate(k => { window.__madFx = []; window.__chargeDone = null; window.__offroadDone = false; G.force(k); }, k);
+    if (SHOTS && k === 'drift') await p.evaluate(() => { window.__madSpeed = 1; }); // real speed so the overhead drift is caught mid-pass
     const t0 = Date.now(); await p.click('#spinBtn');
+    if (SHOTS && k === 'drift') { await p.waitForFunction(() => window.__madFx.some(f => f.kind === 'drift'), { timeout: 60000 }); await wait(650); await p.screenshot({ path: SHOTS + '/drift-wild-' + TAG + '.png' }); await idle(); await p.evaluate(s => { window.__madSpeed = +s; }, speed); }
     // screenshots mid-feature
     if (SHOTS && k === 'madness') { await p.waitForFunction(() => !document.getElementById('big').classList.contains('hidden'), { timeout: 60000 }); await wait(900); await p.screenshot({ path: SHOTS + '/big-win-' + TAG + '.png' }); }
     if (SHOTS && k === 'full72') { await p.waitForFunction(() => !document.getElementById('scene').classList.contains('hidden'), { timeout: 60000 }); await wait(2500); await p.screenshot({ path: SHOTS + '/phev-charge-' + TAG + '.png' }); await p.waitForFunction(() => window.__chargeDone, { timeout: 90000 }); await wait(300); await p.screenshot({ path: SHOTS + '/phev-full-charge-' + TAG + '.png' }); }
@@ -60,6 +62,19 @@ const FORCES = (process.env.FORCES || 'win,big,mega,madness,wild,drift,almost,me
     console.log(`${k.padEnd(10)} won ${won.toFixed(2).padStart(8)}  ${String(results.at(-1).s).padStart(3)}s  ${results.at(-1).fx}`);
     if (await cents() < 2000) { await p.click('#billBtn'); await idle(); }
   }
+  // t110u: win banner shows after a win and is gone the moment SPIN is pressed
+  for (let i = 0; i < 2; i++) {
+    await p.evaluate(() => G.force('win')); await p.click('#spinBtn'); await idle();
+    const vis = () => p.evaluate(() => { const e = document.getElementById('winBanner'); return !e.classList.contains('hidden') && e.textContent.length > 0 && getComputedStyle(e).display !== 'none'; });
+    assert.ok(await vis(), 'win banner shown after a win');
+    if (SHOTS && i === 0) await p.screenshot({ path: SHOTS + '/win-banner-' + TAG + '.png' });
+    if (i === 1) await p.evaluate(() => G.force('win')); // banner must also clear when the next spin itself wins
+    await p.click('#spinBtn'); await wait(40);
+    assert.ok(!(await vis()), 'win banner cleared immediately on SPIN');
+    if (SHOTS && i === 0) { await wait(250); await p.screenshot({ path: SHOTS + '/win-banner-cleared-' + TAG + '.png' }); }
+    await idle();
+  }
+  console.log('win banner clears on spin ok');
   // cash out
   await p.click('#cashBtn'); await p.waitForFunction(() => G.st.cents === 0 && !G.busy, { timeout: 30000 }); assert.ok(await p.evaluate(() => !document.getElementById('ticket').classList.contains('hidden')), 'ticket printed'); console.log('cash out ok');
   // attract mode

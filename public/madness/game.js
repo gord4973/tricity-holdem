@@ -116,8 +116,11 @@ function forceOf(kind) {
   return F;
 }
 // ---------------- spin ----------------
+// t110u: the win banner (and win highlights) go away the instant a new spin is pressed / starts (base, autoplay, free spins)
+function clearWinBanner() { const wb = $('winBanner'); wb.classList.add('hidden'); wb.textContent = ''; try { reels.clearWin(); } catch (e) {} }
 async function spin() {
   A.init(); exitAttract(); if (busy) { quick = true; reels.stopNow(); return; }
+  clearWinBanner();
   if (st.cents < betCents()) { auto = false; $('autoBtn').classList.remove('on'); A.play('deny'); toast(st.cents > 0 ? 'Not enough credits for this bet — lower the bet or insert a bill' : 'Insert a $100 bill to play'); $('billBtn').classList.remove('pulse'); void $('billBtn').offsetWidth; $('billBtn').classList.add('pulse'); return; }
   busy = true; quick = false; meters(); $('spinBtn').classList.add('stop'); $('spinBtn').textContent = 'STOP'; A.play('spin');
   st.cents -= betCents(); st.played++; save(); disp.cents = st.cents; disp.win = 0; meters();
@@ -141,7 +144,7 @@ async function spin() {
   if (auto) { if (st.cents >= betCents() && !res.trigger) setTimeout(() => { if (auto && !busy) spin(); }, 450 * SPD()); else { auto = false; $('autoBtn').classList.remove('on'); } }
 }
 async function animateReels(res, mode) {
-  curMode = mode; const grid = res.pre || res.grid;
+  curMode = mode; const grid = res.pre || res.grid; clearWinBanner();
   const fl = r => grid[r].some(c => c.s === 'FL'), pl = r => grid[r].some(c => c.s === 'PL');
   const tease = [false, false, false, false, false]; let fsoFar = 0; for (let r = 0; r < 5; r++) { if (fsoFar >= 2 && !mode) tease[r] = true; if (fl(r)) fsoFar++; }
   if (!mode && pl(0) && pl(2)) tease[4] = true; for (let r = 0; r < 3; r++) tease[r] = false;
@@ -266,7 +269,7 @@ async function freeRound(R, F) {
   if (won > 0) await bigWin(won, M.tier(won, bet()) === 'win' ? 'total' : M.tier(won, bet()), `${M.MODES[R.finalMode].name} TOTAL · ${R.played} SPINS`);
   return won; }
 // ---------------- recovery ----------------
-function recoverScreen() { try { clearCine('recover'); } catch (e) {} for (const id of ['wheelBox', 'splash', 'big']) $(id).classList.add('hidden'); try { SC.close(); } catch (e) {} setModeLook(null); curMode = null; $('frame').classList.remove('spinning', 'tease'); A.music(false); reels.setGrid(shown); }
+function recoverScreen() { try { clearCine('recover'); } catch (e) {} clearWinBanner(); for (const id of ['wheelBox', 'splash', 'big']) $(id).classList.add('hidden'); try { SC.close(); } catch (e) {} setModeLook(null); curMode = null; $('frame').classList.remove('spinning', 'tease'); A.music(false); reels.setGrid(shown); }
 // ---------------- attract mode ----------------
 const ATTRACT = ['WIN THE PHEV GRAND!', 'PHEV CHARGE · UP TO 72 km = 72 CREDITS × BET', 'RALLY RACE · PICK YOUR CAR', 'S-AWC CHALLENGE · CONQUER 5 STAGES', 'DRIFT WILDS!', 'TURBO · NITRO · MADNESS SPINS', '3 FLAGS SPIN THE MADNESS WHEEL'];
 let idleT = 0, attractOn = false, attractI = 0, attractTimer = 0;
