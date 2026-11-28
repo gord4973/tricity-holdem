@@ -33,6 +33,9 @@
     tick() { osc('square', 2400, 0, now(), .02, .04); },
     rollStart(q = 0) { const t = now(); osc('sawtooth', 70, 260 + q * 60, t, 1.2, .14); },
     rollTick(u = 0, q = 0, n = 1) { const t = now(), f = 1400 + u * 2200; osc('square', f, 0, t, .05, .06); osc('square', f * 1.5, 0, t + .05, .08, .05); },
+    jpSlam() { const t = now(); osc('sine', 90, 30, t, .5, .5); arp([60, 64, 67, 72, 76, 79], t + .05, .08, .4, .12, 'square'); },
+    jpLand() { const t = now(); arp([60, 64, 67, 72, 76, 79, 84, 88], t, .09, .5, .1, 'square'); chord([72, 76, 79, 84], t + .8, 1.6, .1, 'sawtooth'); },
+    jpThunder() { const t = now(); noise(t, .9, .5, 'lowpass', 500); osc('sine', 70, 28, t, .8, .5); },
     rollEnd(q = 0) { const t = now(); arp([60, 64, 67, 72, 76, 79, 84, 88], t, .08, .5, .1, 'square'); chord([72, 76, 79, 84], t + .7, 1.4, .1, 'sawtooth'); },
     win(n = 0) { const t = now(); arp([72, 76, 79, 84].map(x => x + (n % 3) * 2), t, .07, .18, .1, 'triangle'); },
     bigWin() { const t = now(); arp([60, 64, 67, 72, 76, 79, 84], t, .09, .4, .12, 'square'); chord([72, 76, 79], t + .7, 1.2, .1, 'sawtooth'); noise(t + .65, .9, .12, 'highpass', 5000); },
@@ -94,7 +97,7 @@
     wheelSpin: 1.3, whoosh: .9, whoosh2: 1 };
   const ALL = Object.keys(GAIN);
   // loaded right after the first tap (what a base spin needs); everything else streams in afterwards, a few at a time
-  const CORE = ['reelSpin', 'reelStop', 'reelStopHeavy', 'click', 'tick', 'coin', 'coins', 'whoosh', 'rev', 'rev2', 'screechShort', 'limiter', 'engineLoop', 'chaching', 'drift', 'turbo', 'fanfare', 'crowd', 'fireworks', 'impact', 'whoosh2', 'horn', 'chime', 'spark', 'plug', 'plugIn', 'surge', 'powerUp', 'blowoff', 'beep', 'unlock', 'humLoop', 'fanfareBig', 'limiter', 'burnout', 'screech'];
+  const CORE = ['reelSpin', 'reelStop', 'reelStopHeavy', 'click', 'tick', 'coin', 'coins', 'whoosh', 'rev', 'rev2', 'screechShort', 'limiter', 'engineLoop', 'chaching', 'drift', 'turbo', 'fanfare', 'crowd', 'fireworks', 'impact', 'whoosh2', 'horn', 'chime', 'spark', 'plug', 'plugIn', 'surge', 'powerUp', 'blowoff', 'beep', 'unlock', 'humLoop', 'fanfareBig', 'limiter', 'burnout', 'screech', 'boom', 'tada', 'applause', 'cheer', 'zap', 'launch', 'engineStart', 'passby', 'coins'];
   const buf = {}, loading = {}; let sbus = null, preloaded = false;
   Object.assign(diag, { total: ALL.length, loaded: 0, failed: [], errors: [], fmt: {}, http: {}, samples: 0 });
   const canAAC = (() => { try { const a = document.createElement('audio'); return !!(a.canPlayType && a.canPlayType('audio/mp4; codecs="mp4a.40.2"').replace(/no/, '')); } catch (e) { return false; } })();
@@ -178,6 +181,16 @@
       if (!r) { const t = now(); osc('sawtooth', 80, 900, t, 1.6, .2); noise(t + 1.5, .5, .35, 'bandpass', 900, 1); } return 1; },
     // t141u BONUS-WIN FINALE rollup: rollStart = engine spool-up (louder/longer per tier q 0-3); rollTick(u 0..1, q, n) = coin that climbs in pitch+gain as the
     // total accelerates, a bell every 3rd tick rising a step, rev blips; rollEnd = fanfare + cha-ching + crowd (+ burnout/horn/applause for bigger tiers)
+    // t145u JACKPOT SHOWCASE (lvl 1 RVR MINI .. 4 PHEV GRAND): each beat of the reveal has its own composite, louder / longer / more layered per level
+    jpDark: (l = 1) => { smp('boom', { gain: .75, rate: .55 }); smp('humLoop', { gain: .55, rate: .7, dur: 2.2 + l * .4 }); if (l >= 3) smp('crowd', { gain: .25, rate: .6, dur: 3, delay: .4 }); diag.jp = (diag.jp || []).concat('dark'); return 1; },
+    jpSpot: (l = 1) => { smp('unlock', { gain: .9 }); smp('whoosh2', { gain: .55, rate: .8, delay: .05 }); smp('click', { gain: .8, delay: .02 }); if (l >= 2) smp('spark', { gain: .7, delay: .25 }); diag.jp = (diag.jp || []).concat('spot'); return 1; },
+    jpDrive: (l = 1) => { smp('engineStart', { gain: 1 }); smp('rev2', { gain: .85 + l * .05, delay: .55, dur: 1.4 + l * .35 }); smp('passby', { gain: .9, delay: .35 }); if (l >= 2) smp('turbo', { gain: .8, delay: .7 }); if (l >= 3) smp('launch', { gain: .8, delay: .9 }); diag.jp = (diag.jp || []).concat('drive'); return 1; },
+    jpStop: (l = 1) => { smp('screech', { gain: .8, dur: 1.2 }); smp('burnout', { gain: .9, delay: .1, dur: 1.5 + l * .5 }); smp('horn', { gain: .85, delay: .5 }); smp('horn', { gain: .85, delay: .95 }); if (l >= 3) smp('horn', { gain: .9, delay: 1.4 }); diag.jp = (diag.jp || []).concat('stop'); return 1; },
+    jpSlam: (l = 1) => { smp('boom', { gain: 1 }); smp('impact', { gain: 1, rate: .7 }); smp('fanfareBig', { gain: .95 + l * .02, delay: .05 }); smp('cheer', { gain: .8, delay: .3 }); if (l >= 2) smp('fireworks', { gain: .9, delay: .2 }); if (l >= 3) { smp('applause', { gain: .8, delay: .4 }); smp('crowd', { gain: .8, delay: .1 }); } if (l >= 4) { smp('boom', { gain: 1, rate: .6, delay: .25 }); smp('launch', { gain: 1, delay: .1 }); smp('zap', { gain: .9, delay: .05 }); } diag.jp = (diag.jp || []).concat('slam'); return 1; },
+    jpLand: (l = 1) => { smp('fanfareBig', { gain: 1 }); smp('tada', { gain: .9, delay: .1 }); smp('chaching', { gain: 1 }); smp('coins', { gain: 1.1, delay: .1, dur: 1.5 + l * .6 }); smp('crowd', { gain: .5 + l * .1, delay: .2 }); smp('applause', { gain: .6 + l * .08, delay: .4 }); if (l >= 2) smp('horn', { gain: .8, delay: .3 }); if (l >= 3) smp('fireworks', { gain: 1, delay: .3 }); if (l >= 4) { smp('boom', { gain: 1, delay: .05 }); smp('cheer', { gain: 1, delay: .6 }); smp('fireworks', { gain: 1, delay: .9 }); } diag.jp = (diag.jp || []).concat('land'); return 1; },
+    jpThunder: () => { smp('boom', { gain: 1, rate: .45, dur: 2 }); smp('zap', { gain: .9, rate: .8 }); smp('impact', { gain: .8, rate: .4, delay: .12 }); diag.jp = (diag.jp || []).concat('thunder'); return 1; },
+    jpCharge: (p = 0) => { smp(p <= .02 ? 'plugIn' : 'zap', { gain: .45 + .5 * p, rate: .8 + p * .9 }); if (p > .02) smp('surge', { gain: .3 + .4 * p, rate: .8 + p * .6, dur: .6 }); if (p >= .99) { smp('powerUp', { gain: 1 }); smp('boom', { gain: .9, delay: .2 }); } diag.jpCharge = (diag.jpCharge || 0) + 1; return 1; },
+    jpCrowd: () => { smp('crowd', { gain: 1 }); smp('cheer', { gain: .9, delay: .2 }); smp('applause', { gain: .8, delay: .5 }); diag.jp = (diag.jp || []).concat('crowd'); return 1; },
     rollStart: (q = 0) => { const r = smp('rev2', { gain: .7 + q * .15, rate: .9, dur: 1.4 + q * .5 }); if (q >= 1) smp('turbo', { gain: .5 + q * .15, rate: .9 + q * .04, delay: .1 }); if (q >= 2) smp('launch', { gain: .6, delay: .25 }); return r || 1; },
     rollTick: (u = 0, q = 0, n = 1) => { const r = smp('coin', { gain: .45 + .5 * u, rate: .9 + u * 1.1 + (n % 4) * .03 });
       if (n % 3 === 0) smp('chime', { gain: .35 + .25 * u, rate: Math.pow(2, Math.min(24, Math.floor(u * 14) * 1) / 12) });

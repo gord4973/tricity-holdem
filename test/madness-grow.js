@@ -12,9 +12,9 @@ const BASE = process.env.MADNESS_URL || 'http://localhost:3490', wait = ms => ne
       const geo = () => p.evaluate(() => { const r = id => document.getElementById(id).getBoundingClientRect(); return { reelsH: r('reels').height, frameTop: r('frame').top, showH: r('frame').top, spinBot: r('spinBtn').bottom, barBot: r('bar').bottom, vh: innerHeight, vw: innerWidth, sw: document.documentElement.scrollWidth, rows: reels.rows, vis: reels.visible(0).length }; });
       const g3 = await geo(); assert.strictEqual(g3.rows, 3);
       const out = [];
-      for (const [force, r0, r1] of [['grow', 3, 4], ['grownitro', 4, 5]]) {
+      for (const [force, r0, r1, mode] of [['grow', 3, 4, 'turbo'], ['grownitro', 4, 5, 'nitro']]) {
         await p.evaluate(() => { window.__grow = 0; }); await p.evaluate(f => G.force(f), force); await p.click('#spinBtn');
-        await p.waitForFunction(r => window.__rows === r && reels.rows === r, { timeout: 200000 }, r0); // round start (nitro: 4)
+        await p.waitForFunction((m, r) => G.mode === m && reels.rows === r, { timeout: 200000 }, mode, r0); // round start (turbo 3 / nitro 4)
         await p.waitForFunction(r => window.__grow === 1 && window.__rows === r && reels.rows === r, { timeout: 200000 }, r1); await wait(1600);
         const g = await geo(); await p.screenshot({ path: `/workspace/madness-notes/shots/grow-5x${r1}-${tag}.png` });
         assert.ok(Math.abs(g.reelsH / g3.reelsH - r1 / 3) < .12 || g.reelsH <= g.vh * .5 + 2, `reels ${g3.reelsH} -> ${g.reelsH}`);

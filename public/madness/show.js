@@ -60,6 +60,7 @@
       else if (S.attract) { col = (i === Math.floor(now / 220) % n) ? '#ffd84a' : '#2a1a10'; glow = col === '#ffd84a' ? 1 : 0; }
       g.fillStyle = col; g.shadowColor = col; g.shadowBlur = glow * 16; g.beginPath(); g.arc(cx, y0, r, 0, 7); g.fill(); }
     g.restore(); }
+  function hexA(h, a) { const n = parseInt(h.slice(1), 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; }
   function rr(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
   // ---- BOOST gauge = Madness Meter ----
   function drawGauge(g, now) { const R = Math.min(S.H * .2, 46 * S.k()), cx = S.W - R - 8 * S.k(), cy = S.H - R * 1.05 - 24 * S.k(), p = S.meter, full = p >= .999;
@@ -104,11 +105,25 @@
     // headlight / reel-stop flashes on the bottom edge
     for (let i = S.flashes.length - 1; i >= 0; i--) { const f = S.flashes[i], u = (now - f.t0) / f.ms; if (u >= 1) { S.flashes.splice(i, 1); continue; }
       g.save(); g.globalCompositeOperation = 'lighter'; const gr = g.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r); gr.addColorStop(0, `rgba(${f.c},${(1 - u) * .9})`); gr.addColorStop(1, `rgba(${f.c},0)`); g.fillStyle = gr; g.fillRect(f.x - f.r, f.y - f.r, f.r * 2, f.r * 2); g.restore(); }
+    // t145u JACKPOT CELEBRATION: after the showcase the top display keeps celebrating until the next spin - swinging colour spotlights, the jackpot car doing
+    // victory laps with a glow, sparkles + the odd firework, marquee lights chasing round the edge and the jackpot banner with the win amount
+    if (S.cele) { const c = S.cele, u = Math.min(1, (now - c.t0) / 900);
+      g.save(); g.globalCompositeOperation = 'lighter'; for (let i = 0; i < 3; i++) { const sx = W * (.2 + i * .3), tx = W * (.5 + Math.sin(now / (1100 + i * 260) + i) * .32), gr = g.createLinearGradient(sx, 0, tx, H * .9); gr.addColorStop(0, hexA(c.color, .34 * u)); gr.addColorStop(1, hexA(c.color, 0));
+        g.fillStyle = gr; g.beginPath(); g.moveTo(sx - 6, 0); g.lineTo(sx + 6, 0); g.lineTo(tx + W * .16, H * .9); g.lineTo(tx - W * .16, H * .9); g.closePath(); g.fill(); }
+      const n = Math.max(12, Math.floor(W / 22)), ph = Math.floor(now / 90); for (let i = 0; i < n; i++) { const x = (i + .5) * W / n, on = (i + ph) % 3 === 0; g.fillStyle = on ? (i % 2 ? c.color2 : c.color) : 'rgba(255,255,255,.14)'; g.shadowColor = c.color; g.shadowBlur = on ? 10 : 0; g.beginPath(); g.arc(x, 5, on ? 3.6 : 2.2, 0, 7); g.arc(x, H - 5, on ? 3.6 : 2.2, 0, 7); g.fill(); }
+      g.restore(); if (Math.random() < .35 * dt / 16) S.parts.push({ t: 'spark', x: rnd(0, W), y: rnd(H * .1, H * .8), vx: rnd(-.3, .3), vy: rnd(.2, 1), s: rnd(2, 4), life: 1, decay: rnd(.015, .03), c: Math.random() < .5 ? c.color2 : '#fff' });
+      if (Math.random() < .008 * (S.cele.lvl || 1) * dt / 16) firework(); }
     drawGantry(g, now);
     // texts (+win amounts, BOOST!, etc.)
     for (let i = S.texts.length - 1; i >= 0; i--) { const t = S.texts[i], u = (now - t.t0) / t.ms; if (u >= 1) { S.texts.splice(i, 1); continue; } const pop = Math.min(1, u * 6), fade = u > .8 ? (1 - u) / .2 : 1;
       g.save(); g.globalAlpha = fade; g.translate(t.x, t.y - u * 10); g.scale(.6 + .4 * ease(pop), .6 + .4 * ease(pop)); g.font = `400 ${t.size}px Russo,sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = t.size * .14; g.strokeStyle = '#2a0008'; g.strokeText(t.s, 0, 0);
       const gr = g.createLinearGradient(0, -t.size / 2, 0, t.size / 2); gr.addColorStop(0, '#fff6a0'); gr.addColorStop(.5, t.c || '#ffcc00'); gr.addColorStop(1, '#ff3a1a'); g.fillStyle = gr; g.shadowColor = t.c || '#ffb000'; g.shadowBlur = 16; g.fillText(t.s, 0, 0); g.restore(); }
+    if (S.cele) { const c = S.cele, pop = Math.min(1, (now - c.t0) / 500), k = ease(pop), fs = Math.round(Math.min(W * (.066 + .008 * (c.lvl || 1)), H * .15)), pulse = 1 + .03 * Math.sin(now / 230);
+      let bb = 0; try { bb = document.getElementById('brand').getBoundingClientRect().bottom - S.rect.top; } catch (e) { bb = 0; } const y1 = Math.max(H * .3, bb + fs * .8);
+      g.save(); g.textAlign = 'center'; g.textBaseline = 'middle'; g.translate(W / 2, y1); g.scale(k * pulse, k * pulse); g.lineJoin = 'round';
+      g.font = `400 ${Math.round(fs * .56)}px Russo,sans-serif`; g.lineWidth = fs * .12; g.strokeStyle = '#000'; g.strokeText('★ JACKPOT ★', 0, -fs * 1.05); g.fillStyle = c.color2; g.shadowColor = c.color; g.shadowBlur = 16; g.fillText('★ JACKPOT ★', 0, -fs * 1.05);
+      g.font = `400 ${fs}px Russo,sans-serif`; g.lineWidth = fs * .16; g.strokeStyle = '#1a0600'; g.strokeText(c.name, 0, 0); const gr = g.createLinearGradient(0, -fs / 2, 0, fs / 2); gr.addColorStop(0, '#fffbe0'); gr.addColorStop(.5, c.color); gr.addColorStop(1, '#6a2000'); g.fillStyle = gr; g.shadowBlur = 24; g.fillText(c.name, 0, 0);
+      g.font = `400 ${Math.round(fs * .8)}px Russo,sans-serif`; g.lineWidth = fs * .13; g.strokeStyle = '#000'; g.strokeText(c.amt, 0, fs * .95); g.fillStyle = '#fff'; g.shadowColor = c.color; g.shadowBlur = 20 + 10 * Math.sin(now / 200); g.fillText(c.amt, 0, fs * .95); g.restore(); }
     drawGauge(g, now);
     // red anticipation vignette + mode tint + bottom fade into the cabinet
     if (S.red > .02) { const pulse = .75 + .25 * Math.sin(now / 120), gr = g.createRadialGradient(W / 2, H * .55, H * .2, W / 2, H * .55, Math.max(W, H) * .8); gr.addColorStop(0, 'rgba(255,0,20,0)'); gr.addColorStop(1, `rgba(255,0,20,${.55 * S.red * pulse})`); g.fillStyle = gr; g.fillRect(0, 0, W, H); }
@@ -122,7 +137,7 @@
   const Show = {
     init(cv) { S.cv = cv; S.g = cv.getContext('2d'); S.k = () => parseFloat(getComputedStyle(document.getElementById('app')).getPropertyValue('--k')) || 1; requestAnimationFrame(loop); ev('init'); },
     get state() { return { state: S.state, gantry: S.gantry.mode, zoom: +S.cam.z.toFixed(3), red: +S.red.toFixed(2), speed: +S.speed.toFixed(2), meter: +S.tmeter.toFixed(2), actors: S.actors.map(a => a.k + (a.hero ? '*' : '')), wheels: S.actors.map(a => ({ k: a.k, x: +(a._wx || 0).toFixed(1), y: +(a._wy || 0).toFixed(1), wa: +(a.wa || 0).toFixed(3), wo: +(a.wo || 0).toFixed(3), w: +((a._box && a._box.w) || 0).toFixed(1) })), frames: S.frames, events: S.events.slice(-20) }; },
-    spin() { S.state = 'spin'; S.gantry = { mode: 'green', t: performance.now() }; S.tspeed = 1; S.cam.tz = 1.12; S.cam.kick = 3; S.tred = 0; S.hero = null; S.texts.length = 0; S.actors.forEach(a => { if (a.hero) a.dead = true; }); launchAll(3); if (Math.random() < .3) try { window.MadAudio.play('passby', .35); } catch (e) {} ev('spin'); },
+    spin() { Show.celebrateOff(); S.state = 'spin'; S.gantry = { mode: 'green', t: performance.now() }; S.tspeed = 1; S.cam.tz = 1.12; S.cam.kick = 3; S.tred = 0; S.hero = null; S.texts.length = 0; S.actors.forEach(a => { if (a.hero) a.dead = true; }); launchAll(3); if (Math.random() < .3) try { window.MadAudio.play('passby', .35); } catch (e) {} ev('spin'); },
     reelStop(r, cells) { const x = colX(r), y = S.H - 6, heavy = cells && cells.some(c => /PH|WD|FL|PL|BG/.test(c.s)); S.cam.kick += heavy ? 5 : 2; puff(x, y, heavy ? 16 : 8); if (heavy) sparks(x, y, 18, cells.some(c => c.s === 'PL') ? '#22c3ff' : cells.some(c => c.s === 'BG') ? '#c43cff' : '#ffd84a');
       S.flashes.push({ x, y: y - 10, r: S.H * (heavy ? .7 : .45), t0: performance.now(), ms: heavy ? 500 : 320, c: heavy ? '255,240,200' : '200,220,255' }); S.actors.forEach(a => a.flash = heavy ? 1 : .5); if (r === 4) { S.tspeed = 0; S.cam.tz = 1.04; if (S.gantry.mode !== 'win') S.gantry = { mode: 'off', t: performance.now() }; S.state = 'idle'; } ev('stop', { r, heavy }); },
     // t142u near miss: the cars rev hard (flames, red flash) then stall - speed collapses, smoke, camera snaps back
@@ -151,7 +166,14 @@
     bonus(type) { try { window.MadAudio.play('launch'); } catch (e) {} S.flashAll = .9; S.cam.kick += 10; S.cam.tz = 1.25; S.fireworks = performance.now() + 2500; launchAll(3); S.gantry = { mode: 'win', t: performance.now() };
       const sw = document.getElementById('sweep'); if (sw) { sw.className = ''; void sw.offsetWidth; sw.className = 'go ' + (type || ''); setTimeout(() => sw.className = '', 1300); } setTimeout(() => { S.cam.tz = 1.04; }, 1200); ev('bonus', { type }); },
     big(tier) { const sw = document.getElementById('sweep'); if (sw) { sw.className = ''; void sw.offsetWidth; sw.className = 'go'; setTimeout(() => sw.className = '', 1300); } S.fireworks = performance.now() + 6000; S.flashAll = .8; S.cam.tz = 1.2; launchAll(4); setTimeout(() => { S.cam.tz = 1.04; }, 3000); ev('big', { tier }); },
-    clear() { S.texts.length = 0; S.tred = 0; S.fireworks = 0; S.actors.forEach(a => { if (a.hero) a.dead = true; }); S.hero = null; },
+    // t145u: keep the jackpot celebration on the top display until the next spin (cfg: {key, name, amt, color, color2, lvl})
+    celebrate(cfg) { Show.celebrateOff(); const now = performance.now(); S.cele = Object.assign({ t0: now }, cfg); S.state = 'cele'; S.tred = 0; S.tspeed = 0; S.cam.tz = 1.08; S.gantry = { mode: 'win', t: now }; S.fireworks = 0; S.flashAll = .5;
+      const base = Math.min(S.W * .52, S.H * 1.4), a = spawn(cfg.key, { hero: true, cele: true, lane: 1, x: S.W + 30, w: base, flame: .5, beam: 1, v: .22, trailC: cfg.color }); S.hero = a;
+      a.script = (a, now2, dt, v) => { if (!S.cele) { a.dead = true; return; } a.x -= (.17 + .03 * (cfg.lvl || 1)) * dt; a.v = .22; a.flame = .5; a.flash = Math.sin(now2 / 260) > .7 ? 1 : 0; if (a.x < -base * 1.15) a.x = S.W + 30; if (Math.random() < .25) sparks(a.x + base * .5, laneY(v, 1) - base * .1, 1, cfg.color2); };
+      ev('celebrate', { id: cfg.name }); },
+    celebrateOff() { if (!S.cele) return; S.cele = null; S.actors.forEach(a => { if (a.cele) a.dead = true; }); if (S.hero && S.hero.cele) S.hero = null; S.cam.tz = 1.04; ev('celebrate-off'); },
+    get celebrating() { return S.cele ? S.cele.name : null; },
+    clear() { S.texts.length = 0; S.tred = 0; S.fireworks = 0; S.actors.forEach(a => { if (a.hero && !a.cele) a.dead = true; }); if (!S.cele) S.hero = null; },
     setAttract(on) { S.attract = on; }, setTint(c) { S.tint = c || ''; }, pause(p) { S.paused = p; }, _S: S,
   };
   window.MadShow = Show;

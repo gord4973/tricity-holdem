@@ -127,6 +127,7 @@ function forceOf(kind) {
   if (/^(turbo|nitro|rally|offroad)$/.test(kind)) wheelTo(kind);
   if (kind === 'madspins') wheelTo('madness', 3, { rich: true });
   if (kind === 'gearup') wheelTo('turbo', 3, { opts: { forceGearUp: true } });
+  if (/^jp(mini|minor|major|grand)$/.test(kind)) wheelTo(kind.slice(2), 3); // t145u: land that jackpot on the wheel (pays JP x bet like the real thing)
   if (/^grow(turbo|nitro|madness)?$/.test(kind)) wheelTo(kind.slice(4) || 'turbo', 3, { opts: { forceGrow: true } }); // t143u: first free spin lands 3 flags -> the reels grow one more row
   if (kind === 'rally1') wheelTo('rally', 3, { opts: { forcePlace: 1, forceNitro: true } });
   if (kind === 'summit') wheelTo('offroad', 3, { opts: { forceStuck: -1 } });
@@ -147,7 +148,7 @@ function forceOf(kind) {
 function clearWinBanner() { stopWinCycle(); try { SH.clear(); } catch (e) {} const wb = $('winBanner'); wb.classList.add('hidden'); wb.textContent = ''; $('frame').classList.remove('winning'); try { reels.clearWin(); } catch (e) {} }
 async function spin() {
   A.init(); exitAttract(); if (busy) { quick = true; reels.stopNow(); return; }
-  clearWinBanner();
+  clearWinBanner(); jackpotCeleOff();
   if (st.cents < betCents()) { auto = false; $('autoBtn').classList.remove('on'); A.play('deny'); toast(st.cents > 0 ? 'Not enough credits for this bet — lower the bet or insert a bill' : 'Insert a $100 bill to play'); $('billBtn').classList.remove('pulse'); void $('billBtn').offsetWidth; $('billBtn').classList.add('pulse'); return; }
   busy = true; quick = false; meters(); $('spinBtn').classList.add('stop'); $('spinBtn').textContent = 'STOP'; A.play('spin');
   st.cents -= betCents(); st.played++; save(); disp.cents = st.cents; disp.win = 0; meters();
@@ -283,8 +284,16 @@ function bigWin(amount, tier, sub, o = {}) { return new Promise(async res => { c
     if (u < 1) requestAnimationFrame(step); else { finishRoll(false); timers.push(setTimeout(fin, (bon ? 2600 : 1300) * SPD())); } };
   requestAnimationFrame(step);
   setTimeout(() => { b.onclick = () => { if (bon && rolling) { finishRoll(true); timers.push(setTimeout(fin, 1800 * SPD())); } else fin(); }; }, bon ? 700 : 500); setTimeout(fin, ms + (bon ? 12000 : 6000)); }); }
-async function jackpotWin(id, amount, how) { fxs({ kind: 'jackpot', id, amount }); A.play('boom'); await cinematic({ title: M.JP_NAME[id] + '!', sub: 'JACKPOT', color: '#ffc400', car: id === 'grand' ? 'phev' : id === 'major' ? 'out' : id === 'minor' ? 'ec' : 'rvr', dur: 2400 });
-  await bigWin(amount, amount >= 60 * bet() ? 'madness' : amount >= 25 * bet() ? 'mega' : 'big', M.JP_NAME[id] + ' JACKPOT' + (how ? ' · ' + how : '')); disp.win += amount; meters(); }
+// t145u: every jackpot gets the full showcase (jackpot.js): lights down, spotlight, the Mitsubishi drives in, NAME SLAM, huge rollup, big landing - bigger at each tier
+// (RVR MINI < ECLIPSE MINOR < OUTLANDER MAJOR < PHEV GRAND). Afterwards the celebration stays on the main screen (top display, cabinet lights, WIN box) until the next spin.
+const JPK = { mini: 'RV', minor: 'EC', major: 'OU', grand: 'PH' };
+function jackpotCelebrate(id, amount) { const C = window.MadJackpot && MadJackpot.CFG[id]; if (!C) return; try { SH.celebrate({ key: JPK[id], name: C.name, amt: fmt(amount), color: C.c, color2: C.c2, lvl: C.lvl }); } catch (e) {}
+  const app = $('app'); app.style.setProperty('--jpC', C.c); app.style.setProperty('--jpC2', C.c2); $('frame').classList.add('jpcele'); $('mWin').parentElement.classList.add('jpwin'); window.__jpCele = { id, amount, on: true }; }
+function jackpotCeleOff() { if (!window.__jpCele || !window.__jpCele.on) return; window.__jpCele.on = false; try { SH.celebrateOff(); } catch (e) {} $('frame').classList.remove('jpcele'); $('mWin').parentElement.classList.remove('jpwin'); }
+async function jackpotWin(id, amount, how) { fxs({ kind: 'jackpot', id, amount }); window.__jpLast = { id, amount, how: how || '' }; A.music(false); try { stopWinCycle(); } catch (e) {}
+  if (window.MadJackpot) await MadJackpot.run(id, amount, { fmt, bet: bet() });
+  else { A.play('boom'); await cinematic({ title: M.JP_NAME[id] + '!', sub: 'JACKPOT', color: '#ffc400', car: 'phev', dur: 2400 }); await bigWin(amount, 'madness', M.JP_NAME[id] + ' JACKPOT'); }
+  disp.win += amount; meters(); jackpotCelebrate(id, amount); }
 // ---------------- triggers ----------------
 async function trigger(t, F) {
   window.__bonusWin = 0; auto = false; $('autoBtn').classList.remove('on');
@@ -446,6 +455,7 @@ function showPay() { const b = bet(), cell = (s, n) => { const u = M.wayPay(s, n
 function showRules() { $('menuBody').innerHTML = `<h3>DRIFT WILD</h3><p>Any spin, a car can drift across reel 2, 3 or 4 in a cloud of tyre smoke and turn the whole reel WILD. A drift wild always lands at least one win.</p>
   <h3>BOOST GAUGE</h3><p>The round BOOST gauge in the top display fills with every checkered flag that lands without a wheel. Full BOOST = a free Madness Wheel. <b>New:</b> 3 BOOST GAUGE symbols (reels 2, 3, 4) fill the gauge instantly and launch the BOOSTED WHEEL with no locked wedges. The flag fill keeps going either way.</p>
   <h3>MADNESS WHEEL</h3><p>12 wedges: TURBO / NITRO / MADNESS SPINS, RALLY RACE, S-AWC CHALLENGE, PHEV CHARGE, 10× and 25× bet, and the RVR MINI (${M.JP.mini}×), ECLIPSE MINOR (${M.JP.minor}×), OUTLANDER MAJOR (${M.JP.major}×) and PHEV GRAND (${M.JP.grand}×) jackpots. With 3 flags the GRAND, MAJOR and MADNESS wedges are locked (5× bet); 4 flags lock only the GRAND; 5 flags unlock everything. REV UP can smash the locks before the spin.</p>
+  <h3>JACKPOTS</h3><p>Four jackpots, each a Mitsubishi star: <b>RVR MINI</b> ${M.JP.mini}× bet, <b>ECLIPSE MINOR</b> ${M.JP.minor}×, <b>OUTLANDER MAJOR</b> ${M.JP.major}× and the <b>PHEV GRAND</b> ${M.JP.grand}× (5 Outlander PHEVs on the centre row, or the Madness Wheel). Each one lights up the whole machine with its own vehicle showcase — the bigger the jackpot, the bigger the show — and the celebration stays on the main screen until your next spin. Tap to skip ahead.</p>
   <h3>FREE SPINS</h3><p>TURBO (8): multiplier wilds. NITRO (8): the reels grow to 5×4 for 1,024 ways, + drift wild reels. MADNESS (10): + a win multiplier that climbs to ×10. 3 flags = +5 spins <b>and the reels GROW one more row</b> for the rest of the round (5×3 → 5×4 = 1,024 ways; NITRO 5×4 → 5×5 = 3,125 ways). It happens once per round. GEAR UP can upgrade the round mid-way.</p>
   <h3>RALLY RACE</h3><p>Pick one of four cars and watch the race. 1st = 30× (NITRO FINISH doubles it to 60×), 2nd = 15×, 3rd = 8×, 4th = 4× bet.</p>
   <h3>S-AWC CHALLENGE</h3><p>Five trail stages. Each cleared stage pays 2× – 10× bet. Get STUCK and it ends — but S-AWC can rescue you once. Clear all 5 for a 20× SUMMIT bonus.</p>
@@ -471,6 +481,6 @@ meters();
 if (DEBUG) window.__finaleDemo = async (xb, label) => { busy = true; try { await bonusWin(xb * bet(), label || 'DEMO'); } finally { busy = false; } }; // t141u test hook: play the finale for xb x bet
 window.G = { st, M, spin, insertBill, cashOut, get busy() { return busy; }, get mode() { return curMode; }, setBet: i => { st.bet = i; save(); meters(); }, setDenom: d => { st.denom = d; save(); meters(); }, DENOMS, CPU, recoverScreen, cinematic, reels, drawWheel };
 if (DEBUG) { window.G.force = k => { forceNext = k; }; const d = $('dbg'); d.classList.remove('hidden');
-  d.innerHTML = ['rv5', 'ph5', 'win', 'multi', 'big', 'mega', 'madness', 'wild', 'drift', 'almost', 'meter', 'jackpot', 'boost', 'boost2', 'almostpl', 'almostbg', 'c10', 'c25', 'wheel3', 'wheel4', 'wheel5', 'revup', 'locked', 'turbo', 'nitro', 'madspins', 'gearup', 'rally', 'rally1', 'offroad', 'summit', 'rescue', 'charge', 'full72', 'surge', 'wcharge', 'mini', 'minor', 'major', 'grandwheel'].map(k => `<button data-f="${k}">${k}</button>`).join('');
+  d.innerHTML = ['rv5', 'ph5', 'win', 'multi', 'big', 'mega', 'madness', 'wild', 'drift', 'almost', 'meter', 'jackpot', 'boost', 'boost2', 'almostpl', 'almostbg', 'c10', 'c25', 'jpmini', 'jpminor', 'jpmajor', 'jpgrand', 'wheel3', 'wheel4', 'wheel5', 'revup', 'locked', 'turbo', 'nitro', 'madspins', 'gearup', 'rally', 'rally1', 'offroad', 'summit', 'rescue', 'charge', 'full72', 'surge', 'wcharge', 'mini', 'minor', 'major', 'grandwheel'].map(k => `<button data-f="${k}">${k}</button>`).join('');
   d.addEventListener('click', e => { const k = e.target.dataset.f; if (k) { forceNext = k; toast('next: ' + k, 900); } }); }
 })();
