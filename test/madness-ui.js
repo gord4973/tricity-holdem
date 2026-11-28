@@ -10,7 +10,7 @@ const FORCES = (process.env.FORCES || 'win,multi,big,mega,madness,wild,drift,alm
   const p = await b.newPage(), errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text()); });
   await p.setViewport({ width: process.env.IPAD ? 1024 : 412, height: process.env.IPAD ? 1366 : 915, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
   const speed = process.env.SPEED || '0.3';
-  await p.goto(BASE + '/madness?debug=1&speed=' + speed, { waitUntil: 'load' }); await p.evaluate(() => localStorage.clear()); await p.reload({ waitUntil: 'load' });
+  await p.goto(BASE + '/madness?debug=1&autostart=1&speed=' + speed, { waitUntil: 'load' }); await p.evaluate(() => localStorage.clear()); await p.reload({ waitUntil: 'load' });
   const idle = (t = 150000) => p.waitForFunction(() => window.G && !G.busy, { timeout: t }), cents = () => p.evaluate(() => G.st.cents);
   await idle(); assert.strictEqual(await cents(), 0, 'starts empty');
   if (SHOTS) await p.evaluate(() => { document.getElementById('dbg').style.display = 'none'; }); // clean screenshots

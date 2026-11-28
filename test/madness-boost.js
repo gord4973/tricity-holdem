@@ -3,7 +3,7 @@
 const P = require('puppeteer-core'), assert = require('assert'), BASE = process.env.MADNESS_URL || 'http://localhost:3490', wait = ms => new Promise(r => setTimeout(r, ms));
 (async () => { const b = await P.launch({ protocolTimeout: 600000, executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'] }); let ok = false;
   try { const p = await b.newPage(), errs = []; p.on('pageerror', e => errs.push(e.message + ' ' + (e.stack || '').split('\n').slice(0, 3).join(' | '))); await p.setViewport({ width: 412, height: 915, isMobile: true, hasTouch: true });
-    await p.goto(BASE + '/madness?debug=1&speed=0.4'); await p.evaluate(() => localStorage.clear()); await p.reload(); await p.waitForFunction(() => window.G && !G.busy, { timeout: 60000 });
+    await p.goto(BASE + '/madness?debug=1&autostart=1&speed=0.4'); await p.evaluate(() => localStorage.clear()); await p.reload(); await p.waitForFunction(() => window.G && !G.busy, { timeout: 60000 });
     await p.evaluate(() => { dbg.style.display = 'none'; }); await p.mouse.click(200, 300); await p.evaluate(() => document.getElementById('billBtn').click()); await p.waitForFunction(() => !G.busy && G.st.cents > 0, { timeout: 30000 });
     const ok200 = await p.evaluate(async () => (await fetch('/madness/art/BG@2x.webp')).status); assert.strictEqual(ok200, 200);
     // two gauges: escalating landing sounds, no bonus

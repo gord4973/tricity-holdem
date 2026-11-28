@@ -15,24 +15,25 @@
   function close() { try { prompt(''); const h = $('sceneHow'); h && h.classList.add('hidden'); } catch (e) {} S.alive = false; S.draw = null; cancelAnimationFrame(S.raf); $('scene').classList.add('hidden'); $('sceneBtns').innerHTML = ''; $('sceneMsg').classList.add('hidden'); F().pauseStage(false); }
   function msg(html, color, ms) { const m = $('sceneMsg'); m.style.setProperty('--msgC', color || '#ffb000'); m.innerHTML = html; m.classList.remove('hidden'); m.style.animation = 'none'; void m.offsetWidth; m.style.animation = ''; if (ms) setTimeout(() => m.classList.add('hidden'), ms * sp()); }
   // t114u: clear directions - a HOW TO PLAY card before every interactive round, a persistent prompt bar, pulsing tap targets
-  function howTo(title, lines, go = "GOT IT — LET'S GO!") { return new Promise(res => { const sc = $('scene'); let el = $('sceneHow'); if (!el) { el = document.createElement('div'); el.id = 'sceneHow'; sc.appendChild(el); }
-    el.innerHTML = `<div class=hcard><b>HOW TO PLAY</b><h3>${title}</h3><ol>${lines.map(l => `<li>${l}</li>`).join('')}</ol><button class="sbtn big pulse">${go}</button><small>starts by itself in <i>10</i>s</small></div>`; el.classList.remove('hidden');
-    let done = false, left = 10; const fin = () => { if (done) return; done = true; clearInterval(tm); el.classList.add('hidden'); A().play('pick'); res(); }; window.__howTo = (window.__howTo || 0) + 1; window.__howTitle = title;
-    el.querySelector('button').addEventListener('click', fin); el.addEventListener('click', e => { if (e.target === el) fin(); });
-    const tm = setInterval(() => { left--; const i = el.querySelector('i'); if (i) i.textContent = Math.max(0, left); if (left <= 0) fin(); }, 1000 * sp()); }); }
+  function howTo(title, lines, go = '▶ START') { return new Promise(res => { const sc = $('scene'); let el = $('sceneHow'); if (!el) { el = document.createElement('div'); el.id = 'sceneHow'; sc.appendChild(el); }
+    el.innerHTML = `<div class=hcard><b>HOW TO PLAY</b><h3>${title}</h3><ol>${lines.map(l => `<li>${l}</li>`).join('')}</ol><button class="sbtn big pulse startgo">${go}</button><small>the round starts when YOU tap START</small></div>`; el.classList.remove('hidden');
+    // t147u: NO auto-start / countdown - the round begins only when the player taps START (even with autoplay on)
+    let done = false; capPause(); const fin = () => { if (done) return; done = true; el.classList.add('hidden'); A().play('pick'); capResume(); res(); }; window.__howTo = (window.__howTo || 0) + 1; window.__howTitle = title; window.__waitingStart = 'howto:' + title;
+    el.querySelector('button').addEventListener('click', () => { window.__waitingStart = null; fin(); }); }); }
   function prompt(html) { let el = $('scenePrompt'); if (!el) { el = document.createElement('div'); el.id = 'scenePrompt'; $('scene').appendChild(el); } if (!html) { el.classList.add('hidden'); return; } el.innerHTML = html; el.classList.remove('hidden'); el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '';
     const place = () => { const bx = $('sceneBtns'), sc = $('scene').getBoundingClientRect(), r = bx.getBoundingClientRect(), has = bx.children.length && r.height > 0; el.style.bottom = has ? Math.round(sc.bottom - r.top + 22) + 'px' : ''; };
     place(); clearInterval(S.pt); S.pt = setInterval(() => { if (el.classList.contains('hidden') || !S.alive) { clearInterval(S.pt); return; } place(); }, 200); }
-  // show buttons, resolve with the chosen index; auto-picks after autoMs (countdown shown) so nobody is ever stuck
-  function choose(items, autoMs, hudLabel) { return new Promise(res => { const box = $('sceneBtns'); box.innerHTML = ''; let done = false, left = Math.round(autoMs / 1000);
-    const fin = i => { if (done) return; done = true; clearInterval(t); box.querySelectorAll('button').forEach((b, k) => { b.disabled = true; b.classList.remove('pulse'); b.classList.toggle('picked', k === i); }); A().play('pick'); res(i); };
+  // show buttons, resolve with the chosen index. t147u: NO auto-pick / countdown - the scene waits for the player (the safety cap is paused meanwhile)
+  function choose(items, autoMs, hudLabel) { return new Promise(res => { const box = $('sceneBtns'); box.innerHTML = ''; let done = false; capPause(); window.__waitingStart = 'choose';
+    const fin = i => { if (done) return; done = true; window.__waitingStart = null; box.querySelectorAll('button').forEach((b, k) => { b.disabled = true; b.classList.remove('pulse'); b.classList.toggle('picked', k === i); }); A().play('pick'); capResume(); res(i); };
     items.forEach((it, i) => { const b = document.createElement('button'); b.className = 'sbtn pulse ' + (it.cls || ''); b.innerHTML = it.html; b.dataset.i = i; b.addEventListener('click', () => fin(i)); box.appendChild(b); });
-    const hud = () => { if (hudLabel) $('sceneHud').innerHTML = `${hudLabel}<br><small style="font-size:.6em;opacity:.7">auto in ${left}s</small>`; }; hud();
-    const t = setInterval(() => { left--; hud(); if (left <= 0) fin(Math.floor(Math.random() * items.length)); }, 1000 * sp()); }); }
-  // run fn with a hard safety cap; on timeout/error the scene closes and the decided win stands
-  async function guarded(maxMs, R, fn) { let timer; const cap = new Promise(r => { timer = setTimeout(() => r('cap'), maxMs * sp()); });
+    if (hudLabel) $('sceneHud').innerHTML = hudLabel; }); }
+  // run fn with a hard safety cap (play time only: the cap is PAUSED while the scene waits for the player to tap START / choose); on timeout/error the scene closes and the decided win stands
+  let capT = null, capFn = null, capMs = 0;
+  const capPause = () => { clearTimeout(capT); capT = null; }, capResume = () => { clearTimeout(capT); if (capFn) capT = setTimeout(capFn, capMs * sp()); };
+  async function guarded(maxMs, R, fn) { const cap = new Promise(r => { capFn = () => r('cap'); capMs = maxMs; capResume(); });
     try { const r = await Promise.race([fn(), cap]); if (r === 'cap') { window.__sceneCap = (window.__sceneCap || 0) + 1; } } catch (e) { console.error('scene error', e); window.__sceneErr = (window.__sceneErr || 0) + 1; }
-    finally { clearTimeout(timer); close(); } return R.win; }
+    finally { capPause(); capFn = null; close(); } return R.win; }
   // ---------------- RALLY RACE ----------------
   function rally(R, env) { return guarded(60000, R, async () => {
     open('RALLY RACE', 'PICK YOUR CAR — FINISH 1ST FOR ' + (30) + '× BET');
@@ -201,8 +202,8 @@
     await howTo('PHEV CHARGE', ['Tap the big <b>⚡ TAP TO CHARGE</b> button at the bottom.', 'Each tap adds <b>3 – 9 km</b> of electric range (REGEN BOOST doubles it).', 'Every km pays <b>1× bet</b> — fill all <b>72 km</b> for a FULL CHARGE.', 'Watch out: a <b>POWER SURGE</b> stops the charge.']);
     A().play('plug'); const hum = A().hum(); let tapped = null; prompt('👇 TAP ⚡ TO CHARGE — KEEP TAPPING!');
     await sleep(500);
-    const box = $('sceneBtns'), btn = document.createElement('button'); btn.className = 'sbtn big pulse'; btn.innerHTML = 'TAP TO CHARGE ⚡<small>auto-charges if you wait</small>'; box.appendChild(btn);
-    const waitTap = ms => new Promise(res => { let done = false; const fin = () => { if (done) return; done = true; btn.removeEventListener('click', fin); res(); }; btn.addEventListener('click', fin); tapped = fin; setTimeout(fin, ms * sp()); });
+    const box = $('sceneBtns'), btn = document.createElement('button'); btn.className = 'sbtn big pulse'; btn.innerHTML = 'TAP TO CHARGE ⚡<small>each tap charges</small>'; box.appendChild(btn);
+    const waitTap = ms => new Promise(res => { let done = false; const fin = () => { if (done) return; done = true; btn.removeEventListener('click', fin); res(); }; btn.addEventListener('click', fin); tapped = fin; capPause(); window.__waitingStart = 'charge'; }).then(() => { window.__waitingStart = null; capResume(); });
     const rect = () => $('sceneCv').getBoundingClientRect();
     for (let i = 0; i <= R.bursts.length; i++) {
       if (i === R.bursts.length && R.full) break;

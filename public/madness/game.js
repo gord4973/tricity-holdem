@@ -289,7 +289,14 @@ function bigWin(amount, tier, sub, o = {}) { return new Promise(async res => { c
 const JPK = { mini: 'RV', minor: 'EC', major: 'OU', grand: 'PH' };
 function jackpotCelebrate(id, amount) { const C = window.MadJackpot && MadJackpot.CFG[id]; if (!C) return; try { SH.celebrate({ key: JPK[id], name: C.name, amt: fmt(amount), color: C.c, color2: C.c2, lvl: C.lvl }); } catch (e) {}
   const app = $('app'); app.style.setProperty('--jpC', C.c); app.style.setProperty('--jpC2', C.c2); $('frame').classList.add('jpcele'); $('mWin').parentElement.classList.add('jpwin'); window.__jpCele = { id, amount, on: true }; }
-function jackpotCeleOff() { if (!window.__jpCele || !window.__jpCele.on) return; window.__jpCele.on = false; try { SH.celebrateOff(); } catch (e) {} $('frame').classList.remove('jpcele'); $('mWin').parentElement.classList.remove('jpwin'); }
+// t148u: after ANY bonus-round win the top display carries that bonus's showcase (car + graphics + the win amount) until the next spin
+const BCELE = { rally: { key: 'EC', name: 'RALLY RACE', label: '★ RALLY WIN ★', c: '#ff8a00', c2: '#ffe08a', fx: 'rally', lvl: 1 }, offroad: { key: 'OU', name: 'S-AWC CHALLENGE', label: '★ OFF-ROAD WIN ★', c: '#30e060', c2: '#c8ff9a', fx: 'offroad', lvl: 1 },
+  charge: { key: 'PH', name: 'PHEV CHARGE', label: '⚡ CHARGED UP ⚡', c: '#22c3ff', c2: '#d4f6ff', fx: 'charge', lvl: 2 }, wheel: { key: 'EC', name: 'MADNESS WHEEL', label: '★ WHEEL WIN ★', c: '#ffd84a', c2: '#fff2b0', fx: 'wheel', lvl: 1 },
+  turbo: { key: 'EC', name: 'TURBO SPINS', label: '★ FREE SPINS TOTAL ★', c: '#ff8a00', c2: '#ffd08a', fx: 'spins', lvl: 1 }, nitro: { key: 'EV', name: 'NITRO SPINS', label: '★ FREE SPINS TOTAL ★', c: '#22c3ff', c2: '#bdeeff', fx: 'spins', lvl: 2 }, madness: { key: 'PH', name: 'MADNESS SPINS', label: '★ FREE SPINS TOTAL ★', c: '#ff2040', c2: '#ffb0b8', fx: 'spins', lvl: 3 } };
+function bonusCelebrate(kind, amount, o = {}) { const C = BCELE[kind]; if (!C || !(amount > 0)) return; jackpotCeleOff();
+  try { SH.celebrate({ key: C.key, name: C.name, label: o.label || C.label, fx: C.fx, km: o.km, sub: o.sub, amt: fmt(amount), color: C.c, color2: C.c2, lvl: C.lvl }); } catch (e) {}
+  const app = $('app'); app.style.setProperty('--jpC', C.c); app.style.setProperty('--jpC2', C.c2); $('frame').classList.add('jpcele'); $('mWin').parentElement.classList.add('jpwin'); window.__jpCele = { id: kind, amount, on: true, bonus: true }; window.__bonusCele = { kind, amount, on: true }; }
+function jackpotCeleOff() { if (!window.__jpCele || !window.__jpCele.on) return; window.__jpCele.on = false; if (window.__bonusCele) window.__bonusCele.on = false; try { SH.celebrateOff(); } catch (e) {} $('frame').classList.remove('jpcele'); $('mWin').parentElement.classList.remove('jpwin'); }
 async function jackpotWin(id, amount, how) { fxs({ kind: 'jackpot', id, amount }); window.__jpLast = { id, amount, how: how || '' }; A.music(false); try { stopWinCycle(); } catch (e) {}
   if (window.MadJackpot) await MadJackpot.run(id, amount, { fmt, bet: bet() });
   else { A.play('boom'); await cinematic({ title: M.JP_NAME[id] + '!', sub: 'JACKPOT', color: '#ffc400', car: 'phev', dur: 2400 }); await bigWin(amount, 'madness', M.JP_NAME[id] + ' JACKPOT'); }
@@ -303,7 +310,7 @@ async function trigger(t, F) {
   else { if (t.via === 'meter') { toast('BOOST FULL — WHEEL TIME!', 1500); await sleep(800); } else await sleep(600);
   await cinematic({ title: 'MADNESS WHEEL', sub: t.via === 'meter' ? 'BOOST FULL' : `${t.tier + 2} CHECKERED FLAGS`, color: '#ffd84a', car: 'ec', dur: 1900 }); }
   const w = await wheel(t.tier, F, t.via); meters(); let total = w.win; window.__bonusWin = total;
-  if (w.wedge.jp && !w.locked) await jackpotWin(w.wedge.jp, w.win); else if (w.win) { if (await bonusWin(w.win, w.locked ? 'LOCKED WEDGE' : w.wedge.label)) { disp.win += w.win; meters(); } else await roll('win', disp.win + w.win, 900, true); }
+  if (w.wedge.jp && !w.locked) await jackpotWin(w.wedge.jp, w.win); else if (w.win) { if (await bonusWin(w.win, w.locked ? 'LOCKED WEDGE' : w.wedge.label)) { disp.win += w.win; meters(); } else await roll('win', disp.win + w.win, 900, true); if (!w.feat) bonusCelebrate('wheel', w.win); }
   if (w.feat) total += await runFeature(w.feat, F);
   return total; }
 async function runFeature(feat, F) {
@@ -316,7 +323,7 @@ async function runFeature(feat, F) {
     await cinematic(Object.assign({ dur: 2000 }, C)); A.music(true);
     try { win = await SC[R.kind](R, env); } finally { A.music(false); }
     win = R.win; window.__bonusWin = (window.__bonusWin || 0) + win;
-    if (win > 0) { if (await bonusWin(win, { rally: 'RALLY RACE', offroad: 'S-AWC CHALLENGE', charge: `PHEV CHARGE · ${R.km} km` }[R.kind])) { disp.win += win; meters(); } else await roll('win', disp.win + win, 900, true); }
+    if (win > 0) { if (await bonusWin(win, { rally: 'RALLY RACE', offroad: 'S-AWC CHALLENGE', charge: `PHEV CHARGE · ${R.km} km` }[R.kind])) { disp.win += win; meters(); } else await roll('win', disp.win + win, 900, true); bonusCelebrate(R.kind, win, { km: R.km }); }
   }
   return win; }
 // ---------------- Madness Wheel (photo-real: chrome marquee rim + bulbs, lacquered wedges with chrome dividers, rotating alloy hub, chrome pointer) ----------------
@@ -379,11 +386,12 @@ function wheel(tier, F, via) { return new Promise(async (resolveWheel) => {
   const box = $('wheelBox'), hub = $('wheelHub'); const w = M.spinWheel(bet(), rng, tier, { forceIdx: F.idx, forceRevUp: F.revUp }); window.__lastWheel = w;
   let locks = M.LOCKS[tier]; box.classList.remove('hidden'); box.classList.toggle('boosted', via === 'boost'); $('wheelTitle').textContent = via === 'boost' ? 'BOOSTED WHEEL' : 'MADNESS WHEEL'; $('wheelTier').textContent = `${via === 'boost' ? '3 BOOST GAUGES' : via === 'meter' ? 'BOOST FULL' : tier + 2 + ' FLAGS'} · ${locks.length ? locks.length + ' LOCKED' : 'ALL UNLOCKED'}`; $('wheelMsg').textContent = ''; hub.disabled = true; hub.textContent = 'SPIN';
   drawWheel(wheelRot, locks); A.music(true); const idleAnim = setInterval(() => { if (!box.classList.contains('hidden')) drawWheel(wheelRot, locks); }, 140);
-  let finished = false; const safety = setTimeout(() => { if (!finished) { finished = true; window.__wheelSafety = (window.__wheelSafety || 0) + 1; box.classList.add('hidden'); A.music(false); resolveWheel(w); } }, 45000 * SPD());
+  let finished = false; let safety = setTimeout(() => { if (!finished) { finished = true; window.__wheelSafety = (window.__wheelSafety || 0) + 1; box.classList.add('hidden'); A.music(false); resolveWheel(w); } }, 45000 * SPD());
   try {
     if (w.revUp) { await sleep(600); $('wheelMsg').textContent = 'REV UP!'; A.play('rev', 1.6); fxs({ kind: 'revup' }); await sleep(1500); A.play('unlock'); shakeWheel(); locks = w.locks; drawWheel(wheelRot, locks); $('wheelTier').textContent = `TIER ${w.tier} · ${locks.length ? locks.length + ' LOCKED' : 'ALL UNLOCKED'}`; $('wheelMsg').textContent = 'LOCKS SMASHED!'; FX.sparks(innerWidth / 2, innerHeight / 2, 60, '#ffd84a'); await sleep(900); }
     $('wheelMsg').innerHTML = '<b class=tapme>👆 TAP THE WHEEL TO SPIN</b><small>Win free spins, a bonus round, credits or a jackpot · 🔒 locked wedges pay 5× bet</small>'; hub.disabled = false; hub.classList.add('pulse');
-    await new Promise(r => { let fired = false; const go = () => { if (fired) return; fired = true; hub.classList.remove('pulse'); hub.disabled = true; hub.onclick = null; $('wheelWrap').onclick = null; r(); }; hub.onclick = go; $('wheelWrap').onclick = go; setTimeout(go, 7000 * SPD()); });
+    await new Promise(r => { let fired = false; const go = () => { if (fired) return; fired = true; hub.classList.remove('pulse'); hub.disabled = true; hub.onclick = null; $('wheelWrap').onclick = null; r(); }; hub.onclick = go; $('wheelWrap').onclick = go; clearTimeout(safety); window.__waitingStart = 'wheel'; });
+    window.__waitingStart = null; clearTimeout(safety); safety = setTimeout(() => { if (!finished) { finished = true; window.__wheelSafety = (window.__wheelSafety || 0) + 1; box.classList.add('hidden'); A.music(false); resolveWheel(w); } }, 45000 * SPD()); // t147u: no auto-spin - the wheel waits for the player's tap; the safety timer only starts after it
     clearInterval(idleAnim); $('wheelMsg').textContent = ''; A.play('whoosh');
     const n = M.WHEEL.length, a = Math.PI * 2 / n, target = -w.idx * a + (Math.random() - .5) * a * .5, cur = wheelRot % (Math.PI * 2); let delta = target - cur; while (delta < 0) delta += Math.PI * 2; delta += Math.PI * 2 * 5;
     const T = (quick ? 1200 : 4600) * SPD(), t0 = performance.now(), from = wheelRot; let lastSeg = -1;
@@ -402,7 +410,7 @@ function shakeWheel() { const e = $('wheelWrap'); e.classList.remove('shakeX'); 
 // ---------------- free spins ----------------
 const MODE_INFO = { turbo: { c: '#ff8a00', car: 'ec', feats: 'Wilds carry ×2 – ×10 multipliers<br>3 flags = +5 spins AND +1 ROW · may GEAR UP to NITRO' }, nitro: { c: '#22c3ff', car: 'ev', feats: 'REELS GROW TO 5×4 = 1,024 WAYS<br>Multiplier wilds + DRIFT WILD reels<br>3 flags = +5 spins AND +1 ROW (5×5 = 3,125 ways) · may GEAR UP to MADNESS' }, madness: { c: '#ff2040', car: 'phev', feats: 'Multiplier wilds + DRIFT WILD reels<br>Win multiplier climbs ×1 → ×10 with every win<br>3 flags = +5 spins AND +1 ROW (5×4 = 1,024 ways)' } };
 function splash(mode, n) { return new Promise(res => { const s = $('splash'), info = MODE_INFO[mode]; s.style.setProperty('--modeC', info.c); $('splashTitle').textContent = M.MODES[mode].name.split(' ')[0]; $('splashSub').textContent = `${n} FREE SPINS`; $('splashFeats').innerHTML = info.feats + '<p class=how>HOW IT WORKS: your free spins play by themselves — no bet needed. Wins add up in BONUS WIN at the top. Tap START when ready.</p>'; s.classList.remove('hidden');
-  let done = false; const go = () => { if (done) return; done = true; s.classList.add('hidden'); $('startBtn').onclick = null; s.onclick = null; A.play('rev', 1); res(); }; setTimeout(() => { $('startBtn').onclick = go; s.onclick = go; }, 300); setTimeout(go, (quick ? 1500 : 9000) * SPD()); }); }
+  let done = false; const go = () => { if (done) return; done = true; window.__waitingStart = null; s.classList.add('hidden'); $('startBtn').onclick = null; s.onclick = null; A.play('rev', 1); res(); }; setTimeout(() => { $('startBtn').onclick = go; }, 300); window.__waitingStart = 'splash'; }); } // t147u: no auto-start timer - the free spins begin only when the player taps START
 // t135u: NITRO SPINS grow the reels to 5x4 (1,024 ways): the cabinet stretches a row taller (top display gives up the space), then shrinks back
 async function setRows(n, instant) { if (reels.rows === n && rowsVis === n) return; const from = rowsVis; reels.beginRows(n);
   if (!instant) { A.play(n > from ? 'turbo' : 'blowoff'); if (n > from) { A.play('impact'); toast(`REELS GROW! 5×${n} · ${(n ** 5).toLocaleString()} WAYS`, 1600); $('frame').classList.add('grow'); } }
@@ -431,7 +439,7 @@ async function freeRound(R, F) {
         await sleep(quick ? 150 : 450); await setRows(s.grow.to); toast(`3 FLAGS! +1 ROW · 5×${s.grow.to} · ${(s.grow.to ** 5).toLocaleString()} WAYS`, 2000); await sleep(quick ? 150 : 600); }
       await sleep(quick ? 80 : 250); }
   } finally { A.music(false); setModeLook(null); curMode = null; clearWinBanner(); await setRows(3); }
-  if (won > 0) { if (!(await bonusWin(won, `${M.MODES[R.finalMode].name} TOTAL · ${R.played} SPINS`))) await bigWin(won, 'total', `${M.MODES[R.finalMode].name} TOTAL · ${R.played} SPINS`); }
+  if (won > 0) { if (!(await bonusWin(won, `${M.MODES[R.finalMode].name} TOTAL · ${R.played} SPINS`))) await bigWin(won, 'total', `${M.MODES[R.finalMode].name} TOTAL · ${R.played} SPINS`); bonusCelebrate(R.finalMode, won, { sub: `${R.played} SPINS` }); }
   return won; }
 // ---------------- recovery ----------------
 function recoverScreen() { try { clearCine('recover'); } catch (e) {} clearWinBanner(); for (const id of ['wheelBox', 'splash', 'big']) $(id).classList.add('hidden'); try { SC.close(); } catch (e) {} setModeLook(null); curMode = null; setRows(3, true); $('frame').classList.remove('spinning', 'tease'); A.music(false); reels.setGrid(shown); }
@@ -480,6 +488,8 @@ addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault();
 meters();
 if (DEBUG) window.__finaleDemo = async (xb, label) => { busy = true; try { await bonusWin(xb * bet(), label || 'DEMO'); } finally { busy = false; } }; // t141u test hook: play the finale for xb x bet
 window.G = { st, M, spin, insertBill, cashOut, get busy() { return busy; }, get mode() { return curMode; }, setBet: i => { st.bet = i; save(); meters(); }, setDenom: d => { st.denom = d; save(); meters(); }, DENOMS, CPU, recoverScreen, cinematic, reels, drawWheel };
+// t147u test hook: ?debug=1&autostart=1 taps the START / wheel / trail / charge buttons by itself (the real game NEVER does - every bonus round waits for the player)
+if (DEBUG && qs.has('autostart')) setInterval(() => { const vis = sel => [...document.querySelectorAll(sel)].find(b => !b.disabled && b.getBoundingClientRect().width > 0); const b = vis('#sceneHow button') || vis('#splash:not(.hidden) #startBtn') || vis('#wheelBox:not(.hidden) #wheelHub') || vis('#sceneBtns .sbtn'); if (b) { window.__autoclicks = (window.__autoclicks || 0) + 1; b.click(); } }, 200);
 if (DEBUG) { window.G.force = k => { forceNext = k; }; const d = $('dbg'); d.classList.remove('hidden');
   d.innerHTML = ['rv5', 'ph5', 'win', 'multi', 'big', 'mega', 'madness', 'wild', 'drift', 'almost', 'meter', 'jackpot', 'boost', 'boost2', 'almostpl', 'almostbg', 'c10', 'c25', 'jpmini', 'jpminor', 'jpmajor', 'jpgrand', 'wheel3', 'wheel4', 'wheel5', 'revup', 'locked', 'turbo', 'nitro', 'madspins', 'gearup', 'rally', 'rally1', 'offroad', 'summit', 'rescue', 'charge', 'full72', 'surge', 'wcharge', 'mini', 'minor', 'major', 'grandwheel'].map(k => `<button data-f="${k}">${k}</button>`).join('');
   d.addEventListener('click', e => { const k = e.target.dataset.f; if (k) { forceNext = k; toast('next: ' + k, 900); } }); }

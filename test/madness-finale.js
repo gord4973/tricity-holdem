@@ -6,7 +6,7 @@ const SH = '/workspace/madness-notes/screens/t141-finale';
   for (const [tag, vp] of [['phone', { width: 412, height: 915 }], ['ipad', { width: 1024, height: 1366 }]]) {
     const p = await b.newPage(), errs = []; p.on('pageerror', e => errs.push(e.message));
     try {
-      await p.setViewport({ ...vp, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }); await p.goto(BASE + '/madness?debug=1&speed=1'); await p.evaluate(() => localStorage.clear()); await p.reload(); await p.waitForFunction(() => window.G && !G.busy);
+      await p.setViewport({ ...vp, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }); await p.goto(BASE + '/madness?debug=1&autostart=1&speed=1'); await p.evaluate(() => localStorage.clear()); await p.reload(); await p.waitForFunction(() => window.G && !G.busy);
       await p.evaluate(() => { dbg.style.display = 'none'; }); await p.mouse.click(100, 300); await p.evaluate(() => document.getElementById('billBtn').click()); await p.waitForFunction(() => !G.busy && G.st.cents > 0, { timeout: 30000 }); await wait(300);
       const vpw = vp.width;
       const run = async (how, want, shot) => {

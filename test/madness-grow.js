@@ -7,7 +7,7 @@ const BASE = process.env.MADNESS_URL || 'http://localhost:3490', wait = ms => ne
   for (const [tag, vp] of [['phone', { width: 412, height: 915 }], ['ipad', { width: 1024, height: 1366 }], ['ipad-820', { width: 820, height: 1180 }]]) { if (!cases.includes(tag)) continue;
     const p = await b.newPage(), errs = []; p.on('pageerror', e => errs.push(e.message));
     try {
-      await p.setViewport({ ...vp, isMobile: true, hasTouch: true }); await p.goto(BASE + '/madness?debug=1&speed=0.25'); await p.evaluate(() => localStorage.clear()); await p.reload(); await p.waitForFunction(() => window.G && !G.busy);
+      await p.setViewport({ ...vp, isMobile: true, hasTouch: true }); await p.goto(BASE + '/madness?debug=1&autostart=1&speed=0.25'); await p.evaluate(() => localStorage.clear()); await p.reload(); await p.waitForFunction(() => window.G && !G.busy);
       await p.evaluate(() => { dbg.style.display = 'none'; }); await p.click('#billBtn'); await p.waitForFunction(() => !G.busy && G.st.cents > 0, { timeout: 30000 }); await wait(300);
       const geo = () => p.evaluate(() => { const r = id => document.getElementById(id).getBoundingClientRect(); return { reelsH: r('reels').height, frameTop: r('frame').top, showH: r('frame').top, spinBot: r('spinBtn').bottom, barBot: r('bar').bottom, vh: innerHeight, vw: innerWidth, sw: document.documentElement.scrollWidth, rows: reels.rows, vis: reels.visible(0).length }; });
       const g3 = await geo(); assert.strictEqual(g3.rows, 3);

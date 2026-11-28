@@ -2,7 +2,7 @@
 // escalating 'lineUp' (n = 2..5) and glows the tiles; non-contributing stops are a plain clunk; flags / plugs / PHEVs have landing sounds.
 // node test/madness-lineup.js   (MADNESS_URL=https://... for the live site)
 const P = require('puppeteer-core'), assert = require('assert');
-const BASE = process.env.MADNESS_URL || 'http://localhost:3490', URL = BASE + '/madness?debug=1';
+const BASE = process.env.MADNESS_URL || 'http://localhost:3490', URL = BASE + '/madness?debug=1&autostart=1';
 (async () => { const b = await P.launch({ executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'] }); let fails = 0;
   for (const [tag, vp] of [['phone', { width: 412, height: 915 }], ['ipad', { width: 1024, height: 1366 }]]) {
     const p = await b.newPage(), errs = []; p.on('pageerror', e => errs.push(e.message));

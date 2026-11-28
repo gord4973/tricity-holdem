@@ -1,6 +1,6 @@
 // t117u top display + t118u Gorilla-format bottom bar UI test. node test/madness-show.js [phone|ipad|both]  (SHOTS=dir for screenshots)
 const P = require('puppeteer-core'), assert = require('assert');
-const URL = (process.env.MADNESS_URL || 'http://localhost:3490') + '/madness?debug=1', SHOTS = process.env.SHOTS, which = process.argv[2] || 'both';
+const URL = (process.env.MADNESS_URL || 'http://localhost:3490') + '/madness?debug=1&autostart=1', SHOTS = process.env.SHOTS, which = process.argv[2] || 'both';
 const SIZES = { phone: [412, 915, 3.5], ipad: [1024, 1366, 2] }; const wait = ms => new Promise(r => setTimeout(r, ms));
 (async () => { const b = await P.launch({ executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'] }); let fails = 0;
   for (const tag of which === 'both' ? ['phone', 'ipad'] : [which]) { const [w, h, dsf] = SIZES[tag]; const p = await b.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
@@ -43,7 +43,7 @@ const SIZES = { phone: [412, 915, 3.5], ipad: [1024, 1366, 2] }; const wait = ms
       s = await S(); assert.ok(s.events.some(e => e.k === 'stop' && e.r === 0) && s.events.some(e => e.k === 'stop' && e.r === 4), 'every reel stop reacts');
       await p.evaluate(() => G.force('almost')); await p.click('#spinBtn'); await p.waitForFunction(() => MadShow.state.gantry === 'tease', { timeout: 20000, polling: 30 }); await wait(500); s = await S();
       assert.ok(s.red > .3 && s.zoom > 1.12, 'anticipation: red + zoom ' + JSON.stringify(s)); await shot('anticipation'); await idle();
-      await wait(400); s = await S(); assert.ok(s.gantry !== 'tease' && s.red < .3, 'tease ends ' + JSON.stringify(s));
+      await p.waitForFunction(() => MadShow.state.red < .3, { timeout: 4000, polling: 50 }).catch(() => {}); s = await S(); assert.ok(s.gantry !== 'tease' && s.red < .3, 'tease ends ' + JSON.stringify(s));
       await p.evaluate(() => G.force('multi')); await p.click('#spinBtn'); await p.waitForFunction(() => MadShow.state.state === 'win', { timeout: 20000, polling: 30 }); await wait(1000); s = await S();
       assert.ok(s.actors.some(a => a.endsWith('*')), 'winning model races in ' + JSON.stringify(s.actors)); await shot('win');
       await p.waitForFunction(() => MadShow.state.events.some(e => e.k === 'dive'), { timeout: 8000 }); console.log(tag, 'win car dives into the reels ok');

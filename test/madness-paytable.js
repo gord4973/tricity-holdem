@@ -1,7 +1,7 @@
 // t123u: the paytable, the win banner, WIN credits and WIN $ all come from one function (M.wayPay) and agree exactly at every denom x bet.
 // node test/madness-paytable.js   (IPAD=1 for iPad viewport, SHOTS=dir to save win + paytable screenshots at 10¢/50 and $1/500)
 const P = require('puppeteer-core'), assert = require('assert');
-const URL = (process.env.MADNESS_URL || 'http://localhost:3490') + '/madness?debug=1', wait = ms => new Promise(r => setTimeout(r, ms));
+const URL = (process.env.MADNESS_URL || 'http://localhost:3490') + '/madness?debug=1&autostart=1', wait = ms => new Promise(r => setTimeout(r, ms));
 const DENOMS = [1, 2, 5, 10, 25, 100], CR = [50, 100, 150, 250, 500], SHOTS = process.env.SHOTS;
 const usd = c => '$' + (c / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 (async () => { const b = await P.launch({ executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox', '--enable-unsafe-swiftshader'] }); const p = await b.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));

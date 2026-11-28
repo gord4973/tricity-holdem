@@ -1,5 +1,5 @@
 // MITSUBISHI MADNESS stress: random features back-to-back with hostile input — impatient taps during cinematics, double/triple taps on the
-// wheel hub, mashing scene buttons, tapping SPIN mid-feature, doing nothing at all (auto-advance) — and a dark-screen / stuck monitor.
+// wheel hub, mashing scene buttons, tapping SPIN mid-feature, doing nothing at all except tapping START (t147u: bonus rounds never auto-start) — and a dark-screen / stuck monitor.
 // Fails on: page errors, spin errors, a scene safety cap, an overlay left up, #cine visible with no active takeover >2 s, or busy > cap.
 // Run: PORT=3490 node server.js ; MADNESS_URL=http://localhost:3490 ITER=40 node test/madness-stress.js
 const P = require('puppeteer-core'), assert = require('assert'), BASE = process.env.MADNESS_URL || 'http://localhost:3490', ITER = +(process.env.ITER || 40);
@@ -24,7 +24,9 @@ const TAPS = ['none', 'impatient', 'mash', 'spin'];
         try { if (tap === 'impatient') await p.mouse.click(206, 300 + Math.random() * 300);
           else if (tap === 'mash') { await p.evaluate(() => { const bs = [...document.querySelectorAll('#sceneBtns button, #wheelHub, #startBtn')].filter(b => b.offsetParent); for (const b of bs) { b.click(); b.click(); } }); }
           else if (tap === 'spin') await p.evaluate(() => document.getElementById('spinBtn').click()); } catch (e) {} } })();
-    await p.waitForFunction(() => !G.busy, { timeout: 240000, polling: 200 }).catch(() => {}); done = true; await tapper; await p.waitForFunction(() => !G.busy, { timeout: 240000, polling: 200 }).catch(() => {}); // a late 'spin' tap may legitimately start one more spin
+    // t147u: nothing starts by itself any more - a (slow) player taps START / the wheel / a trail / charge about 0.7 s after each prompt appears
+    const starter = (async () => { while (!done) { await wait(700); if (done) break; try { await p.evaluate(() => { const vis = sel => [...document.querySelectorAll(sel)].find(b => !b.disabled && b.getBoundingClientRect().width > 0); const b = vis('#sceneHow button') || vis('#splash:not(.hidden) #startBtn') || vis('#wheelBox:not(.hidden) #wheelHub') || vis('#sceneBtns .sbtn'); if (b) b.click(); }); } catch (e) {} } })();
+    await p.waitForFunction(() => !G.busy, { timeout: 240000, polling: 200 }).catch(() => {}); done = true; await tapper; await starter; await p.waitForFunction(() => !G.busy, { timeout: 240000, polling: 200 }).catch(() => {}); // a late 'spin' tap may legitimately start one more spin
     const s = await p.evaluate(() => ({ busy: G.busy, over: ['cine', 'scene', 'wheelBox', 'splash', 'big'].filter(id => !document.getElementById(id).classList.contains('hidden')), errs: window.__spinErrors || 0, cap: window.__sceneCap || 0, wsafe: window.__wheelSafety || 0, dark: __dark.max, cents: G.st.cents }));
     const secs = (Date.now() - t0) / 1000; maxBusy = Math.max(maxBusy, secs);
     console.log(`${String(i).padStart(3)} ${String(kind).padEnd(10)} ${tap.padEnd(9)} ${secs.toFixed(1).padStart(5)}s  credits ${(s.cents / 100).toFixed(2)}  dark ${Math.round(s.dark)}ms`);

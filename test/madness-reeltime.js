@@ -3,7 +3,7 @@
 const P = require('puppeteer-core'), assert = require('assert'), BASE = process.env.MADNESS_URL || 'http://localhost:3490', SP = 0.5;
 (async () => { const b = await P.launch({ protocolTimeout: 600000, executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox', '--enable-unsafe-swiftshader'] }); let ok = false;
   try { const p = await b.newPage(), errs = []; p.on('pageerror', e => errs.push(e.message)); await p.setViewport({ width: 412, height: 915, isMobile: true, hasTouch: true });
-    await p.goto(BASE + '/madness?debug=1&speed=' + SP); await p.evaluate(() => localStorage.clear()); await p.reload(); await p.waitForFunction(() => window.G && !G.busy && window.reels, { timeout: 60000 });
+    await p.goto(BASE + '/madness?debug=1&autostart=1&speed=' + SP); await p.evaluate(() => localStorage.clear()); await p.reload(); await p.waitForFunction(() => window.G && !G.busy && window.reels, { timeout: 60000 });
     await p.evaluate(() => { window.__spins = []; const o = reels.spin.bind(reels); reels.spin = (g, opt = {}) => { const rec = { fast: opt.fast, tease: !!(opt.tease && opt.tease.some(Boolean)), t0: performance.now(), stops: [], mode: G.mode || null }; __spins.push(rec); const os = opt.onStop; opt.onStop = (r, c) => { rec.stops.push(performance.now() - rec.t0); os && os(r, c); }; const pr = o(g, opt); rec.T = reels.reels.map(R => R.anim && R.anim.T); return pr; }; });
     await p.evaluate(() => document.getElementById('billBtn').click()); await p.waitForFunction(() => !G.busy && G.st.cents > 0, { timeout: 30000 });
     const T = await p.evaluate(() => MadReels.TIMING); assert.deepStrictEqual(T, { STOP0: 1, STAGGER: 0.45, REEL_V: 18 });

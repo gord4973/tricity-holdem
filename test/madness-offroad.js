@@ -6,7 +6,7 @@ const BASE = process.env.MADNESS_URL || 'http://localhost:3490', wait = ms => ne
   for (const [tag, vp] of [['phone', { width: 412, height: 915 }], ['ipad', { width: 1024, height: 1366 }]]) {
     const p = await b.newPage(), errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') console.log('CE', m.text().slice(0, 300)); });
     try {
-      await p.setViewport({ ...vp, isMobile: true, hasTouch: true }); await p.goto(BASE + '/madness?debug=1&speed=1'); await p.evaluate(() => localStorage.clear()); await p.reload(); await p.waitForFunction(() => window.G && !G.busy);
+      await p.setViewport({ ...vp, isMobile: true, hasTouch: true }); await p.goto(BASE + '/madness?debug=1&autostart=1&speed=1'); await p.evaluate(() => localStorage.clear()); await p.reload(); await p.waitForFunction(() => window.G && !G.busy);
       await p.evaluate(() => { dbg.style.display = 'none'; window.__madSpeed = 1; }); await p.click('#billBtn'); await p.waitForFunction(() => !G.busy && G.st.cents > 0, { timeout: 30000 }); await wait(300);
       await p.evaluate(() => { window.__offroadRunMs = []; window.__offroadBumps = 0; window.__offroadDone = false; G.force('summit'); }); await p.click('#spinBtn');
       // let the how-to / wheel run fast, then play the first stage at real speed

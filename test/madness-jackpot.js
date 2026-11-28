@@ -8,7 +8,7 @@ const tag = process.env.JP_VP || 'phone', SPEED = +(process.env.JP_SPEED || 1), 
 (async () => { const b = await P.launch({ protocolTimeout: 900000, executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'] }); let fails = 0; const dur = {};
   const p = await b.newPage(), errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text().slice(0, 200)); });
   try {
-    await p.setViewport({ ...VPS[tag], isMobile: true, hasTouch: true }); await p.goto(BASE + `/madness?debug=1&speed=${SPEED}`); await p.evaluate(() => localStorage.clear()); await p.reload(); await p.waitForFunction(() => window.G && !G.busy);
+    await p.setViewport({ ...VPS[tag], isMobile: true, hasTouch: true }); await p.goto(BASE + `/madness?debug=1&autostart=1&speed=${SPEED}`); await p.evaluate(() => localStorage.clear()); await p.reload(); await p.waitForFunction(() => window.G && !G.busy);
     await p.evaluate(() => { dbg.style.display = 'none'; }); await p.click('#billBtn'); await p.waitForFunction(() => !G.busy && G.st.cents > 0, { timeout: 30000 }); await wait(300);
     const shot = async name => p.screenshot({ path: `${SHOTS}/jp-${name}-${tag}.png` });
     const phase = (ph, to = 120000) => p.waitForFunction(x => window.__jackpot && window.__jackpot.log.some(l => l[0] === x), { timeout: to }, ph);

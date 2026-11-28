@@ -1,7 +1,7 @@
 // t120u: every recorded clip loads (HTTP 200) and decodes (AAC .m4a + the .mp3 fallback) on phone and iPad sizes; every event plays a recording.
 // node test/madness-audio.js   (MADNESS_URL=https://... to check the live site)
 const P = require('puppeteer-core'), assert = require('assert');
-const BASE = process.env.MADNESS_URL || 'http://localhost:3490', URL = BASE + '/madness?debug=1', wait = ms => new Promise(r => setTimeout(r, ms));
+const BASE = process.env.MADNESS_URL || 'http://localhost:3490', URL = BASE + '/madness?debug=1&autostart=1', wait = ms => new Promise(r => setTimeout(r, ms));
 (async () => { const b = await P.launch({ executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'] }); let fails = 0;
   for (const [tag, vp] of [['phone', { width: 412, height: 915 }], ['ipad', { width: 1024, height: 1366 }]]) {
     const p = await b.newPage(), errs = [], resp = {}; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text()); });

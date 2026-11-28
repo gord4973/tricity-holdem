@@ -1,7 +1,7 @@
 // t128u: the CASH OUT voucher prints fully on screen (not cut off at the right edge), is readable and taps away - phone + iPad portrait.
 // node test/madness-voucher.js   (MADNESS_URL=https://... for the live site)
 const P = require('puppeteer-core'), assert = require('assert');
-const BASE = process.env.MADNESS_URL || 'http://localhost:3490', URL = BASE + '/madness?debug=1', wait = ms => new Promise(r => setTimeout(r, ms));
+const BASE = process.env.MADNESS_URL || 'http://localhost:3490', URL = BASE + '/madness?debug=1&autostart=1', wait = ms => new Promise(r => setTimeout(r, ms));
 (async () => { const b = await P.launch({ executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox', '--enable-unsafe-swiftshader'] }); let fails = 0;
   for (const [tag, vp] of [['phone', { width: 412, height: 915 }], ['ipad', { width: 1024, height: 1366 }], ['ipad-safari', { width: 820, height: 1180 }]]) {
     const p = await b.newPage(), errs = []; p.on('pageerror', e => errs.push(e.message));

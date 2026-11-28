@@ -1,6 +1,6 @@
 // t122u: payouts across every denomination (1¢ - $1) x bet (50 - 500 credits). node test/madness-money.js
 const P = require('puppeteer-core'), assert = require('assert');
-const URL = (process.env.MADNESS_URL || 'http://localhost:3490') + '/madness?debug=1', wait = ms => new Promise(r => setTimeout(r, ms));
+const URL = (process.env.MADNESS_URL || 'http://localhost:3490') + '/madness?debug=1&autostart=1', wait = ms => new Promise(r => setTimeout(r, ms));
 const DENOMS = [1, 2, 5, 10, 25, 100], BETS = [0, 1, 2, 3, 4], CR = [50, 100, 150, 250, 500];
 const usd = c => '$' + (c / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 (async () => { const b = await P.launch({ executablePath: '/usr/bin/google-chrome', args: ['--no-sandbox', '--enable-unsafe-swiftshader'] }); const p = await b.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
