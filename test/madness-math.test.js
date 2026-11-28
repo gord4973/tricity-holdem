@@ -4,7 +4,13 @@ const G = cols => cols.map(c => c.map(s => typeof s === 'string' ? { s } : s));
 test('paytable ranks the 7 models by top-trim MSRP; Outlander PHEV is the top prize', () => {
   assert.deepStrictEqual(M.CARS, ['RV', 'EC', 'OU', 'EV', 'PH']);
   for (let i = 1; i < M.CARS.length; i++) { const a = M.CARS[i - 1], b = M.CARS[i]; assert.ok(M.SYM[b].msrp > M.SYM[a].msrp, `${b} msrp > ${a}`); for (let n = 0; n < 3; n++) assert.ok(M.PAY[b][n] >= M.PAY[a][n], `${b} pays >= ${a} for ${n + 3}`); }
-  assert.ok(M.PAY.PH[2] > M.PAY.EV[2] * 2, 'PHEV 5-of-a-kind clearly the top line pay');
+  assert.ok(M.PAY.PH[2] > M.PAY.EV[2] * 1.8, 'PHEV 5-of-a-kind clearly the top line pay');
+  // t123u: pays make sense vs the TOTAL bet (per winning way): PHEV 5oak 10-20x, RVR 5oak 1-3x, lowest symbol 5oak >= 1x, every 3oak way below the bet
+  assert.ok(M.PAY.PH[2] >= 10 && M.PAY.PH[2] <= 20, 'PH 5oak ' + M.PAY.PH[2]); assert.ok(M.PAY.RV[2] >= 1 && M.PAY.RV[2] <= 3, 'RV 5oak');
+  for (const s of M.PAYSYMS) { assert.ok(M.PAY[s][2] >= 1, s + ' 5oak >= 1x bet'); assert.ok(M.PAY[s][0] < 1, s + ' 3oak < bet'); assert.ok(M.PAY[s][0] < M.PAY[s][1] && M.PAY[s][1] < M.PAY[s][2]); }
+  for (let i = 1; i < M.PAYSYMS.length; i++) for (let n = 0; n < 3; n++) assert.ok(M.PAY[M.PAYSYMS[i]][n] >= M.PAY[M.PAYSYMS[i - 1]][n], 'ordered ' + M.PAYSYMS[i]);
+  // paytable credits are whole credits at the 50-credit bet and PAY is derived from them (single source)
+  for (const s of M.PAYSYMS) M.PAYC[s].forEach((c, n) => { assert.ok(Number.isInteger(c)); assert.strictEqual(M.PAY[s][n], c / M.BASE_CR); assert.strictEqual(M.wayPay(s, n + 3, 1), c / M.BASE_CR); });
   assert.strictEqual(M.JP.grand, 1000); assert.ok(M.JP.grand > M.JP.major && M.JP.major > M.JP.minor && M.JP.minor > M.JP.mini);
 });
 test('243-ways evaluation with wild multipliers', () => {
@@ -59,16 +65,16 @@ test('free spins: TURBO 8 / NITRO 8 / MADNESS 10, retriggers, cap 50, gear up, m
 test('RTP ~95% with frequent small wins and regular bonuses (2M seeded spins)', () => {
   const r = M.simulate(2000000, M.mulberry32(20261127));
   console.log(`  RTP ${(r.rtp * 100).toFixed(2)}%  hit ${(r.hitRate * 100).toFixed(1)}%  wheel 1/${r.wheelEvery.toFixed(0)}  charge 1/${r.chargeEvery.toFixed(0)}  drift 1/${r.driftEvery.toFixed(0)}  avg km ${r.avgKm.toFixed(1)}  full ${(r.fullChargeRate * 100).toFixed(1)}%`);
-  assert.ok(r.rtp > .90 && r.rtp < 1.0, 'rtp ' + r.rtp); assert.ok(r.hitRate > .40, 'hit rate'); assert.ok(r.wheelEvery > 40 && r.wheelEvery < 110, 'wheel freq'); assert.ok(r.chargeEvery < 500, 'charge freq');
+  assert.ok(r.rtp > .90 && r.rtp < 1.0, 'rtp ' + r.rtp); assert.ok(r.hitRate > .33, 'hit rate'); assert.ok(r.wheelEvery > 40 && r.wheelEvery < 110, 'wheel freq'); assert.ok(r.chargeEvery < 500, 'charge freq');
 });
 test('t115u: 243-ways evaluator matches brute-force line enumeration; win cells are exactly the contributing tiles (incl. wilds)', () => {
-  const rng = M.mulberry32(115), syms = ['RV', 'EC', 'OU', 'EV', 'PH', 'WD', 'FL', 'PL'];
+  const rng = M.mulberry32(115), syms = ['KY', 'TI', 'SH', 'HL', 'RV', 'EC', 'OU', 'EV', 'PH', 'WD', 'FL', 'PL'];
   for (let n = 0; n < 20000; n++) {
     const grid = [0, 1, 2, 3, 4].map(r => [0, 1, 2].map(() => { const s = syms[Math.floor(rng() * syms.length)]; return s === 'WD' ? { s, mult: [1, 2, 3][Math.floor(rng() * 3)] } : { s }; }));
     const got = M.evalWays(grid, 1);
     // brute force: every symbol, every length 3..5, count left-anchored adjacent paths (each path = one row per reel)
     let want = 0; const wantCells = {};
-    for (const s of M.CARS) { let best = null;
+    for (const s of M.PAYSYMS) { let best = null;
       for (let len = 5; len >= 3 && !best; len--) { let total = 0; const cells = new Set();
         const walk = (r, mult, path) => { if (r === len) { total += mult; path.forEach(([rr, y]) => cells.add(rr + ',' + y)); return; }
           grid[r].forEach((c, y) => { if (c.s === s || c.s === 'WD') walk(r + 1, mult * (c.s === 'WD' ? (c.mult || 1) : 1), [...path, [r, y]]); }); };

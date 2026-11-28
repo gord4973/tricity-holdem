@@ -8,13 +8,20 @@
   const SYM = {
     RV: { name: 'RVR', msrp: 35998, kind: 'car' }, EC: { name: 'Eclipse Cross', msrp: 38898, kind: 'car' }, OU: { name: 'Outlander', msrp: 50998, kind: 'car' },
     EV: { name: 'Eclipse Sportback EV', msrp: 54098, kind: 'car' }, PH: { name: 'Outlander PHEV', msrp: 63048, kind: 'car' },
+    KY: { name: 'Smart Key', kind: 'low' }, TI: { name: 'Performance Tire', kind: 'low' }, SH: { name: 'Shifter', kind: 'low' }, HL: { name: 'Rally Helmet', kind: 'low' },
     WD: { name: 'Madness Wild', kind: 'wild' }, FL: { name: 'Checkered Flag', kind: 'scatter' }, PL: { name: 'Charge Plug', kind: 'plug' },
   };
   const CARS = ['RV', 'EC', 'OU', 'EV', 'PH'];
-  // pay per WAY for 3 / 4 / 5 of a kind, in multiples of the total bet (x PAY_SCALE)
-  const PAY_SCALE = 0.345;
-  const PAY0 = { RV: [0.10, 0.25, 0.60], EC: [0.15, 0.40, 1.00], OU: [0.20, 0.60, 1.60], EV: [0.40, 1.20, 4.00], PH: [0.60, 2.00, 10.0] };
-  let PAY = {}; const setScale = k => { PAY = Object.fromEntries(Object.entries(PAY0).map(([s, a]) => [s, a.map(v => v * k)])); api.PAY = PAY; api.PAY_SCALE = k; };
+  const LOWS = ['KY', 'TI', 'SH', 'HL'];          // t123u: low "garage" symbols (like card ranks on real 243-ways slots)
+  const PAYSYMS = [...LOWS, ...CARS];              // every symbol that pays on a way, low -> high
+  // t123u PAYTABLE - the single source of truth. Credits paid PER WINNING WAY at the 50-credit base bet (1 bet unit) for 3 / 4 / 5 of a kind.
+  // Everything else (banner, WIN meter, paytable screen, tests) derives from PAY via wayPay(): pay = PAYC / 50 x bet units x wild mult.
+  // So a 5-of-a-kind PHEV way pays 750 / 50 = 15x the total bet, RVR 2x, the smart key 1x; a single 3-of-a-kind way is below the bet.
+  const PAYC = { KY: [4, 10, 50], TI: [5, 12, 60], SH: [6, 15, 70], HL: [8, 20, 80], RV: [10, 25, 100], EC: [12, 40, 150], OU: [15, 60, 250], EV: [20, 100, 400], PH: [30, 150, 750] };
+  const BASE_CR = 50;
+  const PAY = Object.fromEntries(Object.entries(PAYC).map(([k, v]) => [k, v.map(x => x / BASE_CR)]));
+  // pay of ONE way of `len` x `sym` at `bet` units with combined wild multiplier `mult` (and free-spin progressive `prog`) - used by evalWays and the UI
+  const wayPay = (sym, len, bet, mult = 1, prog = 1) => PAY[sym][len - 3] * bet * mult * prog;
   const BETS = [1, 2, 3, 5, 10]; // credits per spin (243 ways)
   const JP = { mini: 20, minor: 50, major: 200, grand: 1000 }; // x bet: MINI (RVR) / MINOR (ECLIPSE) / MAJOR (OUTLANDER) / GRAND (PHEV)
   const JP_NAME = { mini: 'RVR MINI', minor: 'ECLIPSE MINOR', major: 'OUTLANDER MAJOR', grand: 'PHEV GRAND' };
@@ -44,19 +51,21 @@
   // ---- PHEV Charging: tap to charge; bursts of 3-9 km; a POWER SURGE can stop it; 72 km = FULL CHARGE. 1 km = 1x bet. ----
   const CHARGE = { max: 72, burst: [[3, 10], [4, 14], [5, 16], [6, 16], [7, 14], [8, 10], [9, 8]], surge: 0.25, regen: 0.10, minKm: 10 };
   // ---- reel strips: fixed counts, fixed shuffle (same machine on every device) ----
+  // t123u: 100-stop strips. ~60% of model stops are the low garage symbols so the cars are rarer - that is what pays for the bigger per-way car pays
+  // at the same ~95% RTP (special densities unchanged: flags 4/100, plugs 4/100 on reels 1/3/5, wilds 5/100 on reels 2-4).
   const COUNTS = [
-    { RV: 20, EC: 12, OU: 8, EV: 4, PH: 3, FL: 2, PL: 2 },
-    { RV: 6, EC: 9, OU: 13, EV: 12, PH: 7, FL: 2, WD: 3 },
-    { RV: 18, EC: 12, OU: 9, EV: 5, PH: 3, FL: 2, WD: 3, PL: 2 },
-    { RV: 8, EC: 10, OU: 12, EV: 10, PH: 7, FL: 2, WD: 3 },
-    { RV: 16, EC: 12, OU: 10, EV: 6, PH: 3, FL: 2, PL: 2 },
+    { KY: 17, TI: 15, SH: 13, HL: 10, RV: 16, EC: 9, OU: 6, EV: 3, PH: 3, FL: 4, PL: 4 },
+    { KY: 13, TI: 12, SH: 10, HL: 9, RV: 6, EC: 9, OU: 13, EV: 12, PH: 7, FL: 4, WD: 5 },
+    { KY: 16, TI: 14, SH: 12, HL: 10, RV: 12, EC: 9, OU: 7, EV: 4, PH: 3, FL: 4, WD: 5, PL: 4 },
+    { KY: 13, TI: 12, SH: 10, HL: 9, RV: 8, EC: 10, OU: 12, EV: 10, PH: 7, FL: 4, WD: 5 },
+    { KY: 17, TI: 15, SH: 13, HL: 10, RV: 12, EC: 9, OU: 8, EV: 5, PH: 3, FL: 4, PL: 4 },
   ];
   const FREE_COUNTS = [
-    { RV: 12, EC: 11, OU: 10, EV: 8, PH: 5, FL: 2 },
-    { RV: 12, EC: 11, OU: 10, EV: 8, PH: 5, FL: 2, WD: 4 },
-    { RV: 12, EC: 11, OU: 10, EV: 8, PH: 5, FL: 2, WD: 4 },
-    { RV: 12, EC: 11, OU: 10, EV: 8, PH: 5, FL: 2, WD: 4 },
-    { RV: 12, EC: 11, OU: 10, EV: 8, PH: 5, FL: 2 },
+    { KY: 18, TI: 16, SH: 13, HL: 11, RV: 10, EC: 9, OU: 8, EV: 7, PH: 4, FL: 4 },
+    { KY: 16, TI: 14, SH: 13, HL: 11, RV: 9, EC: 9, OU: 8, EV: 6, PH: 4, FL: 4, WD: 6 },
+    { KY: 16, TI: 14, SH: 13, HL: 11, RV: 9, EC: 9, OU: 8, EV: 6, PH: 4, FL: 4, WD: 6 },
+    { KY: 16, TI: 14, SH: 13, HL: 11, RV: 9, EC: 9, OU: 8, EV: 6, PH: 4, FL: 4, WD: 6 },
+    { KY: 18, TI: 16, SH: 13, HL: 11, RV: 10, EC: 9, OU: 8, EV: 7, PH: 4, FL: 4 },
   ];
   function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
   function buildStrip(counts, seed) {
@@ -74,11 +83,11 @@
   // ---- 243-ways evaluation with per-cell wild multipliers (a way through multiplied wilds multiplies) ----
   function evalWays(grid, bet) {
     const out = []; let win = 0;
-    for (const s of CARS) {
+    for (const s of PAYSYMS) {
       let prod = 1, plain = 1, len = 0; const cells = [];
       for (let r = 0; r < grid.length; r++) { let m = 0, n = 0; grid[r].forEach((c, y) => { if (c.s === s) { m += 1; n++; cells.push([r, y]); } else if (c.s === 'WD') { m += c.mult || 1; n++; cells.push([r, y]); } });
         if (!m) break; prod *= m; plain *= n; len++; }
-      if (len >= 3) { const pay = PAY[s][len - 3] * bet * prod; out.push({ s, len, ways: plain, mult: prod / plain, pay, cells: cells.filter(([r]) => r < len) }); win += pay; }
+      if (len >= 3) { const pay = wayPay(s, len, bet, prod); out.push({ s, len, ways: plain, mult: prod / plain, pay, cells: cells.filter(([r]) => r < len) }); win += pay; }
     }
     return { ways: out, win };
   }
@@ -203,8 +212,7 @@
     return { spins: n, rtp, hitRate: hits / n, sd: Math.sqrt(sq / n - rtp * rtp), maxX, wheelEvery: n / wheels, chargeEvery: n / charges, meterEvery: viaMeter ? n / viaMeter : null, driftEvery: n / drifts,
       avgKm: kmSum / charges, fullChargeRate: full72 / charges, revUpRate: revUps / wheels, gearUpRate: fsRounds ? gearUps / fsRounds : 0, avgFreeSpins: fsSpins / fsRounds, share, tiers, feats };
   }
-  const api = { SYM, CARS, PAY, PAY0, BETS, JP, JP_NAME, WILD_MULT, DRIFT_P, FS_START, FS_RETRIG, FS_MAX, GEAR_UP, MODES, METER_MAX, WHEEL, LOCKS, LOCK_X, REV_UP, RALLY, NITRO_FINISH, OFFROAD, TERRAIN, CHARGE, COUNTS, STRIPS, FREE_STRIPS,
-    evalWays, spin, spinWheel, bonusRound, rally, offroad, charge, feature, play, tier, simulate, mulberry32, cryptoRng, setScale };
-  setScale(PAY_SCALE);
+  const api = { SYM, CARS, LOWS, PAYSYMS, PAYC, BASE_CR, PAY, wayPay, BETS, JP, JP_NAME, WILD_MULT, DRIFT_P, FS_START, FS_RETRIG, FS_MAX, GEAR_UP, MODES, METER_MAX, WHEEL, LOCKS, LOCK_X, REV_UP, RALLY, NITRO_FINISH, OFFROAD, TERRAIN, CHARGE, COUNTS, FREE_COUNTS, STRIPS, FREE_STRIPS,
+    evalWays, spin, spinWheel, bonusRound, rally, offroad, charge, feature, play, tier, simulate, mulberry32, cryptoRng, buildStrip };
   return api;
 });

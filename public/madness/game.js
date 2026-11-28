@@ -89,7 +89,13 @@ function forceOf(kind) {
   const flags = n => g => { clean(g); for (let r = 0; r < n; r++) set(g, r, r % 3, { s: 'FL' }); };
   const row = (s, n, wild) => g => { clean(g); for (let r = 0; r < 5; r++) for (let y = 0; y < 3; y++) if (g[r][y].s === s) g[r][y] = { s: s === 'RV' ? 'EC' : 'RV' }; for (let r = 0; r < n; r++) set(g, r, 1, { s }); if (wild) set(g, 2, 1, { s: 'WD', mult: wild }); };
   const F = { kind };
+  const fix = cols => g => { for (let r = 0; r < 5; r++) g[r] = cols[r].map(x => typeof x === 'string' ? { s: x } : { ...x }); };
   const grids = {
+    // t123u: exact single-way checks for the paytable/banner/WIN agreement test
+    rv5: fix([['KY', 'RV', 'TI'], ['SH', 'RV', 'HL'], ['KY', 'RV', 'TI'], ['SH', 'RV', 'HL'], ['EC', 'RV', 'OU']]),
+    rv5w: fix([['KY', 'RV', 'TI'], ['SH', 'RV', 'HL'], ['KY', { s: 'WD', mult: 2 }, 'TI'], ['SH', 'RV', 'HL'], ['EC', 'RV', 'OU']]),
+    rv5x2: fix([['KY', 'RV', 'TI'], ['RV', 'RV', 'HL'], ['KY', 'RV', 'TI'], ['SH', 'RV', 'HL'], ['EC', 'RV', 'OU']]),
+    ph5: fix([['KY', 'PH', 'TI'], ['SH', 'HL', 'PH'], ['KY', 'PH', 'TI'], ['PH', 'SH', 'HL'], ['EC', 'PH', 'OU']]),
     win: row('EC', 3), big: g => { row('EV', 5)(g); set(g, 1, 0, { s: 'EV' }); set(g, 3, 2, { s: 'EV' }); set(g, 2, 1, { s: 'WD', mult: 2 }); },
     mega: g => { row('PH', 5)(g); set(g, 2, 1, { s: 'WD', mult: 3 }); set(g, 0, 0, { s: 'PH' }); set(g, 1, 0, { s: 'PH' }); },
     madness: g => { row('PH', 5)(g); for (const r of [0, 1, 3, 4]) set(g, r, 0, { s: 'PH' }); set(g, 2, 1, { s: 'WD', mult: 3 }); set(g, 2, 0, { s: 'WD', mult: 2 }); },
@@ -176,7 +182,10 @@ function markWins(res) { const cells = new Set(); for (const w of res.ways) for 
 // going while idle and is cleared the instant SPIN is pressed (clearWinBanner).
 const SYMC = { RV: '#3fe06a', EC: '#ff9a3a', OU: '#4a8cff', EV: '#22d8ff', PH: '#ffd84a' };
 let winCyc = null; window.__winCycle = null;
-const wayLabel = (w, res) => `${w.len}× ${M.SYM[w.s].name.toUpperCase()}${w.mult > 1 ? ' ×' + w.mult : ''}${res.prog > 1 ? ' ×' + res.prog : ''} · ${w.ways} WAY${w.ways > 1 ? 'S' : ''} · ${fmt(w.pay * (res.prog || 1))}`;
+// t123u: ONE amount function for every way: the banner, the win cycle, the WIN meter (credits + $) and the paytable all use M.wayPay / wayAmt,
+// so a single 5x RVR way at 50 credits x 10¢ reads 100 credits = $10.00 everywhere. Wild multipliers / the Madness progressive are spelled out.
+const wayAmt = (w, res) => w.pay * ((res && res.prog) || 1);
+const wayLabel = (w, res) => `${w.len}× ${M.SYM[w.s].name.toUpperCase()} · ${w.ways} WAY${w.ways > 1 ? 'S' : ''}${w.mult > 1 ? ' · WILD ×' + w.mult : ''}${res.prog > 1 ? ' · ×' + res.prog : ''} = ${fmt(wayAmt(w, res))}`;
 function stopWinCycle() { if (winCyc) { clearInterval(winCyc.timer); winCyc.dead = true; winCyc = null; } }
 function showWay(res, i, total) { const wb = $('winBanner'), ws = res.ways, w = ws[i]; reels.setWin(new Set(w.cells.map(([r, y]) => r + ',' + y)), [w]);
   wb.style.setProperty('--wc', SYMC[w.s] || '#ffd84a'); wb.innerHTML = `<i>${i + 1}/${ws.length}</i> ${wayLabel(w, res)}${total != null ? ` <b>TOTAL ${fmt(total)}</b>` : ''}`; wb.classList.remove('hidden'); }
@@ -186,14 +195,14 @@ async function resolve(res, mode) {
   if (res.jackpot) { await jackpotWin('grand', res.jackpot.win, 'FIVE OUTLANDER PHEVs ON THE CENTRE ROW'); const rest = win - res.jackpot.win; // t122u: the 5 PHEVs also pay their ways win on top - show it in WIN too
     if (rest > 1e-9) { showAllWins(res, win); await roll('win', disp.win + rest, 600, true); } return win; }
   if (win > 0) { const ways = res.ways.slice().sort((a, b) => b.pay - a.pay); res = Object.assign({}, res, { ways }); A.play('win', ways.length); $('frame').classList.add('winning');
-    const cyc = winCyc = { res, i: 0, labels: ways.map(w => wayLabel(w, res)), total: win, timer: 0, dead: false }; window.__winCycle = { n: ways.length, labels: cyc.labels, pays: ways.map(w => w.pay * (res.prog || 1)), total: win };
+    const cyc = winCyc = { res, i: 0, labels: ways.map(w => wayLabel(w, res)), total: win, timer: 0, dead: false }; window.__winCycle = { n: ways.length, labels: cyc.labels, pays: ways.map(w => wayAmt(w, res)), credits: ways.map(w => cr(wayAmt(w, res))), total: win };
     showAllWins(res, win); fxs({ kind: 'winways', n: ways.length });
-    const t = M.tier(win, bet()); try { SH.win(ways[0].s, '+' + fmt(win), t); } catch (e) {}
+    const t = M.tier(win, bet()); try { SH.win((ways.find(w => M.CARS.includes(w.s)) || ways[0]).s, '+' + fmt(win), t); } catch (e) {}
     const _t = t, step = quick ? 120 : mode ? 420 : 650, base = disp.win;
     if (t !== 'win') { await bigWin(win, t); disp.win = base + win; meters(); }
     else await sleep(quick ? 150 : 600);
     // first pass: each way in turn, WIN meter climbing way by way
-    if (ways.length > 1 && !cyc.dead) { let run = 0; for (let i = 0; i < ways.length && !cyc.dead; i++) { run += ways[i].pay * (res.prog || 1); showWay(res, i, run); A.play('coin', i);
+    if (ways.length > 1 && !cyc.dead) { let run = 0; for (let i = 0; i < ways.length && !cyc.dead; i++) { run += wayAmt(ways[i], res); showWay(res, i, run); A.play('coin', i);
         if (t === 'win') await roll('win', base + Math.min(run, win), step * .8, true); else await sleep(step); }
       if (t === 'win') { disp.win = base + win; meters(); } }
     else if (t === 'win') await roll('win', base + win, Math.min(1400, 400 + win / bet() * 120), true);
@@ -350,11 +359,14 @@ function exitAttract() { if (!attractOn) { idleKick(); return; } attractOn = fal
 addEventListener('pointerdown', exitAttract, { passive: true }); idleKick();
 window.__attract = { enter: () => { busy || enterAttract(); }, exit: exitAttract, get on() { return attractOn; } };
 // ---------------- menu / paytable ----------------
-function showPay() { const b = bet(); let h = `<p>243 ways: matching models on adjacent reels from the left pay, anywhere on each reel. Bet ${betCr()} credits × ${denomTxt(st.denom)} = ${money(betCents())} per spin (play money). Ranked by top-trim MSRP.</p><table><tr><th></th><th>Model</th><th>3</th><th>4</th><th>5</th></tr>`;
-  for (const s of M.CARS.slice().reverse()) h += `<tr><td><img src="/madness/art/${s}.webp?v=1" alt=""></td><td>${M.SYM[s].name}<br><small>$${M.SYM[s].msrp.toLocaleString()}</small></td>${M.PAY[s].map(v => `<td>${fmt(v * b)}</td>`).join('')}</tr>`;
-  h += `</table><p>Pays shown per way at your bet. <b>5 Outlander PHEVs on the centre row = PHEV GRAND (${usd(M.JP.grand * b)})</b>.</p><h3>Specials</h3><p><img src="/madness/art/WD.webp" alt=""> MADNESS WILD (reels 2-4) substitutes for every model; in base play it can carry ×2/×3, in free spins ×2 – ×10. Multipliers on one way multiply.</p>
-  <p><img src="/madness/art/FL.webp" alt=""> 3 / 4 / 5 CHECKERED FLAGS anywhere spin the MADNESS WHEEL (more flags = fewer locked wedges).</p><p><img src="/madness/art/PL.webp" alt=""> 3 CHARGE PLUGS (reels 1, 3, 5) start PHEV CHARGE.</p>`;
-  $('menuBody').innerHTML = h; }
+function showPay() { const b = bet(), cell = (s, n) => { const u = M.wayPay(s, n, b); return `<td><b>${fmt(u)}</b><small>${cr(u).toLocaleString()} cr</small></td>`; };
+  let h = `<div class=payhead>PAYS PER WINNING WAY AT YOUR CURRENT BET<br><b>${betCr()} credits × ${denomTxt(st.denom)} = ${money(betCents())}</b></div>
+  <p>243 ways: matching symbols on adjacent reels from the left pay, anywhere on each reel. Each separate path through matching tiles is one WAY, so 2 RVRs on reel 2 = 2 ways (pays ×2). A MADNESS WILD with ×2 / ×3 multiplies its ways. The win banner shows exactly this: <i>5× RVR · 1 WAY = ${fmt(M.wayPay('RV', 5, b))}</i>.</p>
+  <table class=paytab><tr><th></th><th>Symbol</th><th>3</th><th>4</th><th>5</th></tr>`;
+  for (const s of M.PAYSYMS.slice().reverse()) h += `<tr class="${M.SYM[s].kind}"><td><img src="/madness/art/${s}.webp?v=3" alt=""></td><td>${M.SYM[s].name}${M.SYM[s].msrp ? `<br><small>$${M.SYM[s].msrp.toLocaleString()} top trim</small>` : ''}</td>${[3, 4, 5].map(n => cell(s, n)).join('')}</tr>`;
+  h += `</table><p>5 of a kind on one way: PHEV ${M.PAY.PH[2]}× your bet, RVR ${M.PAY.RV[2]}× your bet. Values above change with your bet and denomination. <b>5 Outlander PHEVs on the centre row = PHEV GRAND (${usd(M.JP.grand * b)})</b>.</p><h3>Specials</h3><p><img src="/madness/art/WD.webp" alt=""> MADNESS WILD (reels 2-4) substitutes for every symbol; in base play it can carry ×2/×3, in free spins ×2 – ×10. Multipliers on one way multiply.</p>
+  <p><img src="/madness/art/FL.webp" alt=""> 3 / 4 / 5 CHECKERED FLAGS anywhere spin the MADNESS WHEEL (more flags = fewer locked wedges).</p><p><img src="/madness/art/PL.webp" alt=""> 3 CHARGE PLUGS (reels 1, 3, 5) start PHEV CHARGE: 1 km = 1× bet, full 72 km = 72× bet (${usd(72 * b)}).</p>`;
+  $('menuBody').innerHTML = h; window.__payShown = { bet: b, betCr: betCr(), denom: st.denom, rows: Object.fromEntries(M.PAYSYMS.map(s => [s, [3, 4, 5].map(n => ({ usd: fmt(M.wayPay(s, n, b)), cr: cr(M.wayPay(s, n, b)) }))])) }; }
 function showRules() { $('menuBody').innerHTML = `<h3>DRIFT WILD</h3><p>Any spin, a car can drift across reel 2, 3 or 4 in a cloud of tyre smoke and turn the whole reel WILD.</p>
   <h3>MADNESS METER</h3><p>Every checkered flag that lands without a wheel adds to the meter. Full meter = a free Madness Wheel.</p>
   <h3>MADNESS WHEEL</h3><p>12 wedges: TURBO / NITRO / MADNESS SPINS, RALLY RACE, S-AWC CHALLENGE, PHEV CHARGE, 10× and 25× bet, and the RVR MINI (${M.JP.mini}×), ECLIPSE MINOR (${M.JP.minor}×), OUTLANDER MAJOR (${M.JP.major}×) and PHEV GRAND (${M.JP.grand}×) jackpots. With 3 flags the GRAND, MAJOR and MADNESS wedges are locked (5× bet); 4 flags lock only the GRAND; 5 flags unlock everything. REV UP can smash the locks before the spin.</p>
@@ -382,6 +394,6 @@ addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault();
 meters();
 window.G = { st, M, spin, insertBill, cashOut, get busy() { return busy; }, get mode() { return curMode; }, setBet: i => { st.bet = i; save(); meters(); }, setDenom: d => { st.denom = d; save(); meters(); }, DENOMS, CPU, recoverScreen, cinematic, reels, drawWheel };
 if (DEBUG) { window.G.force = k => { forceNext = k; }; const d = $('dbg'); d.classList.remove('hidden');
-  d.innerHTML = ['win', 'multi', 'big', 'mega', 'madness', 'wild', 'drift', 'almost', 'meter', 'jackpot', 'wheel3', 'wheel4', 'wheel5', 'revup', 'locked', 'turbo', 'nitro', 'madspins', 'gearup', 'rally', 'rally1', 'offroad', 'summit', 'rescue', 'charge', 'full72', 'surge', 'wcharge', 'mini', 'minor', 'major', 'grandwheel'].map(k => `<button data-f="${k}">${k}</button>`).join('');
+  d.innerHTML = ['rv5', 'ph5', 'win', 'multi', 'big', 'mega', 'madness', 'wild', 'drift', 'almost', 'meter', 'jackpot', 'wheel3', 'wheel4', 'wheel5', 'revup', 'locked', 'turbo', 'nitro', 'madspins', 'gearup', 'rally', 'rally1', 'offroad', 'summit', 'rescue', 'charge', 'full72', 'surge', 'wcharge', 'mini', 'minor', 'major', 'grandwheel'].map(k => `<button data-f="${k}">${k}</button>`).join('');
   d.addEventListener('click', e => { const k = e.target.dataset.f; if (k) { forceNext = k; toast('next: ' + k, 900); } }); }
 })();

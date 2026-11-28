@@ -158,6 +158,8 @@ button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulat
 .card h2 { margin: 0 0 8px; font: 400 22px Russo, sans-serif; color: #ffd84a; } .row { display: flex; gap: 6px; flex-wrap: wrap; }
 .btn2 { border: 1px solid #5a4a6a; background: #2a2236; border-radius: 10px; padding: 9px 12px; font-weight: 800; }
 #menuBody { margin-top: 10px; font: 600 15px/1.4 Barlow, sans-serif; } #menuBody table { width: 100%; border-collapse: collapse; } #menuBody td, #menuBody th { padding: 4px 3px; border-bottom: 1px solid #2e2638; text-align: left; } #menuBody img { width: 64px; vertical-align: middle; border-radius: 6px; }
+#menuBody .payhead { text-align: center; font: 400 13px Russo, sans-serif; color: #ffd84a; background: #2a1020; border: 1px solid #ff3a50; border-radius: 10px; padding: 8px; margin-bottom: 8px; } #menuBody .payhead b { font-size: 17px; color: #fff; }
+#menuBody .paytab td b { display: block; font-size: 16px; color: #fff; } #menuBody .paytab td small { color: #b8aac8; font-size: 12px; } #menuBody .paytab tr.low img { width: 52px; } #menuBody .paytab tr.low td { color: #cfc6dc; }
 #menuBody h3 { font: 400 16px Russo, sans-serif; color: #ff7a88; margin: 12px 0 4px; }
 .links { font-size: 13px; opacity: .7; } .links a { color: #9cf; }
 .close { margin-top: 10px; width: 100%; border: 0; border-radius: 10px; padding: 11px; background: #e0102c; font-weight: 800; }
