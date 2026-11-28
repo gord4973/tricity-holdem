@@ -46,11 +46,6 @@ button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulat
 .hrow { display: flex; justify-content: space-around; } .hrow span { display: flex; flex-direction: column; } .hrow small { font-size: calc(10px * var(--k)); opacity: .75; } .hrow i { font: 400 calc(15px * var(--k)) Russo, sans-serif; font-style: normal; }
 /* ---- machine ---- */
 #machine { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; }
-#meter { width: var(--fw); display: flex; align-items: center; gap: calc(6px * var(--k)); margin-bottom: calc(4px * var(--k)); font-size: calc(10px * var(--k)); }
-#meter b { font: 400 calc(9px * var(--k)) Russo, sans-serif; color: #ffd84a; white-space: nowrap; }
-#meter .track { flex: 1; height: calc(9px * var(--k)); border-radius: 9px; background: #1a1020; border: 1px solid #5a3a50; overflow: hidden; }
-#meterFill { height: 100%; width: 0; background: linear-gradient(90deg, #22c55e, #facc15 60%, #ef4444); box-shadow: 0 0 8px #facc15; transition: width .6s; }
-#meterPct { width: calc(30px * var(--k)); text-align: right; font-weight: 800; }
 #frame { position: relative; width: var(--fw); padding: var(--pad); border-radius: calc(16px * var(--k));
   background: linear-gradient(160deg, #f4f6fb 0%, #8b93a7 18%, #2c3140 40%, #a8b0c4 62%, #3a3f50 80%, #dfe3ee 100%);
   box-shadow: 0 0 0 2px #000, 0 0 calc(26px * var(--k)) rgba(255,30,60,.65), inset 0 0 8px rgba(0,0,0,.8); transition: box-shadow .3s; }

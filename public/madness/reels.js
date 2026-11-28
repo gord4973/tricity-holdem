@@ -1,7 +1,7 @@
 // MITSUBISHI MADNESS - canvas reels (5 x 3): wind-back start, motion blur, staggered stops with overshoot, tease (slow, glowing) reels,
 // landing pops for specials, win pulse + dimming, wild multiplier chips, drift-wild reel transform. Purely visual. window.MadReels
 (function () {
-  const CODES = ['KY', 'TI', 'SH', 'HL', 'RV', 'EC', 'OU', 'EV', 'PH', 'WD', 'FL', 'PL'], V = '3';
+  const CODES = ['KY', 'TI', 'RV', 'EC', 'OU', 'EV', 'PH', 'WD', 'FL', 'PL'], V = '3';
   const img = {}, ready = Promise.all(CODES.map(c => new Promise(r => { const i = new Image(); i.decoding = 'async'; i.onload = i.onerror = () => r(); i.src = `/madness/art/${c}@2x.webp?v=${V}`; img[c] = i; })));
   const SPECIAL = { WD: 1, FL: 1, PL: 1 };
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
@@ -47,7 +47,7 @@
     clearWin() { this.win = null; }
     transformReel(r, cells) { const R = this.reels[r]; R.list = cells.map(c => ({ ...c })); R.pos = 0; const t = performance.now(); [0, 1, 2].forEach(y => R.pop[y] = t + y * 90); this.flash = 1;
       for (let k = 0; k < 40; k++) this.sparks.push({ x: (r + .5) * (this.colW + this.gap), y: Math.random() * this.H, vx: (Math.random() - .5) * 6, vy: (Math.random() - .5) * 6, life: 1, c: Math.random() < .5 ? '#ff3048' : '#ffd84a' }); }
-    drawWays(g, now) { const W = this.win, col = { KY: '#c8cce0', TI: '#3fe0cf', SH: '#ffb43a', HL: '#c27bff', RV: '#3fe06a', EC: '#ff9a3a', OU: '#4a8cff', EV: '#22d8ff', PH: '#ffd84a' }, wt = (now - W.t0) / 1000;
+    drawWays(g, now) { const W = this.win, col = { KY: '#c8cce0', TI: '#3fe0cf', RV: '#3fe06a', EC: '#ff9a3a', OU: '#4a8cff', EV: '#22d8ff', PH: '#ffd84a' }, wt = (now - W.t0) / 1000;
       g.save(); g.lineCap = 'round'; g.lineJoin = 'round';
       W.ways.forEach((w, k) => { const c = col[w.s] || '#ffd84a', by = {}; for (const [r, y] of w.cells) (by[r] = by[r] || []).push(y);
         const P = (r, y) => { const q = this.cellXY(r, y); return [q.x + q.w / 2, q.y + q.h / 2]; }, grow = Math.min(1, wt * 1.8);

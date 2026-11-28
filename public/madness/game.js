@@ -1,4 +1,4 @@
-// MITSUBISHI MADNESS - play-money slot cabinet: 5x3 / 243 ways of Mitsubishi models, DRIFT WILDS, Madness Meter, Madness Wheel
+// MITSUBISHI MADNESS - play-money slot cabinet: 5x3 / 243 ways of Mitsubishi models, DRIFT WILDS, BOOST gauge (flag meter), Madness Wheel
 // (REV UP lock-break), TURBO / NITRO / MADNESS SPINS (GEAR UP), RALLY RACE, S-AWC CHALLENGE, PHEV CHARGE (72 km = 72x bet).
 // Engine patterns carried over from GORILLA: guarded full-screen takeovers (seq token, done guards, stall caps, orphan watchdog),
 // spin() try/catch -> recoverScreen(), single-fire taps, auto-advance on every interactive step, ?debug=1 forces, window.G test API.
@@ -39,7 +39,7 @@ function layout() {
   let reelsH = Math.round(3 * colW / 1.25);
   const v = { '--appW': W + 'px', '--k': k.toFixed(3), '--fw': fw + 'px', '--pad': pad + 'px', '--reelsH': reelsH + 'px' };
   for (const n in v) app.style.setProperty(n, v[n]); app.classList.toggle('wide', wide);
-  requestAnimationFrame(() => { reels.resize(); const a = app.getBoundingClientRect(), m = $('meter').getBoundingClientRect(), f = $('frame').getBoundingClientRect(); FX.setRoad(m.top - a.top - 34 * k, k); app.style.setProperty('--frameTop', (f.top - a.top) + 'px'); app.style.setProperty('--showH', Math.round(f.top - a.top + 6) + 'px'); });
+  requestAnimationFrame(() => { reels.resize(); const a = app.getBoundingClientRect(), f = $('frame').getBoundingClientRect(); FX.setRoad(f.top - a.top - 47 * k, k); app.style.setProperty('--frameTop', (f.top - a.top) + 'px'); app.style.setProperty('--showH', Math.round(f.top - a.top + 6) + 'px'); });
 }
 addEventListener('resize', layout); addEventListener('orientationchange', () => setTimeout(layout, 300)); layout(); setTimeout(layout, 400);
 document.fonts && document.fonts.ready.then(layout);
@@ -48,7 +48,7 @@ const disp = { cents: st.cents, win: 0 };
 function meters() { window.__denom = st.denom; $('mCash').textContent = money(disp.cents); $('mCred').textContent = Math.floor(disp.cents / st.denom).toLocaleString(); $('mBet').textContent = betCr(); $('mBetD').textContent = money(betCents()); $('mWin').textContent = cr(disp.win).toLocaleString(); $('mWinD').textContent = money(toCents(disp.win)); $('denomTxt').textContent = denomTxt(st.denom);
   const b = bet(); $('jpG').textContent = usd(M.JP.grand * b); $('jpJ').textContent = usd(M.JP.major * b); $('jpN').textContent = usd(M.JP.minor * b); $('jpM').textContent = usd(M.JP.mini * b);
   $('betDn').disabled = $('betUp').disabled = $('maxBtn').disabled = $('denomBtn').disabled = busy; $('cashBtn').disabled = busy || st.cents <= 0; $('billBtn').disabled = busy;
-  const p = Math.round((st.meter || 0) / M.METER_MAX * 100); $('meterFill').style.width = p + '%'; $('meterPct').textContent = p + '%'; try { SH.meter(p / 100); } catch (e) {} }
+  const p = Math.round((st.meter || 0) / M.METER_MAX * 100); try { SH.meter(p / 100); } catch (e) {} }
 function roll(key, to, ms, tick) { return new Promise(res => { const from = disp[key], t0 = performance.now(); ms *= SPD(); if (quick) ms = Math.min(ms, 250); let last = 0;
   const step = now => { const u = Math.min(1, (now - t0) / ms); disp[key] = from + (to - from) * u; meters(); if (tick && now - last > 70) { last = now; A.play('tick'); } if (u < 1) requestAnimationFrame(step); else { disp[key] = to; meters(); res(); } }; requestAnimationFrame(step); }); }
 function toast(msg, ms = 1800) { const t = $('toast'); t.textContent = msg; t.classList.remove('hidden'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('hidden'), ms); }
@@ -92,10 +92,10 @@ function forceOf(kind) {
   const fix = cols => g => { for (let r = 0; r < 5; r++) g[r] = cols[r].map(x => typeof x === 'string' ? { s: x } : { ...x }); };
   const grids = {
     // t123u: exact single-way checks for the paytable/banner/WIN agreement test
-    rv5: fix([['KY', 'RV', 'TI'], ['SH', 'RV', 'HL'], ['KY', 'RV', 'TI'], ['SH', 'RV', 'HL'], ['EC', 'RV', 'OU']]),
-    rv5w: fix([['KY', 'RV', 'TI'], ['SH', 'RV', 'HL'], ['KY', { s: 'WD', mult: 2 }, 'TI'], ['SH', 'RV', 'HL'], ['EC', 'RV', 'OU']]),
-    rv5x2: fix([['KY', 'RV', 'TI'], ['RV', 'RV', 'HL'], ['KY', 'RV', 'TI'], ['SH', 'RV', 'HL'], ['EC', 'RV', 'OU']]),
-    ph5: fix([['KY', 'PH', 'TI'], ['SH', 'HL', 'PH'], ['KY', 'PH', 'TI'], ['PH', 'SH', 'HL'], ['EC', 'PH', 'OU']]),
+    rv5: fix([['KY', 'RV', 'TI'], ['EC', 'RV', 'OU'], ['KY', 'RV', 'TI'], ['EC', 'RV', 'OU'], ['EV', 'RV', 'PH']]),
+    rv5w: fix([['KY', 'RV', 'TI'], ['EC', 'RV', 'OU'], ['KY', { s: 'WD', mult: 2 }, 'TI'], ['EC', 'RV', 'OU'], ['EV', 'RV', 'PH']]),
+    rv5x2: fix([['KY', 'RV', 'TI'], ['RV', 'RV', 'OU'], ['KY', 'RV', 'TI'], ['EC', 'RV', 'OU'], ['EV', 'RV', 'PH']]),
+    ph5: fix([['KY', 'PH', 'TI'], ['EC', 'OU', 'PH'], ['KY', 'PH', 'TI'], ['PH', 'EC', 'OU'], ['EV', 'PH', 'RV']]),
     win: row('EC', 3), big: g => { row('EV', 5)(g); set(g, 1, 0, { s: 'EV' }); set(g, 3, 2, { s: 'EV' }); set(g, 2, 1, { s: 'WD', mult: 2 }); },
     mega: g => { row('PH', 5)(g); set(g, 2, 1, { s: 'WD', mult: 3 }); set(g, 0, 0, { s: 'PH' }); set(g, 1, 0, { s: 'PH' }); },
     madness: g => { row('PH', 5)(g); for (const r of [0, 1, 3, 4]) set(g, r, 0, { s: 'PH' }); set(g, 2, 1, { s: 'WD', mult: 3 }); set(g, 2, 0, { s: 'WD', mult: 2 }); },
@@ -212,7 +212,7 @@ async function resolve(res, mode) {
     await sleep(quick ? 100 : mode ? 300 : 300); }
   else if (n) await sleep(400);
   return win; }
-function meterPulse(m) { meters(); if (m.full) { SH.meter(1, true); toast('MADNESS METER FULL!', 1500); A.play('turbo'); } }
+function meterPulse(m) { meters(); if (m.full) { SH.meter(1, true); toast('BOOST FULL!', 1500); A.play('turbo'); } }
 // ---------------- big wins ----------------
 const TIER_TXT = { big: 'BIG WIN', mega: 'MEGA WIN', madness: 'MITSUBISHI MADNESS!', total: 'BONUS TOTAL' };
 function bigWin(amount, tier, sub) { return new Promise(async res => { const b = $('big'); fxs({ kind: 'big', tier, amount });
@@ -228,8 +228,8 @@ async function jackpotWin(id, amount, how) { fxs({ kind: 'jackpot', id, amount }
 async function trigger(t, F) {
   window.__bonusWin = 0; auto = false; $('autoBtn').classList.remove('on');
   if (t.type === 'charge') { fxs({ kind: 'trigger', type: 'charge' }); toast('3 CHARGE PLUGS!', 1200); await sleep(700); return runFeature('charge', F); }
-  fxs({ kind: 'trigger', type: 'wheel', tier: t.tier, via: t.via }); if (t.via === 'meter') { toast('MADNESS METER FULL — WHEEL TIME!', 1500); await sleep(800); } else await sleep(600);
-  await cinematic({ title: 'MADNESS WHEEL', sub: t.via === 'meter' ? 'METER FULL' : `${t.tier + 2} CHECKERED FLAGS`, color: '#ffd84a', car: 'ec', dur: 1900 });
+  fxs({ kind: 'trigger', type: 'wheel', tier: t.tier, via: t.via }); if (t.via === 'meter') { toast('BOOST FULL — WHEEL TIME!', 1500); await sleep(800); } else await sleep(600);
+  await cinematic({ title: 'MADNESS WHEEL', sub: t.via === 'meter' ? 'BOOST FULL' : `${t.tier + 2} CHECKERED FLAGS`, color: '#ffd84a', car: 'ec', dur: 1900 });
   const w = await wheel(t.tier, F); let total = w.win; window.__bonusWin = total;
   if (w.wedge.jp && !w.locked) await jackpotWin(w.wedge.jp, w.win); else if (w.win) await roll('win', disp.win + w.win, 900, true);
   if (w.feat) total += await runFeature(w.feat, F);
@@ -359,16 +359,16 @@ function exitAttract() { if (!attractOn) { idleKick(); return; } attractOn = fal
 addEventListener('pointerdown', exitAttract, { passive: true }); idleKick();
 window.__attract = { enter: () => { busy || enterAttract(); }, exit: exitAttract, get on() { return attractOn; } };
 // ---------------- menu / paytable ----------------
-function showPay() { const b = bet(), cell = (s, n) => { const u = M.wayPay(s, n, b); return `<td><b>${fmt(u)}</b><small>${cr(u).toLocaleString()} cr</small></td>`; };
+function showPay() { const b = bet(), cell = (s, n) => { const u = M.wayPay(s, n, b); const x = M.PAY[s][n - 3]; return `<td><b>${fmt(u)}</b><small>${+x.toFixed(2)}× bet · ${cr(u).toLocaleString()} cr</small></td>`; };
   let h = `<div class=payhead>PAYS PER WINNING WAY AT YOUR CURRENT BET<br><b>${betCr()} credits × ${denomTxt(st.denom)} = ${money(betCents())}</b></div>
   <p>243 ways: matching symbols on adjacent reels from the left pay, anywhere on each reel. Each separate path through matching tiles is one WAY, so 2 RVRs on reel 2 = 2 ways (pays ×2). A MADNESS WILD with ×2 / ×3 multiplies its ways. The win banner shows exactly this: <i>5× RVR · 1 WAY = ${fmt(M.wayPay('RV', 5, b))}</i>.</p>
   <table class=paytab><tr><th></th><th>Symbol</th><th>3</th><th>4</th><th>5</th></tr>`;
-  for (const s of M.PAYSYMS.slice().reverse()) h += `<tr class="${M.SYM[s].kind}"><td><img src="/madness/art/${s}.webp?v=3" alt=""></td><td>${M.SYM[s].name}${M.SYM[s].msrp ? `<br><small>$${M.SYM[s].msrp.toLocaleString()} top trim</small>` : ''}</td>${[3, 4, 5].map(n => cell(s, n)).join('')}</tr>`;
-  h += `</table><p>5 of a kind on one way: PHEV ${M.PAY.PH[2]}× your bet, RVR ${M.PAY.RV[2]}× your bet. Values above change with your bet and denomination. <b>5 Outlander PHEVs on the centre row = PHEV GRAND (${usd(M.JP.grand * b)})</b>.</p><h3>Specials</h3><p><img src="/madness/art/WD.webp" alt=""> MADNESS WILD (reels 2-4) substitutes for every symbol; in base play it can carry ×2/×3, in free spins ×2 – ×10. Multipliers on one way multiply.</p>
+  for (const s of M.PAYSYMS.slice().reverse()) h += `<tr class="${M.SYM[s].kind}"><td><img src="/madness/art/${s}.webp?v=3" alt=""></td><td>${M.SYM[s].name}</td>${[3, 4, 5].map(n => cell(s, n)).join('')}</tr>`;
+  h += `</table><p>5 of a kind on one way: PHEV ${M.PAY.PH[2]}× bet, Outlander ${M.PAY.OU[2]}×, Sportback EV ${M.PAY.EV[2]}×, Eclipse Cross ${M.PAY.EC[2]}×, RVR ${M.PAY.RV[2]}×. Values above change with your bet and denomination. <b>5 Outlander PHEVs on the centre row = PHEV GRAND (${usd(M.JP.grand * b)})</b>.</p><h3>Specials</h3><p><img src="/madness/art/WD.webp" alt=""> MADNESS WILD (reels 2-4) substitutes for every symbol; in base play it can carry ×2/×3, in free spins ×2 – ×10. Multipliers on one way multiply.</p>
   <p><img src="/madness/art/FL.webp" alt=""> 3 / 4 / 5 CHECKERED FLAGS anywhere spin the MADNESS WHEEL (more flags = fewer locked wedges).</p><p><img src="/madness/art/PL.webp" alt=""> 3 CHARGE PLUGS (reels 1, 3, 5) start PHEV CHARGE: 1 km = 1× bet, full 72 km = 72× bet (${usd(72 * b)}).</p>`;
-  $('menuBody').innerHTML = h; window.__payShown = { bet: b, betCr: betCr(), denom: st.denom, rows: Object.fromEntries(M.PAYSYMS.map(s => [s, [3, 4, 5].map(n => ({ usd: fmt(M.wayPay(s, n, b)), cr: cr(M.wayPay(s, n, b)) }))])) }; }
+  $('menuBody').innerHTML = h; window.__payShown = { bet: b, betCr: betCr(), denom: st.denom, rows: Object.fromEntries(M.PAYSYMS.map(s => [s, [3, 4, 5].map(n => ({ usd: fmt(M.wayPay(s, n, b)), cr: cr(M.wayPay(s, n, b)), x: M.PAY[s][n - 3] }))])) }; }
 function showRules() { $('menuBody').innerHTML = `<h3>DRIFT WILD</h3><p>Any spin, a car can drift across reel 2, 3 or 4 in a cloud of tyre smoke and turn the whole reel WILD.</p>
-  <h3>MADNESS METER</h3><p>Every checkered flag that lands without a wheel adds to the meter. Full meter = a free Madness Wheel.</p>
+  <h3>BOOST GAUGE</h3><p>The round BOOST gauge in the top display fills with every checkered flag that lands without a wheel. Full BOOST = a free Madness Wheel.</p>
   <h3>MADNESS WHEEL</h3><p>12 wedges: TURBO / NITRO / MADNESS SPINS, RALLY RACE, S-AWC CHALLENGE, PHEV CHARGE, 10× and 25× bet, and the RVR MINI (${M.JP.mini}×), ECLIPSE MINOR (${M.JP.minor}×), OUTLANDER MAJOR (${M.JP.major}×) and PHEV GRAND (${M.JP.grand}×) jackpots. With 3 flags the GRAND, MAJOR and MADNESS wedges are locked (5× bet); 4 flags lock only the GRAND; 5 flags unlock everything. REV UP can smash the locks before the spin.</p>
   <h3>FREE SPINS</h3><p>TURBO (8): multiplier wilds. NITRO (8): + drift wild reels. MADNESS (10): + a win multiplier that climbs to ×10. 3 flags = +5 spins. GEAR UP can upgrade the round mid-way.</p>
   <h3>RALLY RACE</h3><p>Pick one of four cars and watch the race. 1st = 30× (NITRO FINISH doubles it to 60×), 2nd = 15×, 3rd = 8×, 4th = 4× bet.</p>

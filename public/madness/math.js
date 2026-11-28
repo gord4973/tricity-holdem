@@ -8,16 +8,16 @@
   const SYM = {
     RV: { name: 'RVR', msrp: 35998, kind: 'car' }, EC: { name: 'Eclipse Cross', msrp: 38898, kind: 'car' }, OU: { name: 'Outlander', msrp: 50998, kind: 'car' },
     EV: { name: 'Eclipse Sportback EV', msrp: 54098, kind: 'car' }, PH: { name: 'Outlander PHEV', msrp: 63048, kind: 'car' },
-    KY: { name: 'Smart Key', kind: 'low' }, TI: { name: 'Performance Tire', kind: 'low' }, SH: { name: 'Shifter', kind: 'low' }, HL: { name: 'Rally Helmet', kind: 'low' },
+    KY: { name: 'Smart Key', kind: 'low' }, TI: { name: 'Performance Tire', kind: 'low' },
     WD: { name: 'Madness Wild', kind: 'wild' }, FL: { name: 'Checkered Flag', kind: 'scatter' }, PL: { name: 'Charge Plug', kind: 'plug' },
   };
-  const CARS = ['RV', 'EC', 'OU', 'EV', 'PH'];
-  const LOWS = ['KY', 'TI', 'SH', 'HL'];          // t123u: low "garage" symbols (like card ranks on real 243-ways slots)
+  const CARS = ['RV', 'EC', 'EV', 'OU', 'PH']; // t125u pay order set by Gord: RVR < Eclipse Cross < Sportback EV < Outlander < Outlander PHEV
+  const LOWS = ['KY', 'TI'];          // t123u: low "garage" symbols (like card ranks on real 243-ways slots)
   const PAYSYMS = [...LOWS, ...CARS];              // every symbol that pays on a way, low -> high
   // t123u PAYTABLE - the single source of truth. Credits paid PER WINNING WAY at the 50-credit base bet (1 bet unit) for 3 / 4 / 5 of a kind.
   // Everything else (banner, WIN meter, paytable screen, tests) derives from PAY via wayPay(): pay = PAYC / 50 x bet units x wild mult.
-  // So a 5-of-a-kind PHEV way pays 750 / 50 = 15x the total bet, RVR 2x, the smart key 1x; a single 3-of-a-kind way is below the bet.
-  const PAYC = { KY: [4, 10, 50], TI: [5, 12, 60], SH: [6, 15, 70], HL: [8, 20, 80], RV: [10, 25, 100], EC: [12, 40, 150], OU: [15, 60, 250], EV: [20, 100, 400], PH: [30, 150, 750] };
+  // 5-of-a-kind on one way: PHEV 15x the total bet, Outlander 8x, Sportback EV 5x, Eclipse Cross 3x, RVR 2x, tire 1.2x, smart key 1x; 3-of-a-kind 0.2x to 1x (PHEV).
+  const PAYC = { KY: [10, 20, 50], TI: [10, 25, 60], RV: [15, 40, 100], EC: [15, 50, 150], EV: [20, 75, 250], OU: [25, 100, 400], PH: [50, 200, 750] };
   const BASE_CR = 50;
   const PAY = Object.fromEntries(Object.entries(PAYC).map(([k, v]) => [k, v.map(x => x / BASE_CR)]));
   // pay of ONE way of `len` x `sym` at `bet` units with combined wild multiplier `mult` (and free-spin progressive `prog`) - used by evalWays and the UI
@@ -26,7 +26,7 @@
   const JP = { mini: 20, minor: 50, major: 200, grand: 1000 }; // x bet: MINI (RVR) / MINOR (ECLIPSE) / MAJOR (OUTLANDER) / GRAND (PHEV)
   const JP_NAME = { mini: 'RVR MINI', minor: 'ECLIPSE MINOR', major: 'OUTLANDER MAJOR', grand: 'PHEV GRAND' };
   const WILD_MULT = { base: [[1, 82], [2, 13], [3, 5]], turbo: [[1, 30], [2, 40], [3, 20], [5, 8], [10, 2]] };
-  const DRIFT_P = 0.035;            // base: a car drifts across one of reels 2-4 and leaves it fully WILD
+  const DRIFT_P = 0.038;            // base: a car drifts across one of reels 2-4 and leaves it fully WILD
   const FS_DRIFT = { turbo: 0, nitro: 0.38, madness: 0.42 };
   const FS_START = { turbo: 8, nitro: 8, madness: 10 }, FS_RETRIG = 5, FS_MAX = 50, MADNESS_MULT_MAX = 10;
   const GEAR_UP = { turbo: { p: 0.10, to: 'nitro', add: 2 }, nitro: { p: 0.08, to: 'madness', add: 2 } }; // mid-round upgrade, once per round
@@ -51,21 +51,22 @@
   // ---- PHEV Charging: tap to charge; bursts of 3-9 km; a POWER SURGE can stop it; 72 km = FULL CHARGE. 1 km = 1x bet. ----
   const CHARGE = { max: 72, burst: [[3, 10], [4, 14], [5, 16], [6, 16], [7, 14], [8, 10], [9, 8]], surge: 0.25, regen: 0.10, minKm: 10 };
   // ---- reel strips: fixed counts, fixed shuffle (same machine on every device) ----
-  // t123u: 100-stop strips. ~60% of model stops are the low garage symbols so the cars are rarer - that is what pays for the bigger per-way car pays
-  // at the same ~95% RTP (special densities unchanged: flags 4/100, plugs 4/100 on reels 1/3/5, wilds 5/100 on reels 2-4).
+  // 100-stop strips; specials: flags 4/100, plugs 4/100 on reels 1/3/5, wilds 4/100 on reels 2-4.
+  // t125u: strips alternate which symbols are common (reels 1/3/5 vs 2/4) so matches across adjacent reels are rarer - fewer ways hit, each pays
+  // a real multiple of the bet (RTP ~95%, a win or feature on ~1 in 4 spins).
   const COUNTS = [
-    { KY: 17, TI: 15, SH: 13, HL: 10, RV: 16, EC: 9, OU: 6, EV: 3, PH: 3, FL: 4, PL: 4 },
-    { KY: 13, TI: 12, SH: 10, HL: 9, RV: 6, EC: 9, OU: 13, EV: 12, PH: 7, FL: 4, WD: 5 },
-    { KY: 16, TI: 14, SH: 12, HL: 10, RV: 12, EC: 9, OU: 7, EV: 4, PH: 3, FL: 4, WD: 5, PL: 4 },
-    { KY: 13, TI: 12, SH: 10, HL: 9, RV: 8, EC: 10, OU: 12, EV: 10, PH: 7, FL: 4, WD: 5 },
-    { KY: 17, TI: 15, SH: 13, HL: 10, RV: 12, EC: 9, OU: 8, EV: 5, PH: 3, FL: 4, PL: 4 },
+    { KY: 5, TI: 28, RV: 3, EC: 20, EV: 30, OU: 3, PH: 3, FL: 4, PL: 4 },
+    { KY: 23, TI: 4, RV: 20, EC: 3, EV: 3, OU: 22, PH: 17, FL: 4, WD: 4 },
+    { KY: 22, TI: 22, RV: 22, EC: 13, EV: 3, OU: 3, PH: 3, FL: 4, WD: 4, PL: 4 },
+    { KY: 22, TI: 3, RV: 20, EC: 3, EV: 10, OU: 22, PH: 12, FL: 4, WD: 4 },
+    { KY: 22, TI: 22, RV: 19, EC: 20, EV: 3, OU: 3, PH: 3, FL: 4, PL: 4 },
   ];
   const FREE_COUNTS = [
-    { KY: 18, TI: 16, SH: 13, HL: 11, RV: 10, EC: 9, OU: 8, EV: 7, PH: 4, FL: 4 },
-    { KY: 16, TI: 14, SH: 13, HL: 11, RV: 9, EC: 9, OU: 8, EV: 6, PH: 4, FL: 4, WD: 6 },
-    { KY: 16, TI: 14, SH: 13, HL: 11, RV: 9, EC: 9, OU: 8, EV: 6, PH: 4, FL: 4, WD: 6 },
-    { KY: 16, TI: 14, SH: 13, HL: 11, RV: 9, EC: 9, OU: 8, EV: 6, PH: 4, FL: 4, WD: 6 },
-    { KY: 18, TI: 16, SH: 13, HL: 11, RV: 10, EC: 9, OU: 8, EV: 7, PH: 4, FL: 4 },
+    { KY: 9, TI: 28, RV: 3, EC: 20, EV: 30, OU: 3, PH: 3, FL: 4 },
+    { KY: 23, TI: 4, RV: 20, EC: 3, EV: 3, OU: 22, PH: 17, FL: 4, WD: 4 },
+    { KY: 26, TI: 22, RV: 22, EC: 13, EV: 3, OU: 3, PH: 3, FL: 4, WD: 4 },
+    { KY: 22, TI: 3, RV: 20, EC: 3, EV: 10, OU: 22, PH: 12, FL: 4, WD: 4 },
+    { KY: 26, TI: 22, RV: 19, EC: 20, EV: 3, OU: 3, PH: 3, FL: 4 },
   ];
   function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
   function buildStrip(counts, seed) {

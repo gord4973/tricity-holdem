@@ -25,6 +25,7 @@ const usd = c => '$' + (c / 100).toLocaleString('en-US', { minimumFractionDigits
     assert.strictEqual(r.mWinD, wantUsd, tag + ' WIN $');
     assert.ok(r.banner.endsWith('= ' + wantUsd), tag + ' banner "' + r.banner + '" vs ' + wantUsd);
     if (mult === 1) assert.strictEqual(row.usd, wantUsd, tag + ' paytable cell = banner');
+    for (const k in pay.t.rows) pay.t.rows[k].forEach(c => assert.strictEqual(Math.round(c.x * CR[bi]), c.cr, tag + ' x bet column = credits / bet credits'));
     if (force === 'rv5w') assert.ok(/1 WAY · WILD ×2/.test(r.banner), tag + ' banner names the wild multiplier');
     if (force === 'rv5x2') assert.ok(/2 WAYS/.test(r.banner), tag + ' banner shows 2 ways');
     assert.strictEqual(r.ls.credits, wantCr, tag + ' credited'); n++;
@@ -34,7 +35,7 @@ const usd = c => '$' + (c / 100).toLocaleString('en-US', { minimumFractionDigits
     for (const d of DENOMS) for (let bi = 0; bi < 5; bi++) { await check('rv5', d, bi, 1); await check('ph5', d, bi, 1); }
     console.log('rv5 / ph5 matrix ok (' + n + ')');
     for (const [d, bi] of [[1, 0], [10, 0], [25, 2], [100, 4]]) { await check('rv5w', d, bi, 2); await check('rv5x2', d, bi, 2); }
-    if (SHOTS) { const a = await check('rv5', 10, 0, 1, '10c-50'); const c = await check('rv5', 100, 4, 1, '1d-500'); console.log('10¢/50:', JSON.stringify(a)); console.log('$1/500:', JSON.stringify(c)); }
+    if (SHOTS) { const a = await check('rv5', 10, 0, 1, '10c-50'); const c = await check('rv5', 100, 4, 1, '1d-500'); const g = await check('ph5', 2, 4, 1, '2c-500-ph5'); console.log('2¢/500 PHEV 5oak:', JSON.stringify(g)); console.log('10¢/50:', JSON.stringify(a)); console.log('$1/500:', JSON.stringify(c)); }
     assert.deepStrictEqual(errs, []);
   } catch (e) { fails++; console.log('FAIL', e.message); }
   await b.close(); console.log(fails ? 'FAIL madness-paytable' : `PASS madness-paytable: ${n} spins, paytable = banner = WIN credits = WIN $ at every denom x bet`); process.exit(fails ? 1 : 0); })();
