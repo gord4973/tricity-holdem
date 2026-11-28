@@ -4,7 +4,7 @@
 const P = require('puppeteer-core'), assert = require('assert'), BASE = process.env.MADNESS_URL || 'http://localhost:3490', SHOTS = process.env.SHOTS || '';
 const TAG = process.env.IPAD ? 'ipad' : 'phone';
 const wait = ms => new Promise(r => setTimeout(r, ms));
-const FORCES = (process.env.FORCES || 'win,big,mega,madness,wild,drift,almost,meter,jackpot,wheel3,wheel4,wheel5,revup,locked,turbo,nitro,madspins,gearup,rally,rally1,offroad,summit,rescue,charge,full72,surge,wcharge,mini,minor,major,grandwheel').split(',');
+const FORCES = (process.env.FORCES || 'win,multi,big,mega,madness,wild,drift,almost,meter,jackpot,wheel3,wheel4,wheel5,revup,locked,turbo,nitro,madspins,gearup,rally,rally1,offroad,summit,rescue,charge,full72,surge,wcharge,mini,minor,major,grandwheel').split(',');
 (async () => {
   const b = await P.launch({ protocolTimeout: 600000, executablePath: process.env.CHROME || '/usr/bin/google-chrome', args: ['--no-sandbox', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'] });
   const p = await b.newPage(), errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text()); });
@@ -43,7 +43,7 @@ const FORCES = (process.env.FORCES || 'win,big,mega,madness,wild,drift,almost,me
     assert.ok(!st.cine && !st.scene && !st.wbox && !st.splash && !st.big, k + ': overlay left on screen ' + JSON.stringify(st));
     assert.strictEqual(st.errs, 0, k + ': spin error'); assert.strictEqual(st.cap, 0, k + ': scene hit safety cap');
     const has = s => st.fx.some(f => f.startsWith(s));
-    if (/^(win|big|mega|madness|wild)$/.test(k)) assert.ok(won > 0, k + ' pays');
+    if (/^(win|multi|big|mega|madness|wild)$/.test(k)) assert.ok(won > 0, k + ' pays');
     if (/^(big|mega|madness)$/.test(k)) assert.ok(has('big'), k + ' celebration');
     if (k === 'drift') assert.ok(has('drift') && won > 0, 'drift wild pays');
     if (k === 'jackpot') { assert.ok(has('jackpot'), 'grand'); assert.ok(won >= 1000, 'grand pays 1000x'); }
@@ -75,6 +75,16 @@ const FORCES = (process.env.FORCES || 'win,big,mega,madness,wild,drift,almost,me
     await idle();
   }
   console.log('win banner clears on spin ok');
+  // t116u: a multi-way win shows every way one by one (tiles + path + label), the parts add up to the total, the cycle keeps going
+  // while idle, and SPIN clears it instantly
+  { await p.evaluate(() => G.force('multi')); await p.click('#spinBtn'); await idle();
+    const wc = await p.evaluate(() => window.__winCycle); assert.ok(wc && wc.n >= 2, 'multi-way win ' + JSON.stringify(wc));
+    assert.ok(Math.abs(wc.pays.reduce((a, b) => a + b, 0) - wc.total) < 1e-6, 'ways add up to the total');
+    const seen = new Set(); for (let i = 0; i < 12; i++) { seen.add(await p.$eval('#winBanner', e => e.textContent)); await wait(450); }
+    assert.ok([...seen].filter(s => /\d+\/\d+/.test(s)).length >= 2, 'banner cycles through each way while idle: ' + [...seen].join(' | '));
+    if (SHOTS) await p.screenshot({ path: SHOTS + '/win-cycle-' + TAG + '.png' });
+    await p.click('#spinBtn'); await wait(40); assert.ok(await p.evaluate(() => document.getElementById('winBanner').classList.contains('hidden')), 'cycle cleared on SPIN'); await idle();
+    console.log('win cycle ok: ' + wc.labels.join(' + ') + ' = ' + wc.total.toFixed(2)); }
   // cash out
   await p.click('#cashBtn'); await p.waitForFunction(() => G.st.cents === 0 && !G.busy, { timeout: 30000 }); assert.ok(await p.evaluate(() => !document.getElementById('ticket').classList.contains('hidden')), 'ticket printed'); console.log('cash out ok');
   // attract mode

@@ -93,6 +93,7 @@ function forceOf(kind) {
     almost: g => { clean(g); set(g, 0, 0, { s: 'FL' }); set(g, 1, 2, { s: 'FL' }); },
     drift: g => { clean(g); for (let r = 0; r < 5; r++) for (let y = 0; y < 3; y++) if (g[r][y].s === 'WD' || g[r][y].s === 'OU') g[r][y] = { s: 'RV' }; set(g, 0, 1, { s: 'OU' }); set(g, 1, 0, { s: 'OU' }); set(g, 3, 2, { s: 'OU' }); },
     meter: g => { clean(g); set(g, 0, 1, { s: 'FL' }); },
+    multi: g => { for (let r = 0; r < 5; r++) g[r] = r < 3 ? [{ s: 'RV' }, { s: 'EC' }, { s: 'OU' }] : r === 3 ? [{ s: 'EV' }, { s: 'PH' }, { s: 'EV' }] : [{ s: 'PH' }, { s: 'EV' }, { s: 'PH' }]; }, // 3 separate wins (t116u)
     charge: g => { clean(g); set(g, 0, 0, { s: 'PL' }); set(g, 2, 1, { s: 'PL' }); set(g, 4, 2, { s: 'PL' }); },
   };
   if (grids[kind]) F.force = grids[kind];
@@ -117,7 +118,7 @@ function forceOf(kind) {
 }
 // ---------------- spin ----------------
 // t110u: the win banner (and win highlights) go away the instant a new spin is pressed / starts (base, autoplay, free spins)
-function clearWinBanner() { const wb = $('winBanner'); wb.classList.add('hidden'); wb.textContent = ''; try { reels.clearWin(); } catch (e) {} }
+function clearWinBanner() { stopWinCycle(); const wb = $('winBanner'); wb.classList.add('hidden'); wb.textContent = ''; $('frame').classList.remove('winning'); try { reels.clearWin(); } catch (e) {} }
 async function spin() {
   A.init(); exitAttract(); if (busy) { quick = true; reels.stopNow(); return; }
   clearWinBanner();
@@ -164,13 +165,34 @@ function markWins(res) { const cells = new Set(); for (const w of res.ways) for 
   if (res.trigger || res.retrig) res.grid.forEach((col, r) => col.forEach((c, y) => { if (c.s === 'FL' || (res.trigger && res.trigger.type === 'charge' && c.s === 'PL')) cells.add(r + ',' + y); }));
   if (cells.size) reels.setWin(cells, res.ways); return cells.size; }
 // returns credits won on this spin (base or free)
+// t116u: multiple wins are shown one by one so the total visibly adds up: first ALL winning tiles together, then each way in turn
+// (its tiles incl. wilds + its path + "3× RVR · 3 WAYS · 0.70"), the WIN meter counting up way by way to the total; the cycle keeps
+// going while idle and is cleared the instant SPIN is pressed (clearWinBanner).
+const SYMC = { RV: '#3fe06a', EC: '#ff9a3a', OU: '#4a8cff', EV: '#22d8ff', PH: '#ffd84a' };
+let winCyc = null; window.__winCycle = null;
+const wayLabel = (w, res) => `${w.len}× ${M.SYM[w.s].name.toUpperCase()}${w.mult > 1 ? ' ×' + w.mult : ''}${res.prog > 1 ? ' ×' + res.prog : ''} · ${w.ways} WAY${w.ways > 1 ? 'S' : ''} · ${fmt(w.pay * (res.prog || 1))}`;
+function stopWinCycle() { if (winCyc) { clearInterval(winCyc.timer); winCyc.dead = true; winCyc = null; } }
+function showWay(res, i, total) { const wb = $('winBanner'), ws = res.ways, w = ws[i]; reels.setWin(new Set(w.cells.map(([r, y]) => r + ',' + y)), [w]);
+  wb.style.setProperty('--wc', SYMC[w.s] || '#ffd84a'); wb.innerHTML = `<i>${i + 1}/${ws.length}</i> ${wayLabel(w, res)}${total != null ? ` <b>TOTAL ${fmt(total)}</b>` : ''}`; wb.classList.remove('hidden'); }
+function showAllWins(res, win) { markWins(res); const wb = $('winBanner'); wb.style.removeProperty('--wc'); wb.innerHTML = res.ways.length > 1 ? `${res.ways.length} WINS · TOTAL ${fmt(win)}` : wayLabel(res.ways[0], res); wb.classList.remove('hidden'); }
 async function resolve(res, mode) {
-  const n = markWins(res); let win = res.win;
+  stopWinCycle(); const n = markWins(res); let win = res.win;
   if (res.jackpot) { await jackpotWin('grand', res.jackpot.win, 'FIVE OUTLANDER PHEVs ON THE CENTRE ROW'); return win; }
-  if (win > 0) { const ways = res.ways.length; A.play('win', ways); const best = res.ways.slice().sort((a, b) => b.pay - a.pay)[0];
-    const wb = $('winBanner'); wb.textContent = `${best.len}× ${M.SYM[best.s].name.toUpperCase()}${res.ways.length > 1 ? ' +' + (res.ways.length - 1) + ' MORE' : ''}${best.mult > 1 ? ' ×' + best.mult : ''}${res.prog > 1 ? ' · MULT ×' + res.prog : ''} · WIN ${fmt(win)}`; wb.classList.remove('hidden');
-    const t = M.tier(win, bet()); if (t === 'win') await roll('win', disp.win + win, Math.min(1400, 400 + win / bet() * 120), true); else { await bigWin(win, t); disp.win += win; meters(); }
-    await sleep(quick ? 150 : mode ? 500 : 650); }
+  if (win > 0) { const ways = res.ways.slice().sort((a, b) => b.pay - a.pay); res = Object.assign({}, res, { ways }); A.play('win', ways.length); $('frame').classList.add('winning');
+    const cyc = winCyc = { res, i: 0, labels: ways.map(w => wayLabel(w, res)), total: win, timer: 0, dead: false }; window.__winCycle = { n: ways.length, labels: cyc.labels, pays: ways.map(w => w.pay * (res.prog || 1)), total: win };
+    showAllWins(res, win); fxs({ kind: 'winways', n: ways.length });
+    const t = M.tier(win, bet()), step = quick ? 120 : mode ? 420 : 650, base = disp.win;
+    if (t !== 'win') { await bigWin(win, t); disp.win = base + win; meters(); }
+    else await sleep(quick ? 150 : 600);
+    // first pass: each way in turn, WIN meter climbing way by way
+    if (ways.length > 1 && !cyc.dead) { let run = 0; for (let i = 0; i < ways.length && !cyc.dead; i++) { run += ways[i].pay * (res.prog || 1); showWay(res, i, run); A.play('coin', i);
+        if (t === 'win') await roll('win', base + Math.min(run, win), step * .8, true); else await sleep(step); }
+      if (t === 'win') { disp.win = base + win; meters(); } }
+    else if (t === 'win') await roll('win', base + win, Math.min(1400, 400 + win / bet() * 120), true);
+    if (!cyc.dead) { showAllWins(res, win);
+      // keep cycling while idle (base game); free spins move straight on
+      if (!mode && ways.length > 1) { let k = -1; cyc.timer = setInterval(() => { if (cyc.dead) return; k = (k + 1) % (ways.length + 1); if (k === ways.length) showAllWins(res, win); else showWay(res, k, win); }, 1500); } }
+    await sleep(quick ? 100 : mode ? 300 : 300); }
   else if (n) await sleep(400);
   return win; }
 function meterPulse(m) { meters(); if (m.full) { toast('MADNESS METER FULL!', 1500); A.play('turbo'); } }
@@ -306,7 +328,7 @@ async function freeRound(R, F) {
       await animateReels(s, mode); const w = await resolve(s, mode); won += w; window.__bonusWin = (window.__bonusWin || 0) + w; hud(i + 1);
       if (s.retrig) { total += s.retrig; fxs({ kind: 'retrig' }); A.play('fanfare'); toast(`+${s.retrig} SPINS!`, 1300); hud(i + 1); await sleep(900); }
       await sleep(quick ? 80 : 250); }
-  } finally { A.music(false); setModeLook(null); curMode = null; reels.clearWin(); $('winBanner').classList.add('hidden'); }
+  } finally { A.music(false); setModeLook(null); curMode = null; clearWinBanner(); }
   if (won > 0) await bigWin(won, M.tier(won, bet()) === 'win' ? 'total' : M.tier(won, bet()), `${M.MODES[R.finalMode].name} TOTAL · ${R.played} SPINS`);
   return won; }
 // ---------------- recovery ----------------
@@ -348,6 +370,6 @@ addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault();
 meters();
 window.G = { st, M, spin, insertBill, cashOut, get busy() { return busy; }, get mode() { return curMode; }, setBet: i => { st.bet = i; save(); meters(); }, recoverScreen, cinematic, reels, drawWheel };
 if (DEBUG) { window.G.force = k => { forceNext = k; }; const d = $('dbg'); d.classList.remove('hidden');
-  d.innerHTML = ['win', 'big', 'mega', 'madness', 'wild', 'drift', 'almost', 'meter', 'jackpot', 'wheel3', 'wheel4', 'wheel5', 'revup', 'locked', 'turbo', 'nitro', 'madspins', 'gearup', 'rally', 'rally1', 'offroad', 'summit', 'rescue', 'charge', 'full72', 'surge', 'wcharge', 'mini', 'minor', 'major', 'grandwheel'].map(k => `<button data-f="${k}">${k}</button>`).join('');
+  d.innerHTML = ['win', 'multi', 'big', 'mega', 'madness', 'wild', 'drift', 'almost', 'meter', 'jackpot', 'wheel3', 'wheel4', 'wheel5', 'revup', 'locked', 'turbo', 'nitro', 'madspins', 'gearup', 'rally', 'rally1', 'offroad', 'summit', 'rescue', 'charge', 'full72', 'surge', 'wcharge', 'mini', 'minor', 'major', 'grandwheel'].map(k => `<button data-f="${k}">${k}</button>`).join('');
   d.addEventListener('click', e => { const k = e.target.dataset.f; if (k) { forceNext = k; toast('next: ' + k, 900); } }); }
 })();

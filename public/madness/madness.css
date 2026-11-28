@@ -70,7 +70,9 @@ button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulat
 .shakeX { animation: shakeX .45s; } @keyframes shakeX { 20% { transform: translate(-6px, 2px); } 40% { transform: translate(6px, -2px); } 60% { transform: translate(-4px, 1px); } 80% { transform: translate(3px, 0); } }
 /* t115u: the win banner sits ABOVE the reel window (over the meter strip) so it never hides a tile */
 #winBanner { position: absolute; left: 50%; bottom: calc(100% + 1px); transform: translateX(-50%); padding: calc(3px * var(--k)) calc(12px * var(--k)); border-radius: 30px; white-space: nowrap; max-width: 98%; overflow: hidden; text-overflow: ellipsis;
-  background: linear-gradient(#ffe46a, #e69200); color: #3a1200; font: 400 calc(14px * var(--k)) Russo, sans-serif; box-shadow: 0 0 18px #ffb000, 0 2px 0 #7a3d00; animation: pop .35s; z-index: 6; }
+  background: linear-gradient(#ffe46a, #e69200); color: #3a1200; font: 400 calc(14px * var(--k)) Russo, sans-serif; box-shadow: 0 0 18px #ffb000, 0 2px 0 #7a3d00; animation: pop .35s; z-index: 6; border: 2px solid var(--wc, #fff3b0); }
+#winBanner i { font-style: normal; opacity: .7; font-size: .8em; } #winBanner b { font-weight: 400; background: #3a1200; color: #ffe46a; border-radius: 20px; padding: 0 .45em; margin-left: .2em; }
+#frame.winning .lights { animation-duration: .18s; opacity: 1; filter: drop-shadow(0 0 8px #ffd84a); }
 @keyframes pop { from { transform: translateX(-50%) scale(.4); opacity: 0; } }
 #attract { position: absolute; inset: var(--pad); display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: calc(10px * var(--k)); background: rgba(0,0,0,.55); z-index: 4; text-align: center; pointer-events: none; }
 #attractTxt { font: 400 calc(22px * var(--k)) Russo, sans-serif; color: #ffd84a; text-shadow: 0 0 14px #ff3048; padding: 0 10px; animation: attractIn 3s ease-in-out infinite; }
