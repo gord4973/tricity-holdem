@@ -4,6 +4,7 @@
   const CAR_FILES = { rvr: 'rvr', ec: 'eclipse-cross', out: 'outlander', ev: 'eclipse-sportback', phev: 'outlander-phev' };
   const cars = {}; for (const k in CAR_FILES) { const i = new Image(); i.decoding = 'async'; i.src = `/madness/art/car-${CAR_FILES[k]}.webp?v=1`; cars[k] = i; }
   const ok = i => i && i.complete && i.naturalWidth > 0;
+  const topCar = new Image(); topCar.decoding = 'async'; topCar.src = '/madness/photo/topdown-phev.webp?v=1'; // photo-real top-down PHEV for DRIFT WILD
   const rnd = (a, b) => a + Math.random() * (b - a);
   const speed = () => window.__madSpeed || 1;
   function fit(cv) { const r = cv.getBoundingClientRect(), d = Math.min(devicePixelRatio || 1, 2); const w = Math.max(10, Math.round(r.width * d)), h = Math.max(10, Math.round(r.height * d)); if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } return { W: r.width, H: r.height, d }; }
@@ -68,11 +69,29 @@
     sparks(x, y, n = 18, c = '#9fe8ff') { for (let i = 0; i < n; i++) { const a = rnd(0, 6.283), s = rnd(2, 7); add({ t: 'spark', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, g: .15, s: rnd(2, 4), c, life: 1, decay: .03 }); } },
     smoke(x, y, n = 4) { for (let i = 0; i < n; i++) add({ t: 'smoke', x: x + rnd(-8, 8), y: y + rnd(-6, 6), vx: rnd(-1, 1), vy: rnd(-1.4, -.2), s: rnd(6, 14), life: 1, decay: .02 }); },
     speedLines(ms = 1200, c) { emit(ms, (now, W, H) => { for (let i = 0; i < 4; i++) { const y = rnd(0, H); add({ t: 'line', x: W + 10, y, vx: -rnd(18, 34), vy: 0, a: 0, s: rnd(40, 140), c: c || 'rgba(255,255,255,.7)', life: 1, decay: .04 }); } }); },
-    // DRIFT WILD: a car slides sideways up the reel column in a cloud of tyre smoke; onMid() fires as it covers the reel
-    drift(rect, k = 'ev', ms = 1300, onMid) { return new Promise(res => { const t0 = performance.now(), D = ms * speed(); let mid = false, done = false; const w = rect.width * 1.9;
-      P.hooks.push((now, g) => { const u = Math.min(1, (now - t0) / D), y = rect.top + rect.height * (1.2 - u * 1.5), x = rect.left + rect.width / 2 + Math.sin(u * 6.283) * rect.width * .25;
-        if (Math.random() < .8) MadFXObj.smoke(x, y + w * .3, 2); drawCar(g, k, x, y + w * .2, w, { tilt: -Math.PI / 2 + Math.sin(u * 6.283) * .5, flame: 1 });
-        if (u > .45 && !mid) { mid = true; try { onMid && onMid(); } catch (e) { console.warn(e); } }
+    // DRIFT WILD (t111u): photo-real TOP-DOWN Outlander PHEV drives up over the reel column, fish-tailing with tyre smoke and
+    // skid marks; onMid() turns the reel WILD as the car passes its centre
+    drift(rect, k = 'phev', ms = 1300, onMid) { return new Promise(res => { const t0 = performance.now(), D = ms * speed() * 1.25; let mid = false, done = false;
+      const I = topCar, cw = rect.width * .92, ch = ok(I) ? cw * I.naturalHeight / I.naturalWidth : cw * 2.1, marks = [];
+      const y0 = rect.top + rect.height + ch * .6, y1 = rect.top - ch * .7, cx = rect.left + rect.width / 2;
+      P.hooks.push((now, g) => { const u = Math.min(1, (now - t0) / D), e = u < .5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+        const y = y0 + (y1 - y0) * e, yaw = Math.sin(u * Math.PI * 3) * .38 * (1 - u * .4), x = cx + Math.sin(u * Math.PI * 3 + .6) * rect.width * .08;
+        // rear-axle positions (for skid marks + smoke)
+        const rx = Math.sin(yaw) * ch * .32, ry = Math.cos(yaw) * ch * .32, perp = [Math.cos(yaw) * cw * .38, Math.sin(yaw) * cw * .38];
+        marks.push([x - rx + perp[0], y + ry + perp[1], x - rx - perp[0], y + ry - perp[1]]); if (marks.length > 90) marks.shift();
+        g.save(); g.lineCap = 'round'; for (let i = 1; i < marks.length; i++) { const a = marks[i - 1], b = marks[i], al = .55 * (i / marks.length) * (1 - Math.max(0, u - .8) * 5);
+          g.strokeStyle = `rgba(12,12,14,${Math.max(0, al)})`; g.lineWidth = cw * .1; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.moveTo(a[2], a[3]); g.lineTo(b[2], b[3]); g.stroke(); } g.restore();
+        if (Math.random() < .9) { const m = marks[marks.length - 1]; MadFXObj.smoke(m[0], m[1], 2); MadFXObj.smoke(m[2], m[3], 2); }
+        // headlight beams ahead of the car
+        g.save(); g.translate(x, y); g.rotate(yaw); g.globalCompositeOperation = 'lighter'; const hb = g.createLinearGradient(0, -ch * .5, 0, -ch * 1.25); hb.addColorStop(0, 'rgba(255,250,220,.5)'); hb.addColorStop(1, 'rgba(255,250,220,0)'); g.fillStyle = hb;
+        for (const sx of [-.3, .3]) { g.beginPath(); g.moveTo(cw * sx - cw * .08, -ch * .48); g.lineTo(cw * sx * 2.2 - cw * .3, -ch * 1.25); g.lineTo(cw * sx * 2.2 + cw * .3, -ch * 1.25); g.lineTo(cw * sx + cw * .08, -ch * .48); g.fill(); }
+        g.globalCompositeOperation = 'source-over'; g.shadowColor = 'rgba(0,0,0,.75)'; g.shadowBlur = cw * .18; g.shadowOffsetX = cw * .06; g.shadowOffsetY = cw * .1;
+        if (ok(I)) g.drawImage(I, -cw / 2, -ch / 2, cw, ch); else { g.fillStyle = '#c0102a'; g.fillRect(-cw / 2, -ch / 2, cw, ch); }
+        g.shadowBlur = 0; g.shadowOffsetX = 0; g.shadowOffsetY = 0;
+        // brake lights glow
+        g.globalCompositeOperation = 'lighter'; for (const sx of [-.36, .36]) { const bl = g.createRadialGradient(cw * sx, ch * .47, 0, cw * sx, ch * .47, cw * .22); bl.addColorStop(0, 'rgba(255,40,40,.8)'); bl.addColorStop(1, 'rgba(255,0,0,0)'); g.fillStyle = bl; g.fillRect(cw * sx - cw * .25, ch * .3, cw * .5, ch * .35); }
+        g.restore();
+        if (y < rect.top + rect.height * .5 && !mid) { mid = true; try { onMid && onMid(); } catch (e) { console.warn(e); } }
         if (u >= 1 && !done) { done = true; res(); return false; } return true; }); fxStart();
       setTimeout(() => { if (!done) { done = true; if (!mid) { mid = true; try { onMid && onMid(); } catch (e) {} } res(); } }, D + 1500); }); },
     // car blasting across the screen (big wins / transitions)

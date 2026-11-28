@@ -208,31 +208,72 @@ async function runFeature(feat, F) {
     if (win > 0) { const t = M.tier(win, bet()); if (t !== 'win') { await bigWin(win, t, { rally: 'RALLY RACE', offroad: 'S-AWC CHALLENGE', charge: `PHEV CHARGE · ${R.km} km` }[R.kind]); disp.win += win; meters(); } else await roll('win', disp.win + win, 900, true); }
   }
   return win; }
-// ---------------- Madness Wheel ----------------
-const WCOL = { feat: ['#ff2040', '#a0001a'], spins: ['#ff8a00', '#a04000'], credit: ['#5a6178', '#2b2f3d'], mini: ['#20d0b8', '#087a6c'], minor: ['#ff8a3a', '#b2400a'], major: ['#7b5cff', '#3a1fb0'], grand: ['#ffdf5a', '#b26a00'], charge: ['#22c3ff', '#0a5fa8'], offroad: ['#30e060', '#147a30'], rally: ['#ff2040', '#90001a'] };
+// ---------------- Madness Wheel (photo-real: chrome marquee rim + bulbs, lacquered wedges with chrome dividers, rotating alloy hub, chrome pointer) ----------------
+const WCOL = { feat: ['#e0182d', '#6a0010'], spins: ['#ff8a00', '#7a2e00'], credit: ['#4a5064', '#1a1d26'], mini: ['#14b8a2', '#04473f'], minor: ['#ff7a2a', '#7a2400'], major: ['#6a4cff', '#200f7a'], grand: ['#ffd34a', '#8a4a00'], charge: ['#1fb4ff', '#053c70'], offroad: ['#2cc858', '#0a4a1c'], rally: ['#e0182d', '#5a000e'] };
 const wcol = w => w.jp ? WCOL[w.jp] : w.x ? WCOL.credit : WCOL[w.feat] || WCOL.spins;
+const PH = {}; for (const k of ['wheel-rim', 'wheel-hub']) { const i = new Image(); i.src = `/madness/photo/${k}.webp?v=1`; PH[k] = i; }
+const RIM_IN = 0.7246, RIM_OUT = 0.9297; // measured radii of the rim photo (fraction of half-size)
+const imgOk = i => i && i.complete && i.naturalWidth > 0;
 let wheelRot = 0;
-function drawWheel(rot, locks, hot) { const cv = $('wheel'), g = cv.getContext('2d'), W = cv.width, R = W / 2 - 10, n = M.WHEEL.length, a = Math.PI * 2 / n; g.clearRect(0, 0, W, W); g.save(); g.translate(W / 2, W / 2);
-  g.fillStyle = '#111'; g.beginPath(); g.arc(0, 0, R + 8, 0, 7); g.fill(); g.rotate(rot);
-  M.WHEEL.forEach((w, i) => { const a0 = -Math.PI / 2 + (i - .5) * a, c = wcol(w), gr = g.createRadialGradient(0, 0, R * .2, 0, 0, R); gr.addColorStop(0, c[1]); gr.addColorStop(.7, c[0]); gr.addColorStop(1, c[1]);
-    g.fillStyle = gr; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R, a0, a0 + a); g.closePath(); g.fill(); g.strokeStyle = '#ffd84a'; g.lineWidth = 3; g.stroke();
-    if (hot === i) { g.fillStyle = `rgba(255,255,255,${.3 + .3 * Math.sin(performance.now() / 80)})`; g.fill(); }
-    g.save(); g.rotate(a0 + a / 2); g.fillStyle = w.jp === 'grand' ? '#3a0a00' : '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; // radial labels, reading outwards
-    const parts = w.label.split(' '), maxW = R * .56; let fs = 34; g.font = `900 ${fs}px Russo,sans-serif`; while (fs > 14 && Math.max(...parts.map(p => g.measureText(p).width)) > maxW) { fs--; g.font = `900 ${fs}px Russo,sans-serif`; }
-    g.shadowColor = '#000'; g.shadowBlur = 4; parts.forEach((p, k) => g.fillText(p, R * .62, (k - (parts.length - 1) / 2) * fs * 1.05)); g.shadowBlur = 0; g.restore();
-    if (locks && locks.includes(w.id)) { g.save(); g.fillStyle = 'rgba(0,0,0,.62)'; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R, a0, a0 + a); g.closePath(); g.fill(); g.rotate(a0 + a / 2); g.translate(R * .8, 0); g.rotate(Math.PI / 2); g.font = '44px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('🔒', 0, 0); g.restore(); } });
-  for (let i = 0; i < n; i++) { const aa = -Math.PI / 2 + (i - .5) * a; g.fillStyle = '#fff6b0'; g.beginPath(); g.arc(Math.cos(aa) * (R + 2), Math.sin(aa) * (R + 2), 6, 0, 7); g.fill(); }
+function padlock(g, s) { g.save(); g.lineWidth = s * .16; const sg = g.createLinearGradient(-s * .4, 0, s * .4, 0); sg.addColorStop(0, '#8a8f99'); sg.addColorStop(.5, '#ffffff'); sg.addColorStop(1, '#6a6f79'); g.strokeStyle = sg;
+  g.beginPath(); g.arc(0, -s * .18, s * .28, Math.PI, 0); g.lineTo(s * .28, 0); g.moveTo(-s * .28, -s * .18); g.lineTo(-s * .28, 0); g.stroke();
+  const bg = g.createLinearGradient(0, -s * .05, 0, s * .6); bg.addColorStop(0, '#ffe680'); bg.addColorStop(.45, '#d49a1a'); bg.addColorStop(1, '#6a4000'); g.fillStyle = bg; g.shadowColor = 'rgba(0,0,0,.7)'; g.shadowBlur = s * .15; g.shadowOffsetY = s * .05;
+  g.beginPath(); g.roundRect ? g.roundRect(-s * .42, -s * .04, s * .84, s * .62, s * .1) : g.rect(-s * .42, -s * .04, s * .84, s * .62); g.fill(); g.shadowBlur = 0; g.shadowOffsetY = 0;
+  g.fillStyle = '#2a1800'; g.beginPath(); g.arc(0, s * .22, s * .08, 0, 7); g.fill(); g.fillRect(-s * .03, s * .22, s * .06, s * .18); g.restore(); }
+function drawWheel(rot, locks, hot) { const cv = $('wheel'), g = cv.getContext('2d'), W = cv.width, C = W / 2, n = M.WHEEL.length, a = Math.PI * 2 / n, now = performance.now();
+  const S = 2 * (C - 6) / RIM_OUT, rIn = RIM_IN * S / 2, R = rIn + 6; // wedges tuck under the rim
+  g.clearRect(0, 0, W, W); g.save(); g.translate(C, C);
+  // drop shadow of the whole wheel
+  g.save(); g.shadowColor = 'rgba(0,0,0,.85)'; g.shadowBlur = 40; g.shadowOffsetY = 14; g.fillStyle = '#000'; g.beginPath(); g.arc(0, 0, C - 10, 0, 7); g.fill(); g.restore();
+  g.save(); g.rotate(rot);
+  M.WHEEL.forEach((w, i) => { const a0 = -Math.PI / 2 + (i - .5) * a, c = wcol(w);
+    // lacquer: deep base, bright mid-band, darker towards the rim (depth)
+    const gr = g.createRadialGradient(0, 0, R * .12, 0, 0, R); gr.addColorStop(0, c[1]); gr.addColorStop(.45, c[0]); gr.addColorStop(.82, c[0]); gr.addColorStop(1, c[1]);
+    g.fillStyle = gr; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R, a0, a0 + a); g.closePath(); g.fill();
+    // metallic flake / brushed sheen across each wedge
+    g.save(); g.clip(); g.rotate(a0 + a / 2); const sh = g.createLinearGradient(0, -R * .14, 0, R * .14); sh.addColorStop(0, 'rgba(255,255,255,0)'); sh.addColorStop(.5, 'rgba(255,255,255,.16)'); sh.addColorStop(1, 'rgba(0,0,0,.18)'); g.fillStyle = sh; g.fillRect(0, -R, R, 2 * R); g.restore();
+    if (hot === i) { g.fillStyle = `rgba(255,255,255,${.25 + .25 * Math.sin(now / 80)})`; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R, a0, a0 + a); g.closePath(); g.fill(); }
+    // embossed labels, reading outwards
+    g.save(); g.rotate(a0 + a / 2); g.textAlign = 'center'; g.textBaseline = 'middle';
+    const parts = w.label.split(' '), maxW = R * .5; let fs = 36; g.font = `900 ${fs}px Russo,sans-serif`; while (fs > 14 && Math.max(...parts.map(p => g.measureText(p).width)) > maxW) { fs--; g.font = `900 ${fs}px Russo,sans-serif`; }
+    parts.forEach((p, k) => { const x = R * .64, y = (k - (parts.length - 1) / 2) * fs * 1.05; g.fillStyle = 'rgba(0,0,0,.75)'; g.fillText(p, x + 1.5, y + 2.5);
+      const tg = g.createLinearGradient(0, y - fs / 2, 0, y + fs / 2); if (w.jp === 'grand') { tg.addColorStop(0, '#fff'); tg.addColorStop(1, '#5a2a00'); } else { tg.addColorStop(0, '#ffffff'); tg.addColorStop(.55, '#f2f2f2'); tg.addColorStop(1, '#b8bcc6'); } g.fillStyle = w.jp === 'grand' ? '#3a1600' : tg; g.fillText(p, x, y); });
+    g.restore();
+    if (locks && locks.includes(w.id)) { g.save(); g.fillStyle = 'rgba(0,0,0,.6)'; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R, a0, a0 + a); g.closePath(); g.fill(); g.rotate(a0 + a / 2); g.translate(R * .86, 0); g.rotate(Math.PI / 2); padlock(g, R * .17); g.restore(); } });
+  // chrome dividers between wedges
+  for (let i = 0; i < n; i++) { const aa = -Math.PI / 2 + (i - .5) * a; g.save(); g.rotate(aa); const dg = g.createLinearGradient(0, -5, 0, 5); dg.addColorStop(0, '#5a5f69'); dg.addColorStop(.5, '#ffffff'); dg.addColorStop(1, '#3a3f49'); g.fillStyle = dg; g.fillRect(R * .17, -3, R * .85, 6);
+    const sg = g.createRadialGradient(R * .93, -2, 1, R * .93, 0, 10); sg.addColorStop(0, '#fff'); sg.addColorStop(.5, '#b8bcc6'); sg.addColorStop(1, '#2a2d33'); g.fillStyle = sg; g.beginPath(); g.arc(R * .93, 0, 8, 0, 7); g.fill(); g.restore(); }
+  // inner ambient-occlusion ring under the rim
+  const ao = g.createRadialGradient(0, 0, R * .82, 0, 0, R); ao.addColorStop(0, 'rgba(0,0,0,0)'); ao.addColorStop(1, 'rgba(0,0,0,.55)'); g.fillStyle = ao; g.beginPath(); g.arc(0, 0, R, 0, 7); g.fill();
+  // rotating alloy hub (photo)
+  const hr = R * .26; g.save(); g.shadowColor = 'rgba(0,0,0,.8)'; g.shadowBlur = 18; g.fillStyle = '#111'; g.beginPath(); g.arc(0, 0, hr, 0, 7); g.fill(); g.restore();
+  if (imgOk(PH['wheel-hub'])) g.drawImage(PH['wheel-hub'], -hr, -hr, hr * 2, hr * 2);
+  g.restore();
+  // glass dome highlight (static, does not rotate)
+  const hl = g.createLinearGradient(0, -R, 0, R * .2); hl.addColorStop(0, 'rgba(255,255,255,.28)'); hl.addColorStop(.5, 'rgba(255,255,255,.05)'); hl.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = hl; g.beginPath(); g.ellipse(-R * .1, -R * .42, R * .78, R * .5, -.25, 0, 7); g.fill();
+  // chrome marquee rim (photo) + chasing bulb glow
+  if (imgOk(PH['wheel-rim'])) g.drawImage(PH['wheel-rim'], -S / 2, -S / 2, S, S); else { g.strokeStyle = '#c8ccd4'; g.lineWidth = (RIM_OUT - RIM_IN) * S / 2; g.beginPath(); g.arc(0, 0, (RIM_IN + RIM_OUT) * S / 4, 0, 7); g.stroke(); }
+  const br = (RIM_IN + RIM_OUT) / 2 * S / 2 + S * .002, phase = Math.floor(now / 140) % 3; g.save(); g.globalCompositeOperation = 'lighter';
+  for (let k = 0; k < 24; k++) { if ((k % 3) !== phase && hot == null) continue; const aa = -Math.PI / 2 + k * Math.PI / 12, x = Math.cos(aa) * br, y = Math.sin(aa) * br, bg2 = g.createRadialGradient(x, y, 0, x, y, S * .035);
+    bg2.addColorStop(0, 'rgba(255,240,190,.95)'); bg2.addColorStop(.4, 'rgba(255,200,90,.45)'); bg2.addColorStop(1, 'rgba(255,160,40,0)'); g.fillStyle = bg2; g.beginPath(); g.arc(x, y, S * .035, 0, 7); g.fill(); }
+  g.restore();
+  // chrome pointer with red jewel at 12 o'clock
+  g.save(); g.translate(0, -C + 4); const pw = W * .052, ph = W * .1; g.shadowColor = 'rgba(0,0,0,.8)'; g.shadowBlur = 14; g.shadowOffsetY = 6;
+  const pg = g.createLinearGradient(-pw, 0, pw, 0); pg.addColorStop(0, '#4a4e57'); pg.addColorStop(.3, '#f4f6fa'); pg.addColorStop(.5, '#9aa0aa'); pg.addColorStop(.7, '#ffffff'); pg.addColorStop(1, '#3a3e47'); g.fillStyle = pg;
+  g.beginPath(); g.moveTo(-pw, 0); g.quadraticCurveTo(-pw, -pw * .5, 0, -pw * .55); g.quadraticCurveTo(pw, -pw * .5, pw, 0); g.lineTo(0, ph); g.closePath(); g.fill(); g.shadowBlur = 0; g.shadowOffsetY = 0;
+  g.strokeStyle = 'rgba(255,255,255,.6)'; g.lineWidth = 1.5; g.stroke();
+  const jg = g.createRadialGradient(-pw * .15, pw * .05, 1, 0, pw * .2, pw * .5); jg.addColorStop(0, '#ffd0d6'); jg.addColorStop(.3, '#ff2040'); jg.addColorStop(1, '#4a0008'); g.fillStyle = jg; g.beginPath(); g.arc(0, pw * .2, pw * .42, 0, 7); g.fill(); g.restore();
   g.restore(); }
 function wheel(tier, F) { return new Promise(async (resolveWheel) => {
   const box = $('wheelBox'), hub = $('wheelHub'); const w = M.spinWheel(bet(), rng, tier, { forceIdx: F.idx, forceRevUp: F.revUp }); window.__lastWheel = w;
   let locks = M.LOCKS[tier]; box.classList.remove('hidden'); $('wheelTier').textContent = `${tier + 2} FLAGS · ${locks.length ? locks.length + ' LOCKED' : 'ALL UNLOCKED'}`; $('wheelMsg').textContent = ''; hub.disabled = true; hub.textContent = 'SPIN';
-  drawWheel(wheelRot, locks); A.music(true);
+  drawWheel(wheelRot, locks); A.music(true); const idleAnim = setInterval(() => { if (!box.classList.contains('hidden')) drawWheel(wheelRot, locks); }, 140);
   let finished = false; const safety = setTimeout(() => { if (!finished) { finished = true; window.__wheelSafety = (window.__wheelSafety || 0) + 1; box.classList.add('hidden'); A.music(false); resolveWheel(w); } }, 45000 * SPD());
   try {
     if (w.revUp) { await sleep(600); $('wheelMsg').textContent = 'REV UP!'; A.play('rev', 1.6); fxs({ kind: 'revup' }); await sleep(1500); A.play('unlock'); shakeWheel(); locks = w.locks; drawWheel(wheelRot, locks); $('wheelTier').textContent = `TIER ${w.tier} · ${locks.length ? locks.length + ' LOCKED' : 'ALL UNLOCKED'}`; $('wheelMsg').textContent = 'LOCKS SMASHED!'; FX.sparks(innerWidth / 2, innerHeight / 2, 60, '#ffd84a'); await sleep(900); }
     $('wheelMsg').textContent = 'TAP SPIN'; hub.disabled = false;
     await new Promise(r => { let fired = false; const go = () => { if (fired) return; fired = true; hub.disabled = true; hub.onclick = null; $('wheelWrap').onclick = null; r(); }; hub.onclick = go; $('wheelWrap').onclick = go; setTimeout(go, 7000 * SPD()); });
-    $('wheelMsg').textContent = ''; A.play('whoosh');
+    clearInterval(idleAnim); $('wheelMsg').textContent = ''; A.play('whoosh');
     const n = M.WHEEL.length, a = Math.PI * 2 / n, target = -w.idx * a + (Math.random() - .5) * a * .5, cur = wheelRot % (Math.PI * 2); let delta = target - cur; while (delta < 0) delta += Math.PI * 2; delta += Math.PI * 2 * 5;
     const T = (quick ? 1200 : 4600) * SPD(), t0 = performance.now(), from = wheelRot; let lastSeg = -1;
     await new Promise(r => { const step = now => { const u = Math.min(1, (now - t0) / T), e = 1 - Math.pow(1 - u, 4); wheelRot = from + delta * e; drawWheel(wheelRot, locks); const seg = Math.floor((wheelRot + a / 2) / a); if (seg !== lastSeg) { lastSeg = seg; A.play('wheelTick'); } if (u < 1) requestAnimationFrame(step); else r(); }; requestAnimationFrame(step); });
@@ -244,7 +285,7 @@ function wheel(tier, F) { return new Promise(async (resolveWheel) => {
     else { $('wheelMsg').textContent = w.wedge.label + '!'; A.play('turbo'); }
     fxs({ kind: 'wheel', idx: w.idx, id: w.wedge.id, locked: w.locked });
     await sleep(1700); clearInterval(blink);
-  } finally { if (!finished) { finished = true; clearTimeout(safety); box.classList.add('hidden'); A.music(false); resolveWheel(w); } }
+  } finally { clearInterval(idleAnim); if (!finished) { finished = true; clearTimeout(safety); box.classList.add('hidden'); A.music(false); resolveWheel(w); } }
 }); }
 function shakeWheel() { const e = $('wheelWrap'); e.classList.remove('shakeX'); void e.offsetWidth; e.classList.add('shakeX'); }
 // ---------------- free spins ----------------
