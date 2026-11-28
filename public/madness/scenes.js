@@ -46,7 +46,7 @@
       const w = Math.min(W * .3, laneH * 2.3);
       for (let i = 0; i < 4; i++) { const y = top + (i + 1) * laneH - laneH * .12, x = worldX(st.prog[i]) + (st.phase === 'race' ? Math.sin(now / 90 + i) * 1.5 : 0); const mine = i === st.pick;
         F().drawCar(g, RACERS[i].k, x, y, w, { flame: st.phase === 'race' && (st.boost && st.boost[i]) ? 1.6 : st.phase === 'race' ? .6 : 0, glow: mine ? '#ffd84a' : null });
-        g.fillStyle = RACERS[i].c; g.font = `900 ${Math.round(laneH * .2)}px Russo,sans-serif`; g.textAlign = 'center'; g.fillText((mine ? '★ YOU ' : '') + RACERS[i].name, x, y - w * .36);
+        g.fillStyle = RACERS[i].c; g.font = `900 ${Math.round(laneH * .2)}px Russo,sans-serif`; g.textAlign = 'center'; { const lab = (mine ? '★ YOU · ' : '') + RACERS[i].name, tw = g.measureText(lab).width; g.fillText(lab, Math.max(tw / 2 + 6, Math.min(W - tw / 2 - 6, x)), y - w * .36); }
         if (st.places && st.phase === 'done') { g.fillStyle = '#ffd84a'; g.font = `900 ${Math.round(laneH * .32)}px Russo,sans-serif`; g.fillText(ORD[st.places[i]], x + w * .62, y - w * .12); } }
       // speed lines
       if (st.phase === 'race') { g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 2; for (let i = 0; i < 14; i++) { const y = rnd(top, bot), x = rnd(0, W); g.beginPath(); g.moveTo(x, y); g.lineTo(x + rnd(40, 120), y); g.stroke(); } }

@@ -2,23 +2,25 @@
 // modes, gear up, rally, S-AWC, PHEV charge full/surge, wheel jackpots), cash out; layout checks at phone (412x915) and iPad Pro portrait.
 // Run: PORT=3490 node server.js ; MADNESS_URL=http://localhost:3490 node test/madness-ui.js   (SHOTS=dir to save screenshots)
 const P = require('puppeteer-core'), assert = require('assert'), BASE = process.env.MADNESS_URL || 'http://localhost:3490', SHOTS = process.env.SHOTS || '';
+const TAG = process.env.IPAD ? 'ipad' : 'phone';
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const FORCES = (process.env.FORCES || 'win,big,mega,madness,wild,drift,almost,meter,jackpot,wheel3,wheel4,wheel5,revup,locked,turbo,nitro,madspins,gearup,rally,rally1,offroad,summit,rescue,charge,full72,surge,wcharge,mini,minor,major,grandwheel').split(',');
 (async () => {
   const b = await P.launch({ protocolTimeout: 600000, executablePath: process.env.CHROME || '/usr/bin/google-chrome', args: ['--no-sandbox', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'] });
   const p = await b.newPage(), errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text()); });
-  await p.setViewport({ width: 412, height: 915, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  await p.setViewport({ width: process.env.IPAD ? 1024 : 412, height: process.env.IPAD ? 1366 : 915, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
   const speed = process.env.SPEED || '0.3';
   await p.goto(BASE + '/madness?debug=1&speed=' + speed, { waitUntil: 'load' }); await p.evaluate(() => localStorage.clear()); await p.reload({ waitUntil: 'load' });
   const idle = (t = 150000) => p.waitForFunction(() => window.G && !G.busy, { timeout: t }), cents = () => p.evaluate(() => G.st.cents);
   await idle(); assert.strictEqual(await cents(), 0, 'starts empty');
+  if (SHOTS) await p.evaluate(() => { document.getElementById('dbg').style.display = 'none'; }); // clean screenshots
   await p.mouse.click(200, 200);
   // layout: everything on screen, no horizontal overflow
   const lay = await p.evaluate(() => { const r = id => { const q = document.getElementById(id).getBoundingClientRect(); return { top: q.top, bottom: q.bottom, left: q.left, right: q.right, width: q.width, height: q.height }; }; return { spin: r('spinBtn'), frame: r('frame'), bar: r('bar'), vw: innerWidth, vh: innerHeight, sw: document.documentElement.scrollWidth }; });
   assert.ok(lay.spin.bottom <= lay.vh + 1 && lay.frame.right <= lay.vw + 1 && lay.sw <= lay.vw + 1, 'phone layout fits ' + JSON.stringify(lay));
   await p.click('#billBtn'); await p.waitForFunction(() => G.st.cents === 10000 && !G.busy, { timeout: 30000 }); console.log('bill ok');
   await p.click('#betUp'); assert.strictEqual(await p.evaluate(() => G.st.bet), 1); await p.click('#betDn');
-  if (SHOTS) await p.screenshot({ path: SHOTS + '/main-reels-phone.png' });
+  if (SHOTS) await p.screenshot({ path: SHOTS + '/main-reels-' + TAG + '.png' });
   for (let i = 0; i < 6; i++) { const c0 = await cents(); await p.click('#spinBtn'); await wait(60); await idle(); const c1 = await cents(); assert.ok(c1 >= c0 - 100, 'spin debits at most the bet'); }
   console.log('6 plain spins ok, credits ' + (await cents()) / 100);
   const results = [];
@@ -26,12 +28,12 @@ const FORCES = (process.env.FORCES || 'win,big,mega,madness,wild,drift,almost,me
     const c0 = await cents(); await p.evaluate(k => { window.__madFx = []; window.__chargeDone = null; window.__offroadDone = false; G.force(k); }, k);
     const t0 = Date.now(); await p.click('#spinBtn');
     // screenshots mid-feature
-    if (SHOTS && k === 'madness') { await p.waitForFunction(() => !document.getElementById('big').classList.contains('hidden'), { timeout: 60000 }); await wait(900); await p.screenshot({ path: SHOTS + '/big-win-phone.png' }); }
-    if (SHOTS && k === 'full72') { await p.waitForFunction(() => !document.getElementById('scene').classList.contains('hidden'), { timeout: 60000 }); await wait(2500); await p.screenshot({ path: SHOTS + '/phev-charge-phone.png' }); await p.waitForFunction(() => window.__chargeDone, { timeout: 90000 }); await wait(300); await p.screenshot({ path: SHOTS + '/phev-full-charge-phone.png' }); }
-    if (SHOTS && k === 'rally1') { await p.waitForSelector('#sceneBtns .sbtn.car', { timeout: 60000 }); await wait(400); await p.screenshot({ path: SHOTS + '/rally-pick-phone.png' }); await p.click('#sceneBtns .sbtn.car:nth-child(4)'); await p.waitForFunction(() => /GO/.test(document.getElementById('sceneSub').textContent), { timeout: 30000 }); await wait(900); await p.screenshot({ path: SHOTS + '/rally-race-phone.png' }); }
-    if (SHOTS && k === 'summit') { await p.waitForSelector('#sceneBtns .sbtn', { timeout: 60000 }); await wait(500); await p.screenshot({ path: SHOTS + '/offroad-phone.png' }); }
-    if (SHOTS && k === 'turbo') { await p.waitForFunction(() => !document.getElementById('wheelBox').classList.contains('hidden'), { timeout: 60000 }); await wait(400); await p.screenshot({ path: SHOTS + '/wheel-phone.png' }); }
-    if (SHOTS && k === 'madspins') { await p.waitForFunction(() => !document.getElementById('modeHud').classList.contains('hidden'), { timeout: 60000 }); await wait(1200); await p.screenshot({ path: SHOTS + '/madness-spins-phone.png' }); }
+    if (SHOTS && k === 'madness') { await p.waitForFunction(() => !document.getElementById('big').classList.contains('hidden'), { timeout: 60000 }); await wait(900); await p.screenshot({ path: SHOTS + '/big-win-' + TAG + '.png' }); }
+    if (SHOTS && k === 'full72') { await p.waitForFunction(() => !document.getElementById('scene').classList.contains('hidden'), { timeout: 60000 }); await wait(2500); await p.screenshot({ path: SHOTS + '/phev-charge-' + TAG + '.png' }); await p.waitForFunction(() => window.__chargeDone, { timeout: 90000 }); await wait(300); await p.screenshot({ path: SHOTS + '/phev-full-charge-' + TAG + '.png' }); }
+    if (SHOTS && k === 'rally1') { await p.waitForSelector('#sceneBtns .sbtn.car', { timeout: 60000 }); await wait(400); await p.screenshot({ path: SHOTS + '/rally-pick-' + TAG + '.png' }); await p.click('#sceneBtns .sbtn.car:nth-child(4)'); await p.waitForFunction(() => /GO/.test(document.getElementById('sceneSub').textContent), { timeout: 30000 }); await wait(900); await p.screenshot({ path: SHOTS + '/rally-race-' + TAG + '.png' }); }
+    if (SHOTS && k === 'summit') { await p.waitForSelector('#sceneBtns .sbtn', { timeout: 60000 }); await wait(500); await p.screenshot({ path: SHOTS + '/offroad-' + TAG + '.png' }); }
+    if (SHOTS && k === 'turbo') { await p.waitForFunction(() => !document.getElementById('wheelBox').classList.contains('hidden'), { timeout: 60000 }); await wait(400); await p.screenshot({ path: SHOTS + '/wheel-' + TAG + '.png' }); }
+    if (SHOTS && k === 'madspins') { await p.waitForFunction(() => !document.getElementById('modeHud').classList.contains('hidden'), { timeout: 60000 }); await wait(1200); await p.screenshot({ path: SHOTS + '/madness-spins-' + TAG + '.png' }); }
     await idle(200000);
     const st = await p.evaluate(() => ({ fx: window.__madFx.map(f => f.kind + (f.feat ? ':' + f.feat : '') + (f.id ? ':' + f.id : '')), cine: !document.getElementById('cine').classList.contains('hidden'), scene: !document.getElementById('scene').classList.contains('hidden'), wbox: !document.getElementById('wheelBox').classList.contains('hidden'), splash: !document.getElementById('splash').classList.contains('hidden'), big: !document.getElementById('big').classList.contains('hidden'), errs: window.__spinErrors || 0, cap: window.__sceneCap || 0, charge: window.__chargeDone, feat: window.__lastFeature && { kind: window.__lastFeature.kind, win: window.__lastFeature.win, km: window.__lastFeature.km, full: window.__lastFeature.full, place: window.__lastFeature.place, summit: window.__lastFeature.summit, mode: window.__lastFeature.finalMode, gear: !!window.__lastFeature.gearUp }, wheel: window.__lastWheel && { id: window.__lastWheel.wedge.id, locked: window.__lastWheel.locked, rev: window.__lastWheel.revUp } }));
     const c1 = await cents(), won = (c1 - c0 + 100) / 100;
@@ -61,7 +63,7 @@ const FORCES = (process.env.FORCES || 'win,big,mega,madness,wild,drift,almost,me
   // cash out
   await p.click('#cashBtn'); await p.waitForFunction(() => G.st.cents === 0 && !G.busy, { timeout: 30000 }); assert.ok(await p.evaluate(() => !document.getElementById('ticket').classList.contains('hidden')), 'ticket printed'); console.log('cash out ok');
   // attract mode
-  await p.evaluate(() => __attract.enter()); await wait(400); assert.ok(await p.evaluate(() => __attract.on), 'attract on'); if (SHOTS) await p.screenshot({ path: SHOTS + '/attract-phone.png' }); await p.mouse.click(200, 300); await wait(200); assert.ok(!(await p.evaluate(() => __attract.on)), 'tap exits attract');
+  await p.evaluate(() => __attract.enter()); await wait(400); assert.ok(await p.evaluate(() => __attract.on), 'attract on'); if (SHOTS) await p.screenshot({ path: SHOTS + '/attract-' + TAG + '.png' }); await p.mouse.click(200, 300); await wait(200); assert.ok(!(await p.evaluate(() => __attract.on)), 'tap exits attract');
   // iPad Pro portrait
   await p.setViewport({ width: 1024, height: 1366, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }); await wait(900);
   const lay2 = await p.evaluate(() => { const r = id => { const q = document.getElementById(id).getBoundingClientRect(); return { top: q.top, bottom: q.bottom, left: q.left, right: q.right, width: q.width, height: q.height }; }; return { spin: r('spinBtn'), frame: r('frame'), vw: innerWidth, vh: innerHeight, sw: document.documentElement.scrollWidth }; });

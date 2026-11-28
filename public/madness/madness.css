@@ -106,14 +106,14 @@ button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulat
 #cine { z-index: 60; background: #000; opacity: 0; transition: opacity .25s; }
 #cine.show { opacity: 1; }
 #cineCv { position: absolute; inset: 0; width: 100%; height: 100%; }
-#cineTitle { position: absolute; left: 0; right: 0; top: 40%; text-align: center; font: 400 calc(46px * var(--k)) Russo, sans-serif; color: #fff; transform: skewX(-10deg); text-shadow: 0 4px 0 #000, 0 0 30px var(--cineC, #ff2040); letter-spacing: .02em; padding: 0 8px; }
+#cineTitle { position: absolute; left: 0; right: 0; top: 40%; text-align: center; font: 400 min(calc(46px * var(--k)), calc(var(--appW) * .095)) Russo, sans-serif; color: #fff; transform: skewX(-10deg); text-shadow: 0 4px 0 #000, 0 0 30px var(--cineC, #ff2040); letter-spacing: .02em; padding: 0 8px; }
 #cineSub { position: absolute; left: 0; right: 0; top: calc(40% + 60px * var(--k)); text-align: center; font: 800 italic calc(20px * var(--k)) Barlow, sans-serif; color: var(--cineC, #ffd84a); letter-spacing: .12em; }
 #cine.show #cineTitle { animation: slam .5s cubic-bezier(.2, 1.6, .4, 1) both .25s; } #cine.show #cineSub { animation: slam .5s cubic-bezier(.2, 1.6, .4, 1) both .55s; }
 @keyframes slam { from { transform: skewX(-10deg) scale(3); opacity: 0; } to { transform: skewX(-10deg) scale(1); opacity: 1; } }
 #big { z-index: 45; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle, rgba(60,0,10,.75), rgba(0,0,0,.92)); }
 #big .burst { position: absolute; width: 160vmax; height: 160vmax; left: 50%; top: 45%; margin: -80vmax 0 0 -80vmax; background: repeating-conic-gradient(rgba(255,200,0,.18) 0 8deg, transparent 8deg 18deg); animation: rot 12s linear infinite; }
 @keyframes rot { to { transform: rotate(360deg); } }
-#bigTitle { position: relative; font: 400 calc(54px * var(--k)) Russo, sans-serif; transform: skewX(-10deg); background: linear-gradient(#fff7a0, #ffc400 45%, #ff3a1a); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 4px 0 #3a0008) drop-shadow(0 0 20px #ff6a00); animation: slam .6s cubic-bezier(.2, 1.6, .4, 1) both; text-align: center; }
+#bigTitle { position: relative; font: 400 min(calc(54px * var(--k)), calc(var(--appW) * .1)) Russo, sans-serif; padding: 0 4%; transform: skewX(-10deg); background: linear-gradient(#fff7a0, #ffc400 45%, #ff3a1a); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 4px 0 #3a0008) drop-shadow(0 0 20px #ff6a00); animation: slam .6s cubic-bezier(.2, 1.6, .4, 1) both; text-align: center; }
 #bigAmt { position: relative; font: 400 calc(48px * var(--k)) Russo, sans-serif; color: #fff; text-shadow: 0 0 20px #ffb000, 0 3px 0 #000; margin-top: 6px; }
 #bigSub { position: relative; font: 800 italic calc(18px * var(--k)) Barlow, sans-serif; color: #ffd84a; margin-top: 4px; text-align: center; padding: 0 12px; }
 #big small { position: relative; margin-top: 18px; opacity: .7; animation: blink 1s steps(2) infinite; }
