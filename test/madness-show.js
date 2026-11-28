@@ -27,6 +27,12 @@ const SIZES = { phone: [412, 915, 3.5], ipad: [1024, 1366, 2] }; const wait = ms
       const after = await p.evaluate(() => ({ c: G.st.cents, w: window.__winCycle.total }));
       assert.strictEqual(after.c, before - 2500 + Math.round(after.w * 50 * 25), 'cents debit/credit follow denom x credits'); // win units x 50 credits x 25¢
       assert.strictEqual(await p.$eval('#mWin', e => e.textContent), String(Math.round(after.w * 50)), 'WIN meter in credits');
+      // t121u: WIN box shows the $ amount under the credits (like BET), live through the count-up/cycle, $0.00 with no win
+      assert.strictEqual(await p.$eval('#mWinD', e => e.textContent), '$' + (Math.round(after.w * 50 * 25) / 100).toFixed(2), 'WIN $ line');
+      await p.evaluate(() => { window.__winPairs = []; window.__wp = setInterval(() => __winPairs.push([mWin.textContent, mWinD.textContent]), 40); G.force('multi'); }); await p.click('#spinBtn');
+      await wait(30); assert.strictEqual(await p.$eval('#mWinD', e => e.textContent), '$0.00', 'WIN $ resets to $0.00 on spin'); await idle(); await wait(500);
+      const pairs = await p.evaluate(() => { clearInterval(__wp); return __winPairs; }); const bad = pairs.filter(([c, d]) => Math.abs(+c.replace(/,/g, '') * 25 / 100 - +d.replace(/[$,]/g, '')) > 0.26);
+      assert.ok(pairs.length > 10 && new Set(pairs.map(p => p[1])).size >= 2 && !bad.length, 'WIN $ tracks credits live ' + JSON.stringify(bad.slice(0, 3)));
       await p.evaluate(() => { G.setDenom(1); G.setBet(0); }); console.log(tag, 'bottom bar ok (denoms, credits, bet $, win credits)');
       // ---- t117u top display ----
       await p.click('#spinBtn'); await idle(); await wait(1500);   // settle

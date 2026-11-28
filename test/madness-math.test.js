@@ -81,3 +81,17 @@ test('t115u: 243-ways evaluator matches brute-force line enumeration; win cells 
       for (let r = 0; r < w.len; r++) assert.ok(w.cells.some(([rr]) => rr === r), 'every reel up to the way length has a highlighted tile'); }
   }
 });
+
+test('t122u: every payout scales exactly with the bet (ways, wilds/mults, drift, wheel credits/locks, jackpots, free spins, rally, S-AWC, PHEV charge = km x bet)', () => {
+  const near = (a, b) => Math.abs(a - b) < 1e-6 * Math.max(1, Math.abs(b));
+  // same seed at bet 1 and bet b must give the same outcome scaled by b
+  for (const b of M.BETS) {
+    for (let seed = 1; seed <= 4000; seed++) { const r1 = M.spin(1, M.mulberry32(seed)), rb = M.spin(b, M.mulberry32(seed));
+      assert.ok(near(rb.win, r1.win * b), `spin seed ${seed} bet ${b}: ${rb.win} vs ${r1.win * b}`); }
+    for (const tier of [1, 2, 3]) for (let seed = 1; seed <= 300; seed++) { const w1 = M.spinWheel(1, M.mulberry32(seed), tier), wb = M.spinWheel(b, M.mulberry32(seed), tier); assert.ok(near(wb.win, w1.win * b), `wheel t${tier} s${seed}`); }
+    for (const feat of ['turbo', 'nitro', 'madness', 'rally', 'offroad', 'charge']) for (let seed = 1; seed <= 150; seed++) { const f1 = M.feature(1, M.mulberry32(seed), feat), fb = M.feature(b, M.mulberry32(seed), feat);
+      assert.ok(near(fb.win, f1.win * b), `${feat} seed ${seed} bet ${b}: ${fb.win} vs ${f1.win * b}`); if (feat === 'charge') assert.ok(near(fb.win, fb.km * b), 'charge = km x bet'); }
+    const full = M.feature(b, M.mulberry32(9), 'charge', { forceFull: true }); assert.ok(full.km === 72 && near(full.win, 72 * b), 'full charge = 72x bet');
+    for (const id of ['mini', 'minor', 'major', 'grand']) assert.ok(M.JP[id] > 0);
+  }
+});

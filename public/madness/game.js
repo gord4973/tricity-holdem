@@ -45,7 +45,7 @@ addEventListener('resize', layout); addEventListener('orientationchange', () => 
 document.fonts && document.fonts.ready.then(layout);
 // ---------------- meters ----------------
 const disp = { cents: st.cents, win: 0 };
-function meters() { window.__denom = st.denom; $('mCash').textContent = money(disp.cents); $('mCred').textContent = Math.floor(disp.cents / st.denom).toLocaleString(); $('mBet').textContent = betCr(); $('mBetD').textContent = money(betCents()); $('mWin').textContent = cr(disp.win).toLocaleString(); $('denomTxt').textContent = denomTxt(st.denom);
+function meters() { window.__denom = st.denom; $('mCash').textContent = money(disp.cents); $('mCred').textContent = Math.floor(disp.cents / st.denom).toLocaleString(); $('mBet').textContent = betCr(); $('mBetD').textContent = money(betCents()); $('mWin').textContent = cr(disp.win).toLocaleString(); $('mWinD').textContent = money(toCents(disp.win)); $('denomTxt').textContent = denomTxt(st.denom);
   const b = bet(); $('jpG').textContent = usd(M.JP.grand * b); $('jpJ').textContent = usd(M.JP.major * b); $('jpN').textContent = usd(M.JP.minor * b); $('jpM').textContent = usd(M.JP.mini * b);
   $('betDn').disabled = $('betUp').disabled = $('maxBtn').disabled = $('denomBtn').disabled = busy; $('cashBtn').disabled = busy || st.cents <= 0; $('billBtn').disabled = busy;
   const p = Math.round((st.meter || 0) / M.METER_MAX * 100); $('meterFill').style.width = p + '%'; $('meterPct').textContent = p + '%'; try { SH.meter(p / 100); } catch (e) {} }
@@ -144,6 +144,7 @@ async function spin() {
   } catch (e) { console.error('madness spin error', e); window.__spinErrors = (window.__spinErrors || 0) + 1; glog('spin-error', { msg: String(e && e.message || e).slice(0, 200) });
     recoverScreen(); total = Math.max(total, window.__bonusWin || 0, disp.win || 0); }
   window.__bonusWin = 0;
+  window.__lastSpin = { units: total, credits: total * CPU, cents: toCents(total), bet: bet(), betCr: betCr(), betCents: betCents(), denom: st.denom }; // t122u test hook
   if (total > 0) { st.cents += toCents(total); st.lastWin = total; save(); await roll('cents', st.cents, 600, false); }
   $('spinBtn').classList.remove('stop'); $('spinBtn').textContent = 'SPIN'; busy = false; quick = false; meters(); idleKick();
   if (st.cents < betCents() && st.cents > 0) toast('Low on credits — insert another bill or lower the bet');
@@ -182,7 +183,8 @@ function showWay(res, i, total) { const wb = $('winBanner'), ws = res.ways, w = 
 function showAllWins(res, win) { markWins(res); const wb = $('winBanner'); wb.style.removeProperty('--wc'); wb.innerHTML = res.ways.length > 1 ? `${res.ways.length} WINS · TOTAL ${fmt(win)}` : wayLabel(res.ways[0], res); wb.classList.remove('hidden'); }
 async function resolve(res, mode) {
   stopWinCycle(); const n = markWins(res); let win = res.win;
-  if (res.jackpot) { await jackpotWin('grand', res.jackpot.win, 'FIVE OUTLANDER PHEVs ON THE CENTRE ROW'); return win; }
+  if (res.jackpot) { await jackpotWin('grand', res.jackpot.win, 'FIVE OUTLANDER PHEVs ON THE CENTRE ROW'); const rest = win - res.jackpot.win; // t122u: the 5 PHEVs also pay their ways win on top - show it in WIN too
+    if (rest > 1e-9) { showAllWins(res, win); await roll('win', disp.win + rest, 600, true); } return win; }
   if (win > 0) { const ways = res.ways.slice().sort((a, b) => b.pay - a.pay); res = Object.assign({}, res, { ways }); A.play('win', ways.length); $('frame').classList.add('winning');
     const cyc = winCyc = { res, i: 0, labels: ways.map(w => wayLabel(w, res)), total: win, timer: 0, dead: false }; window.__winCycle = { n: ways.length, labels: cyc.labels, pays: ways.map(w => w.pay * (res.prog || 1)), total: win };
     showAllWins(res, win); fxs({ kind: 'winways', n: ways.length });
