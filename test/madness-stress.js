@@ -24,7 +24,7 @@ const TAPS = ['none', 'impatient', 'mash', 'spin'];
         try { if (tap === 'impatient') await p.mouse.click(206, 300 + Math.random() * 300);
           else if (tap === 'mash') { await p.evaluate(() => { const bs = [...document.querySelectorAll('#sceneBtns button, #wheelHub, #startBtn')].filter(b => b.offsetParent); for (const b of bs) { b.click(); b.click(); } }); }
           else if (tap === 'spin') await p.evaluate(() => document.getElementById('spinBtn').click()); } catch (e) {} } })();
-    await p.waitForFunction(() => !G.busy, { timeout: 240000, polling: 200 }).catch(() => {}); done = true; await tapper;
+    await p.waitForFunction(() => !G.busy, { timeout: 240000, polling: 200 }).catch(() => {}); done = true; await tapper; await p.waitForFunction(() => !G.busy, { timeout: 240000, polling: 200 }).catch(() => {}); // a late 'spin' tap may legitimately start one more spin
     const s = await p.evaluate(() => ({ busy: G.busy, over: ['cine', 'scene', 'wheelBox', 'splash', 'big'].filter(id => !document.getElementById(id).classList.contains('hidden')), errs: window.__spinErrors || 0, cap: window.__sceneCap || 0, wsafe: window.__wheelSafety || 0, dark: __dark.max, cents: G.st.cents }));
     const secs = (Date.now() - t0) / 1000; maxBusy = Math.max(maxBusy, secs);
     console.log(`${String(i).padStart(3)} ${String(kind).padEnd(10)} ${tap.padEnd(9)} ${secs.toFixed(1).padStart(5)}s  credits ${(s.cents / 100).toFixed(2)}  dark ${Math.round(s.dark)}ms`);
